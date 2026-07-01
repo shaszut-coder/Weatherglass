@@ -2,6 +2,53 @@
 
 All notable changes to Weatherglass are documented here.
 
+## [2.5.0]
+
+### Added
+- **Quick Log button (⚡)** — a steel-blue pill button centered above
+  the tabs, visible on every tab. One tap silently grabs your
+  location, fetches current weather from Open-Meteo, calculates moon
+  phase, tags time of day, and saves a Routine entry timestamped
+  right now. No form, no decisions. Open Journal to review or add
+  notes afterward. Falls back gracefully if location or weather fetch
+  fails — the entry still saves.
+- **Pressure Watch card** — always-visible card at the top of the
+  Trends tab comparing the two most recent pressure readings. Uses
+  the standard 0.06 inHg/hour threshold to detect rapid drops
+  (storm/weather change signal) or rapid rises (clearing signal).
+  Shows a placeholder explaining what it needs if readings are
+  missing or too far apart, rather than hiding silently.
+- **"On this day" strip** — top of the Journal tab, surfaces any
+  entries logged on this exact month+day in previous years. Strict
+  year-over-year only (true almanac feel). Hides cleanly when
+  nothing matches. Entries shown as compact brass-tinted cards,
+  tapping opens the full detail view.
+- **Barometer dial home-screen icon** — an `apple-touch-icon` tag
+  with a custom dial matching the app's steel/brass palette, embedded
+  as a base64 data URI so no separate image file is needed.
+  `apple-mobile-web-app-capable` tags also added so adding to the
+  home screen opens full-screen without Safari's address bar.
+- **Logo in masthead** — the barometer dial also appears next to the
+  "Weatherglass" title in the app header.
+
+### Changed
+- Cloud photo identification (AI) removed — the feature required an
+  Anthropic API key in the deployed environment which isn't available
+  in a no-backend single-file app. Noted for future revisit via
+  option 1 (user-supplied key) or option 2 (backend proxy).
+
+## [2.4.1]
+
+### Added
+- A proper home-screen icon (barometer dial, matching the app's
+  blue/grey/brass palette), embedded directly in `index.html` as a
+  data URI — no separate image file needed. Previously, "Add to
+  Home Screen" fell back to a plain gray square with the page
+  title's first letter, since no `apple-touch-icon` was defined.
+- `apple-mobile-web-app-capable` and related meta tags, so adding
+  Weatherglass to the home screen opens it full-screen without
+  Safari's address bar/chrome, feeling closer to a real app.
+
 ## [2.4.0]
 
 ### Added
