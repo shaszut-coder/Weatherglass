@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Weatherglass — personal weather station & log
-  Version: 2.5.0
+  Version: 2.6.0
 
   Single-file app: no build step, no backend. Data lives in the
   visitor's own browser via localStorage.
@@ -576,24 +576,32 @@
     <button type="button" id="storageWarningDismiss" style="background:none; border:none; color:var(--brass); text-decoration:underline; cursor:pointer; font-family:inherit; font-size:inherit; flex-shrink:0;">dismiss</button>
   </div>
 
-  <div style="display:flex; justify-content:center; margin-bottom:8px;">
-    <button type="button" id="quickLogBtn" title="Quick Log — tap to instantly save current conditions" style="background:var(--steel); border:1.5px solid var(--ink); border-radius:999px; padding:10px 28px; font-size:22px; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px rgba(0,0,0,0.15);">⚡</button>
-  </div>
-  <div id="quickLogStatus" style="display:none; font-family:'IBM Plex Mono', monospace; font-size:11.5px; color:var(--ink-soft); text-align:center; margin:-4px 0 8px;"></div>
-
   <nav class="tabs" role="tablist">
     <button class="tab-btn active" data-tab="entry">Record</button>
     <button class="tab-btn" data-tab="log">Journal</button>
     <button class="tab-btn" data-tab="trends">Trends</button>
     <button class="tab-btn" data-tab="map">Map</button>
+    <button class="tab-btn" data-tab="settings">Settings</button>
   </nav>
 
   <!-- NEW ENTRY -->
   <section class="panel active" id="panel-entry">
     <h2 class="section-title" id="entrySectionTitle">Record a Reading</h2>
-    <div id="editBanner" style="display:none; margin-bottom:14px; font-family:'IBM Plex Mono', monospace; font-size:12.5px; color:var(--brass); border:1.5px solid var(--brass); border-radius:4px; padding:8px 12px; display:flex; justify-content:space-between; align-items:center; gap:10px;">
-      <span id="editBannerText">Editing an existing entry.</span>
-      <button type="button" class="icon-btn" id="cancelEditBtn">cancel edit</button>
+
+    <!-- Edit mode header — replaces the old small banner, hidden in create mode -->
+    <div id="editModeHeader" style="display:none; background:rgba(138,106,61,0.10); border:1.5px solid var(--brass); border-radius:6px; padding:14px 16px; margin-bottom:18px;">
+      <div style="font-family:'IBM Plex Mono', monospace; font-size:10.5px; text-transform:uppercase; letter-spacing:0.6px; color:var(--brass); margin-bottom:4px;">✏ Editing entry</div>
+      <div id="editBannerText" style="font-family:'Source Serif 4', serif; font-size:14px; color:var(--ink); margin-bottom:10px;"></div>
+      <button type="button" class="btn secondary" id="cancelEditBtn" style="width:100%;">Cancel — discard changes &amp; return to new entry</button>
+    </div>
+    <!-- Hidden legacy anchor kept for JS compat -->
+    <div id="editBanner" style="display:none;"></div>
+
+    <div style="display:flex; justify-content:center; margin-bottom:18px;">
+      <div style="text-align:center;">
+        <button type="button" id="quickLogBtn" title="Quick Log — tap to instantly save current conditions" style="background:var(--steel); border:1.5px solid var(--ink); border-radius:999px; padding:10px 28px; font-size:22px; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px rgba(0,0,0,0.15);">⚡</button>
+        <div id="quickLogStatus" style="display:none; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-top:6px; text-align:center;"></div>
+      </div>
     </div>
     <form id="entryForm">
       <div class="grid-form">
@@ -693,6 +701,14 @@
           <label for="f-precip">Precipitation (in)</label>
           <input id="f-precip" type="number" step="0.01" min="0" placeholder="e.g. 0.25">
         </div>
+        <div class="field">
+          <label for="f-uv-index">UV Index</label>
+          <input id="f-uv-index" type="number" step="0.1" min="0" placeholder="e.g. 7.5">
+        </div>
+        <div class="field">
+          <label for="f-pm25">PM2.5 (µg/m³)</label>
+          <input id="f-pm25" type="number" step="0.1" min="0" placeholder="e.g. 8.4">
+        </div>
         <div class="field wide">
           <label for="f-sky">Sky conditions</label>
           <input id="f-sky" type="text" placeholder="e.g. Overcast, light wind NW">
@@ -735,7 +751,10 @@
           </div>
         </div>
         <div class="field wide">
-          <button type="button" class="btn secondary" id="fetchWeatherBtn">Use current weather</button>
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <button type="button" class="btn secondary" id="fetchWeatherBtn" style="flex:1;">Use current weather</button>
+            <button type="button" class="btn secondary" id="fetchHistoricalBtn" style="flex:1;" title="For entries you're backdating — pulls what conditions were at that time">Fill historical weather</button>
+          </div>
           <div id="weatherStatus" style="display:none; margin-top:6px; font-family:'IBM Plex Mono', monospace; font-size:11.5px; color:var(--ink-soft);"></div>
         </div>
         <div class="field wide" style="border:1px dashed var(--line); border-radius:6px; padding:14px;">
@@ -772,6 +791,34 @@
             <div class="field wide">
               <label for="f-alert-fulltext">Full alert text (optional)</label>
               <textarea id="f-alert-fulltext" placeholder="Full NWS alert wording appears here after checking, if any alerts are active" style="min-height:80px;"></textarea>
+            </div>
+          </div>
+        </div>
+        <div class="field wide" id="tidesBlock" style="display:none; border:1px dashed var(--line); border-radius:6px; padding:14px;">
+          <label style="margin-bottom:10px;">Tides (US coastal locations)</label>
+          <div style="font-family:'Source Serif 4', serif; font-style:italic; font-size:12px; color:var(--ink-soft); margin:-4px 0 10px;">
+            Fetches today's tide predictions from NOAA for the nearest coastal station.
+          </div>
+          <button type="button" class="btn secondary" id="fetchTidesBtn">Check tide conditions</button>
+          <div id="tidesStatus" style="display:none; margin-top:6px; font-family:'IBM Plex Mono', monospace; font-size:11.5px; color:var(--ink-soft);"></div>
+          <div class="grid-form" style="margin-top:12px;">
+            <div class="field">
+              <label for="f-tide-state">Tide State</label>
+              <select id="f-tide-state">
+                <option value="">—</option>
+                <option>High tide</option>
+                <option>Low tide</option>
+                <option>Rising</option>
+                <option>Falling</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="f-tide-height">Water Level (ft)</label>
+              <input id="f-tide-height" type="number" step="0.01" placeholder="e.g. 1.42">
+            </div>
+            <div class="field wide">
+              <label for="f-tide-next">Next tide</label>
+              <input id="f-tide-next" type="text" placeholder="e.g. High tide at 3:22 PM (2.1 ft)">
             </div>
           </div>
         </div>
@@ -858,7 +905,60 @@
         <option value="asc">Oldest first</option>
       </select>
     </div>
-    <div class="table-toolbar">
+    <div id="tableWrap"></div>
+  </section>
+
+  <!-- TRENDS -->
+  <section class="panel" id="panel-trends">
+    <h2 class="section-title">Trends</h2>
+    <div style="margin-bottom:14px; display:flex; align-items:center; gap:10px;">
+      <label style="font-family:'IBM Plex Mono', monospace; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-soft); white-space:nowrap;">Filter by location</label>
+      <select id="trendsLocationFilter" style="font-family:'Source Serif 4', serif; font-size:14px; padding:7px 10px; border:1px solid var(--line); border-radius:4px; background:var(--glass); flex:1;">
+        <option value="">All locations</option>
+      </select>
+    </div>
+    <div id="pressureWatchCard" style="border:1.5px solid var(--line); border-radius:6px; padding:14px 16px; margin-bottom:22px;">
+      <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; text-transform:uppercase; letter-spacing:0.6px; color:var(--ink-soft); margin-bottom:6px;">Pressure Watch</div>
+      <div id="pressureWatchText" style="font-family:'Source Serif 4', serif; font-size:15px; color:var(--ink);"></div>
+    </div>
+    <h3 class="records-title">Personal Records</h3>
+    <div class="cards records-grid" id="recordsCards"></div>
+    <h3 class="records-title">Insights</h3>
+    <div class="cards records-grid" id="insightCards" style="margin-bottom:22px;"></div>
+    <div class="chart-toggle">
+      <button class="btn secondary" id="chartTempBtn" title="Temperature over time">TOT</button>
+      <button class="btn secondary" id="chartPressureBtn" title="Pressure over time">POT</button>
+      <button class="btn secondary" id="chartHumidityBtn" title="Humidity over time">HOT</button>
+      <button class="btn secondary" id="chartHeatIdxBtn" title="Heat index over time">WIT</button>
+      <button class="btn secondary" id="chartDailyBtn" title="Daily min / avg / max">DMM</button>
+      <button class="btn secondary" id="chartAlertBtn" title="Alert severity over time">AST</button>
+      <button class="btn secondary" id="chartCatBtn" title="Entries by category">EBC</button>
+    </div>
+    <div class="chart-wrap">
+      <h3 class="chart-title" id="chartTitle">Temperature Over Time</h3>
+      <canvas id="trendChart" height="120"></canvas>
+    </div>
+  </section>
+
+  <!-- MAP -->
+  <section class="panel" id="panel-map">
+    <h2 class="section-title">Station Map</h2>
+    <div id="mapStatsBar" style="display:flex; gap:12px; margin-bottom:14px; flex-wrap:wrap;"></div>
+    <div id="map"></div>
+    <p class="sub" style="margin-top:10px; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft);">
+      Pins plot every entry with latitude/longitude. Click a pin to see the reading.
+    </p>
+  </section>
+
+  <!-- SETTINGS -->
+  <section class="panel" id="panel-settings">
+    <h2 class="section-title">Settings</h2>
+
+    <h3 class="records-title">Data &amp; Backup</h3>
+    <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:12px;">
+      Export your entries regularly as a backup. JSON preserves everything including photos. CSV is for analysis in spreadsheets.
+    </div>
+    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px;">
       <button class="btn secondary" id="exportBtn">Export JSON</button>
       <button class="btn secondary" id="exportCsvBtn">Export CSV</button>
       <label class="btn secondary" style="cursor:pointer;">
@@ -868,12 +968,13 @@
     </div>
     <div id="importStatus" style="display:none; font-family:'IBM Plex Mono', monospace; font-size:11.5px; color:var(--ink-soft); margin-bottom:10px;"></div>
     <div id="exportPartsArea" style="margin-bottom:10px;"></div>
-    <div id="storageIndicator" style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:14px;"></div>
+    <div id="storageIndicator" style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:24px;"></div>
 
-    <div style="border:1px dashed var(--line); border-radius:6px; padding:12px 14px; margin-bottom:18px;">
+    <h3 class="records-title">Storage Tools</h3>
+    <div style="border:1px dashed var(--line); border-radius:6px; padding:12px 14px; margin-bottom:14px;">
       <div id="resetStorageDefault">
         <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:8px;">
-          If storage usage looks stuck high after heavy testing, or entries won't load correctly, this rebuilds your storage from scratch using only what currently loads successfully — nothing else is needed first, it backs itself up automatically.
+          If storage usage looks stuck high, or entries won't load correctly, this rebuilds your storage from scratch using only what currently loads successfully — it backs itself up automatically first.
         </div>
         <button type="button" class="btn danger" id="resetStorageBtn">Reset Storage</button>
       </div>
@@ -886,42 +987,49 @@
       </div>
     </div>
 
-    <div id="tableWrap"></div>
-  </section>
+    <h3 class="records-title" style="color:var(--brass);">Danger Zone</h3>
+    <div style="border:1.5px solid rgba(138,106,61,0.35); border-radius:6px; padding:12px 14px; margin-bottom:18px; background:rgba(138,106,61,0.04);">
+      <div id="deleteAllDefault">
+        <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:8px;">
+          Permanently deletes every entry in Weatherglass. This cannot be undone. Make sure you have exported a backup first.
+        </div>
+        <button type="button" class="btn danger" id="deleteAllBtn">Delete All Data</button>
+      </div>
+      <div id="deleteAllStep1" style="display:none;">
+        <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--brass); font-weight:600; margin-bottom:6px;">⚠ Are you sure?</div>
+        <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:10px;">
+          This will permanently erase all <span id="deleteAllCount"></span> entries from this device. There is no undo. Have you exported a backup from the Data &amp; Backup section above?
+        </div>
+        <div style="display:flex; gap:10px;">
+          <button type="button" class="btn secondary" id="deleteAllCancelBtn">Cancel</button>
+          <button type="button" class="btn danger" id="deleteAllStep2Btn">Yes, I have a backup</button>
+        </div>
+      </div>
+      <div id="deleteAllStep2" style="display:none;">
+        <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--brass); font-weight:600; margin-bottom:6px;">⚠ Final confirmation</div>
+        <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:10px;">
+          This is your last chance. Tap the button below to permanently delete all your Weatherglass data.
+        </div>
+        <div style="display:flex; gap:10px;">
+          <button type="button" class="btn secondary" id="deleteAllBackBtn">Go back</button>
+          <button type="button" class="btn danger" id="deleteAllConfirmBtn">Delete everything</button>
+        </div>
+      </div>
+    </div>
 
-  <!-- TRENDS -->
-  <section class="panel" id="panel-trends">
-    <h2 class="section-title">Trends</h2>
-    <div id="pressureWatchCard" style="border:1.5px solid var(--line); border-radius:6px; padding:14px 16px; margin-bottom:22px;">
-      <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; text-transform:uppercase; letter-spacing:0.6px; color:var(--ink-soft); margin-bottom:6px;">Pressure Watch</div>
-      <div id="pressureWatchText" style="font-family:'Source Serif 4', serif; font-size:15px; color:var(--ink);"></div>
+    <h3 class="records-title">About</h3>
+    <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); line-height:1.7;">
+      Stored locally in this browser — nothing leaves your machine.<br>
+      Photos are compressed before saving to keep storage manageable.<br>
+      Cloud classification from <em style="font-family:'Source Serif 4', serif;">The Cloudspotter's Guide</em> by Gavin Pretor-Pinney.<br>
+      Weather alerts via NOAA / National Weather Service (US only).<br>
+      Current conditions via Open-Meteo (free, no API key required).
     </div>
-    <h3 class="records-title">Personal Records</h3>
-    <div class="cards records-grid" id="recordsCards"></div>
-    <div class="chart-toggle">
-      <button class="btn secondary" id="chartTempBtn" title="Temperature over time">TOT</button>
-      <button class="btn secondary" id="chartPressureBtn" title="Pressure over time">POT</button>
-      <button class="btn secondary" id="chartHumidityBtn" title="Humidity over time">HOT</button>
-      <button class="btn secondary" id="chartCatBtn" title="Entries by category">EBC</button>
-    </div>
-    <div class="chart-wrap">
-      <h3 class="chart-title" id="chartTitle">Temperature Over Time</h3>
-      <canvas id="trendChart" height="120"></canvas>
-    </div>
-  </section>
-
-  <!-- MAP -->
-  <section class="panel" id="panel-map">
-    <h2 class="section-title">Station Map</h2>
-    <div id="map"></div>
-    <p class="sub" style="margin-top:10px; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft);">
-      Pins plot every entry with latitude/longitude. Click a pin to see the reading.
-    </p>
+    <div class="version-tag" id="versionTag" style="margin-top:10px;"></div>
   </section>
 
   <footer>
-    Stored locally in this browser — nothing leaves your machine. Photos are compressed before saving to keep storage manageable.
-    <div class="version-tag" id="versionTag"></div>
+    Stored locally in this browser — nothing leaves your machine.
   </footer>
 </div>
 
@@ -974,7 +1082,7 @@
 (function(){
   "use strict";
 
-  const APP_VERSION = "2.5.0";
+  const APP_VERSION = "2.6.0";
   const STORAGE_KEY = "weatherglass.entries.v1";
 
   function showToast(message, kind){
@@ -1245,8 +1353,9 @@
       btn.classList.add("active");
       document.getElementById("panel-"+btn.dataset.tab).classList.add("active");
       if(btn.dataset.tab === "map"){ setTimeout(()=>{ if(map) map.invalidateSize(); }, 50); }
-      if(btn.dataset.tab === "trends"){ renderRecords(); renderPressureWatch(); renderChart(currentChartMode); }
+      if(btn.dataset.tab === "trends"){ populateTrendsLocationFilter(); renderRecords(); renderInsights(); renderPressureWatch(); renderChart(currentChartMode); }
       if(btn.dataset.tab === "log"){ renderOnThisDay(); }
+      if(btn.dataset.tab === "settings"){ refreshStorageIndicator(); }
     });
   });
 
@@ -1263,7 +1372,6 @@
   function renderCards(){
     const total = entries.length;
     const severe = entries.filter(e=>e.level==="Severe").length;
-    const withCoords = entries.filter(e=>e.location && isFinite(e.location.lat) && isFinite(e.location.lng)).length;
     const temps = entries.filter(e=>isFinite(e.tempF)).map(e=>e.tempF);
     const avgTemp = temps.length ? (temps.reduce((a,b)=>a+b,0)/temps.length).toFixed(1) : "—";
 
@@ -1271,7 +1379,6 @@
       { label:"Total Entries", value: total },
       { label:"Severe Weather Logged", value: severe },
       { label:"Avg Temp (°F)", value: avgTemp },
-      { label:"Mapped Locations", value: withCoords },
     ];
     document.getElementById("overviewCards").innerHTML = cards.map(c=>`
       <div class="card">
@@ -1293,13 +1400,39 @@
     </div>`;
   }
   function topByValue(field, dir){
-    const withVal = entries.filter(e=>isFinite(e[field]));
+    const withVal = trendsEntries().filter(e=>isFinite(e[field]));
     if(!withVal.length) return null;
     return withVal.reduce((best, e)=> {
       if(!best) return e;
       return dir === "max" ? (e[field] > best[field] ? e : best) : (e[field] < best[field] ? e : best);
     }, null);
   }
+  // All Trends functions call trendsEntries() instead of `entries` directly
+  // so the location filter applies consistently across every chart/card/stat
+  function trendsEntries(){
+    const val = document.getElementById("trendsLocationFilter")?.value || "";
+    if(!val) return entries;
+    return entries.filter(e => e.location && e.location.name === val);
+  }
+
+  function populateTrendsLocationFilter(){
+    const sel = document.getElementById("trendsLocationFilter");
+    if(!sel) return;
+    const current = sel.value;
+    const names = [...new Set(
+      entries.map(e => e.location?.name).filter(Boolean)
+    )].sort();
+    sel.innerHTML = `<option value="">All locations</option>` +
+      names.map(n=>`<option${n===current?' selected':''}>${escapeHtml(n)}</option>`).join("");
+  }
+
+  document.getElementById("trendsLocationFilter").addEventListener("change", ()=>{
+    renderRecords();
+    renderInsights();
+    renderPressureWatch();
+    renderChart(currentChartMode);
+  });
+
   function renderRecords(){
     const hottest = topByValue("tempF", "max");
     const coldest = topByValue("tempF", "min");
@@ -1318,6 +1451,89 @@
     ].join("");
   }
 
+  // ---------- Heat index (Rothfusz equation) ----------
+  function calcHeatIndex(T, RH){
+    if(!isFinite(T) || !isFinite(RH)) return null;
+    if(T < 80) return T;
+    const hi = -42.379 + 2.04901523*T + 10.14333127*RH - 0.22475541*T*RH
+      - 6.83783e-3*T*T - 5.481717e-2*RH*RH + 1.22874e-3*T*T*RH
+      + 8.5282e-4*T*RH*RH - 1.99e-6*T*T*RH*RH;
+    return Math.round(hi);
+  }
+
+  // ---------- Insights: correlation, comfort threshold, alert severity ----------
+  function renderInsights(){
+    const el = document.getElementById("insightCards");
+    if(!el) return;
+    const cards = [];
+
+    // 1. Temp vs Humidity Pearson r
+    const paired = trendsEntries().filter(e=>isFinite(e.tempF) && isFinite(e.humidity));
+    if(paired.length >= 5){
+      const n = paired.length;
+      const mt = paired.reduce((s,e)=>s+e.tempF,0)/n;
+      const mh = paired.reduce((s,e)=>s+e.humidity,0)/n;
+      const cov = paired.reduce((s,e)=>s+(e.tempF-mt)*(e.humidity-mh),0)/n;
+      const st = Math.sqrt(paired.reduce((s,e)=>s+(e.tempF-mt)**2,0)/n);
+      const sh = Math.sqrt(paired.reduce((s,e)=>s+(e.humidity-mh)**2,0)/n);
+      if(st > 0 && sh > 0){
+        const r = (cov/(st*sh)).toFixed(2);
+        const strength = Math.abs(r) >= 0.7 ? "Strong" : Math.abs(r) >= 0.4 ? "Moderate" : "Weak";
+        const dir = r < 0 ? "inverse" : "direct";
+        cards.push(`<div class="card">
+          <div class="label">Temp / Humidity Correlation</div>
+          <div class="value" style="font-size:22px;">r = ${r}</div>
+          <div class="sub-value">${strength} ${dir} relationship (${n} readings)</div>
+        </div>`);
+      }
+    }
+
+    // 2. Personal comfort threshold (Impression vs Temp)
+    const comfortable = trendsEntries().filter(e=>e.impression==="Comfortable" && isFinite(e.tempF)).map(e=>e.tempF);
+    const uncomfortable = trendsEntries().filter(e=>e.impression==="Uncomfortable" && isFinite(e.tempF)).map(e=>e.tempF);
+    if(comfortable.length >= 2 && uncomfortable.length >= 2){
+      const avgC = (comfortable.reduce((a,b)=>a+b,0)/comfortable.length).toFixed(1);
+      const avgU = (uncomfortable.reduce((a,b)=>a+b,0)/uncomfortable.length).toFixed(1);
+      const threshold = ((parseFloat(avgC)+parseFloat(avgU))/2).toFixed(0);
+      cards.push(`<div class="card">
+        <div class="label">Comfort Threshold</div>
+        <div class="value" style="font-size:22px;">~${threshold}°F</div>
+        <div class="sub-value">Comfortable avg ${avgC}°F · Uncomfortable avg ${avgU}°F</div>
+      </div>`);
+    }
+
+    // 3. Peak heat index ever logged
+    const hiReadings = trendsEntries().filter(e=>isFinite(e.tempF) && isFinite(e.humidity));
+    if(hiReadings.length){
+      const peaks = hiReadings.map(e=>({ hi: calcHeatIndex(e.tempF, e.humidity), e }))
+        .filter(x=>x.hi!=null).sort((a,b)=>b.hi-a.hi);
+      if(peaks.length){
+        const best = peaks[0];
+        cards.push(`<div class="card">
+          <div class="label">Peak Feels Like</div>
+          <div class="value" style="font-size:22px;">${best.hi}°F</div>
+          <div class="sub-value">${escapeHtml(best.e.title)} · ${escapeHtml(formatTs(best.e.timestamp))}</div>
+        </div>`);
+      }
+    }
+
+    // 4. Alert coverage
+    const withAlerts = trendsEntries().filter(e=>e.alertActive==="yes");
+    if(withAlerts.length){
+      const pct = Math.round(withAlerts.length/entries.length*100);
+      const severeCount = withAlerts.filter(e=>e.alertSeverity==="Severe"||e.alertSeverity==="Extreme").length;
+      cards.push(`<div class="card">
+        <div class="label">Alert Coverage</div>
+        <div class="value" style="font-size:22px;">${pct}%</div>
+        <div class="sub-value">${withAlerts.length} entries under alerts · ${severeCount} Severe/Extreme</div>
+      </div>`);
+    }
+
+    el.innerHTML = cards.length
+      ? cards.join("")
+      : `<div class="empty-state">Log more entries with Impression tags and weather data to see insights here.</div>`;
+  }
+
   // ---------- Pressure Watch: rapid-pressure-change indicator ----------
   // Classic aviation/meteorology guidance treats a barometric drop of
   // roughly 0.06 inHg (about 2 hPa) per hour or more as a "rapid" change —
@@ -1334,7 +1550,7 @@
     const textEl = document.getElementById("pressureWatchText");
     card.style.display = "block";
 
-    const withPressure = entries
+    const withPressure = trendsEntries()
       .filter(e => isFinite(e.pressureInHg))
       .slice()
       .sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
@@ -1616,10 +1832,13 @@
     const statusEl = document.getElementById("weatherStatus");
     statusEl.textContent = "Fetching current weather...";
     try{
-      const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,pressure_msl,wind_speed_10m,wind_direction_10m,cloud_cover,precipitation,weather_code&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch`;
-      const res = await fetch(url);
-      if(!res.ok) throw new Error("Weather service unavailable.");
-      const data = await res.json();
+      // Fetch weather + air quality in parallel
+      const [weatherRes, aqRes] = await Promise.all([
+        fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,pressure_msl,wind_speed_10m,wind_direction_10m,cloud_cover,precipitation,weather_code&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch`),
+        fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${latitude}&longitude=${longitude}&current=pm2_5,uv_index`).catch(()=>null)
+      ]);
+      if(!weatherRes.ok) throw new Error("Weather service unavailable.");
+      const data = await weatherRes.json();
       const current = data.current;
       if(!current) throw new Error("No current weather returned.");
 
@@ -1640,6 +1859,16 @@
       const skyText = weatherCodeToText(current.weather_code);
       if(!skyField.value && skyText){ skyField.value = skyText; filled.push("sky conditions"); }
 
+      // Air quality (UV + PM2.5) — fill if available
+      if(aqRes && aqRes.ok){
+        try{
+          const aqData = await aqRes.json();
+          const aqCurrent = aqData.current || {};
+          set("f-uv-index", aqCurrent.uv_index != null ? Math.round(aqCurrent.uv_index*10)/10 : null, "UV index");
+          set("f-pm25", aqCurrent.pm2_5 != null ? Math.round(aqCurrent.pm2_5*10)/10 : null, "PM2.5");
+        }catch(e){ /* air quality parse failed — non-fatal */ }
+      }
+
       if(fillCoords){
         const latField = document.getElementById("f-lat");
         const lngField = document.getElementById("f-lng");
@@ -1655,6 +1884,84 @@
       statusEl.textContent = "Couldn't fetch weather right now. Try again or enter it manually.";
     }
   }
+
+  /* ---------- historical weather (for backdated entries) ---------- */
+  document.getElementById("fetchHistoricalBtn").addEventListener("click", async function(){
+    const statusEl = document.getElementById("weatherStatus");
+    statusEl.style.display = "block";
+
+    const latField = document.getElementById("f-lat");
+    const lngField = document.getElementById("f-lng");
+    const todField = document.getElementById("f-timeofday");
+    const lat = parseFloat(latField.value);
+    const lng = parseFloat(lngField.value);
+
+    if(!isFinite(lat) || !isFinite(lng)){
+      statusEl.textContent = "Enter a latitude and longitude first — historical weather needs a location.";
+      return;
+    }
+
+    // Use Time of Day to pick an approximate hour for the historical lookup
+    const TOD_HOURS = {
+      "Early Morning":5, "Morning":9, "Midday":12,
+      "Afternoon":15, "Evening":19, "Night":21, "Late Night":23
+    };
+    const todVal = todField.value;
+    const hour = TOD_HOURS[todVal] ?? 12;
+
+    // We need a date — get it from the entry's timestamp if editing,
+    // or ask the user to pick a Time of Day and we'll use yesterday as a demo
+    // date. The user can also just enter a specific past date via a prompt.
+    let dateStr;
+    if(editingId){
+      const existing = entries.find(e=>e.id===editingId);
+      dateStr = existing ? existing.timestamp.slice(0,10) : null;
+    }
+    if(!dateStr){
+      // Prompt for a date since we have no timestamp yet
+      const input = prompt("Enter the date for historical weather (YYYY-MM-DD):");
+      if(!input || !/^\d{4}-\d{2}-\d{2}$/.test(input.trim())){
+        statusEl.textContent = "Date format should be YYYY-MM-DD (e.g. 2026-06-29).";
+        return;
+      }
+      dateStr = input.trim();
+    }
+
+    statusEl.textContent = `Fetching historical weather for ${dateStr}…`;
+    try{
+      const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lng}&start_date=${dateStr}&end_date=${dateStr}&hourly=temperature_2m,relative_humidity_2m,pressure_msl,wind_speed_10m,wind_direction_10m,cloud_cover,precipitation,weather_code&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch`;
+      const res = await fetch(url);
+      if(!res.ok) throw new Error("Historical weather service unavailable.");
+      const data = await res.json();
+      const hourly = data.hourly;
+      if(!hourly || !hourly.time) throw new Error("No historical data returned.");
+
+      // Pick the closest hour
+      const idx = Math.min(hour, hourly.time.length - 1);
+      const filled = [];
+      const set = (id, val, label, fmt) => {
+        const field = document.getElementById(id);
+        if(field && !field.value && val != null){ field.value = fmt ? fmt(val) : val; filled.push(label); }
+      };
+      set("f-temp", hourly.temperature_2m?.[idx], "temperature");
+      set("f-humidity", hourly.relative_humidity_2m?.[idx], "humidity");
+      set("f-pressure", hourly.pressure_msl?.[idx], "pressure", v => (v*0.0295300).toFixed(2));
+      set("f-wind", hourly.wind_speed_10m?.[idx], "wind speed");
+      set("f-winddir", hourly.wind_direction_10m?.[idx], "wind direction");
+      set("f-cloud", hourly.cloud_cover?.[idx], "cloud cover");
+      set("f-precip", hourly.precipitation?.[idx], "precipitation");
+      const skyText = weatherCodeToText(hourly.weather_code?.[idx]);
+      const skyField = document.getElementById("f-sky");
+      if(!skyField.value && skyText){ skyField.value = skyText; filled.push("sky conditions"); }
+
+      statusEl.textContent = filled.length
+        ? `Filled historical data for ${dateStr} ~${hour}:00 — ` + filled.join(", ") + "."
+        : "Historical data fetched but fields were already filled.";
+    }catch(err){
+      console.warn("Historical weather fetch failed:", err.message||err);
+      statusEl.textContent = "Couldn't fetch historical weather. Open-Meteo archive may not have data for that date/location.";
+    }
+  });
 
   /* ---------- weather alerts (US National Weather Service) ---------- */
   const ALERT_SEVERITY_RANK = { "Unknown":0, "Minor":1, "Moderate":2, "Severe":3, "Extreme":4 };
@@ -1748,6 +2055,18 @@
   document.getElementById("quickLogBtn").addEventListener("click", async function(){
     const btn = this;
     const statusEl = document.getElementById("quickLogStatus");
+
+    // 60-second cooldown to prevent accidental duplicate entries
+    const nowMs = Date.now();
+    const secondsSinceLast = (nowMs - lastQuickLogTime) / 1000;
+    if(secondsSinceLast < 60){
+      const remaining = Math.ceil(60 - secondsSinceLast);
+      statusEl.style.display = "block";
+      statusEl.textContent = `Wait ${remaining}s before logging again.`;
+      setTimeout(()=>{ statusEl.style.display = "none"; }, 2500);
+      return;
+    }
+
     btn.disabled = true;
     btn.textContent = "…";
     statusEl.style.display = "block";
@@ -1794,6 +2113,39 @@
       }
     }
 
+    // Fetch active NWS alerts if we have coords (US only, fails gracefully)
+    let alertFields = { alertActive: null, alertSeverity: null, alertSummary: "", alertFullText: "" };
+    if(lat != null && lng != null){
+      statusEl.textContent = "Checking alerts…";
+      try{
+        const alertUrl = `https://api.weather.gov/alerts/active?point=${lat},${lng}`;
+        const alertRes = await fetch(alertUrl, { headers:{ "Accept":"application/geo+json" }, signal: AbortSignal.timeout(6000) });
+        if(alertRes.ok){
+          const alertData = await alertRes.json();
+          const features = alertData.features || [];
+          if(features.length){
+            const ALERT_SEVERITY_RANK = { "Unknown":0,"Minor":1,"Moderate":2,"Severe":3,"Extreme":4 };
+            const events = [...new Set(features.map(f=>f.properties&&f.properties.event).filter(Boolean))];
+            let topSev = "Unknown", topRank = -1;
+            features.forEach(f=>{
+              const sev = (f.properties&&f.properties.severity)||"Unknown";
+              const rank = ALERT_SEVERITY_RANK[sev]??0;
+              if(rank > topRank){ topRank = rank; topSev = sev; }
+            });
+            const fullTexts = features.map(f=>{
+              const p = f.properties||{};
+              return `${p.event||"Alert"}: ${p.description||""}`;
+            }).join("\n\n---\n\n");
+            alertFields = { alertActive:"yes", alertSeverity:topSev, alertSummary:events.join(", "), alertFullText:fullTexts };
+          } else {
+            alertFields = { alertActive:"no", alertSeverity:null, alertSummary:"", alertFullText:"" };
+          }
+        }
+      }catch(e){
+        // Alert check failed — leave fields null, don't block save
+      }
+    }
+
     statusEl.textContent = "Saving…";
     const now = new Date();
     const moon = getMoonPhase(now);
@@ -1817,7 +2169,8 @@
       precipIn: weatherFields.precipIn ?? null,
       sky: weatherFields.sky || "",
       cloudGenus: null, cloudSpecies: null, cloudVarieties: [],
-      alertActive: null, alertSeverity: null, alertSummary: "", alertFullText: "",
+      alertActive: alertFields.alertActive, alertSeverity: alertFields.alertSeverity,
+      alertSummary: alertFields.alertSummary, alertFullText: alertFields.alertFullText,
       moonPhase: moon.phaseName,
       moonIllumination: moon.illumination,
       equipment: "iPhone",
@@ -1831,6 +2184,7 @@
     persistChange({ putEntry: entry }, nextEntries).then(()=>{
       entries = nextEntries;
       renderAll();
+      lastQuickLogTime = Date.now();
       showToast("Quick entry saved — open Journal to review or add notes.", "success");
       refreshStorageIndicator();
     }).catch(err=>{
@@ -1843,9 +2197,120 @@
     });
   });
 
+  /* ---------- NOAA tides ---------- */
+  const COASTAL_LOCATIONS = new Set(["Beach","Bay","Dock","Shoreline","Boat","Lake shore","Coastal lookout"]);
+
+  function isCoastalLocation(){
+    const sel = document.getElementById("f-location");
+    return sel && COASTAL_LOCATIONS.has(sel.value);
+  }
+  function toggleTidesBlock(){
+    const block = document.getElementById("tidesBlock");
+    if(block) block.style.display = isCoastalLocation() ? "block" : "none";
+  }
+  document.getElementById("f-location").addEventListener("change", toggleTidesBlock);
+
+  document.getElementById("fetchTidesBtn").addEventListener("click", async function(){
+    const statusEl = document.getElementById("tidesStatus");
+    statusEl.style.display = "block";
+    statusEl.textContent = "Finding nearest NOAA tide station…";
+
+    const latField = document.getElementById("f-lat");
+    const lngField = document.getElementById("f-lng");
+    let lat = parseFloat(latField.value);
+    let lng = parseFloat(lngField.value);
+
+    if(!isFinite(lat) || !isFinite(lng)){
+      if(!navigator.geolocation){
+        statusEl.textContent = "Enter latitude/longitude first, or enable location.";
+        return;
+      }
+      try{
+        const pos = await new Promise((res,rej)=> navigator.geolocation.getCurrentPosition(res,rej,{timeout:8000}));
+        lat = pos.coords.latitude;
+        lng = pos.coords.longitude;
+        if(!latField.value) latField.value = lat.toFixed(6);
+        if(!lngField.value) lngField.value = lng.toFixed(6);
+      }catch(e){
+        statusEl.textContent = "Couldn't get location — enter latitude/longitude manually first.";
+        return;
+      }
+    }
+
+    try{
+      // Step 1: find nearest NOAA tide station
+      const stationUrl = `https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations.json?type=tidepredictions&units=english`;
+      const stRes = await fetch(stationUrl);
+      if(!stRes.ok) throw new Error("NOAA station list unavailable");
+      const stData = await stRes.json();
+      const stations = stData.stations || [];
+
+      // Find closest station by Haversine distance
+      let closest = null, closestDist = Infinity;
+      stations.forEach(st=>{
+        const slat = parseFloat(st.lat), slng = parseFloat(st.lng);
+        if(!isFinite(slat)||!isFinite(slng)) return;
+        const d = haversineMetres(lat,lng,slat,slng);
+        if(d < closestDist){ closestDist=d; closest=st; }
+      });
+      if(!closest) throw new Error("No nearby NOAA tide station found");
+      statusEl.textContent = `Using station: ${closest.name} (${(closestDist/1000).toFixed(0)}km away)…`;
+
+      // Step 2: fetch today's tide predictions
+      const today = new Date();
+      const dateStr = today.toISOString().slice(0,10).replace(/-/g,"");
+      const tideUrl = `https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?begin_date=${dateStr}&end_date=${dateStr}&station=${closest.id}&product=predictions&datum=MLLW&time_zone=lst_ldt&interval=hilo&units=english&application=weatherglass&format=json`;
+      const tRes = await fetch(tideUrl);
+      if(!tRes.ok) throw new Error("Tide prediction fetch failed");
+      const tData = await tRes.json();
+      const predictions = tData.predictions || [];
+      if(!predictions.length) throw new Error("No tide data returned for this station");
+
+      // Step 3: determine current state and next tide from predictions
+      const nowMins = today.getHours()*60 + today.getMinutes();
+      const parsed = predictions.map(p=>{
+        const [h,m] = p.t.split(" ")[1].split(":").map(Number);
+        return { mins:h*60+m, type:p.type==="H"?"High tide":"Low tide", height:parseFloat(p.v), label:p.t.split(" ")[1] };
+      });
+
+      let currentState = "—";
+      let nextTide = null;
+      let currentHeight = null;
+
+      // Find the next upcoming tide
+      for(const p of parsed){
+        if(p.mins > nowMins){ nextTide = p; break; }
+      }
+      // Determine rising/falling from surrounding tides
+      const prev = parsed.filter(p=>p.mins <= nowMins).pop();
+      if(prev && nextTide){
+        currentState = nextTide.type === "High tide" ? "Rising" : "Falling";
+        // Interpolate approximate current water level
+        const elapsed = nowMins - prev.mins;
+        const total = nextTide.mins - prev.mins;
+        const frac = elapsed / total;
+        currentHeight = parseFloat((prev.height + (nextTide.height - prev.height) * frac).toFixed(2));
+      } else if(nextTide){
+        currentState = nextTide.type === "High tide" ? "Rising" : "Falling";
+      }
+
+      // Fill in fields
+      document.getElementById("f-tide-state").value = currentState;
+      if(currentHeight != null) document.getElementById("f-tide-height").value = currentHeight;
+      if(nextTide) document.getElementById("f-tide-next").value =
+        `${nextTide.type} at ${nextTide.label} (${nextTide.height.toFixed(1)} ft) — ${closest.name}`;
+
+      statusEl.textContent = `Tides loaded from NOAA station: ${closest.name}.`;
+    }catch(err){
+      console.warn("Tides fetch failed:", err.message||err);
+      statusEl.textContent = "Couldn't fetch tide data — NOAA may be temporarily unavailable, or no station nearby. Fill in manually.";
+    }
+  });
+
   /* ---------- photo handling ---------- */
   let pendingPhoto = null;
   let editingId = null;
+  let lastQuickLogTime = 0;
 
   function compressImage(file, maxDim, quality){
     return new Promise((resolve, reject)=>{
@@ -2008,6 +2473,8 @@
     document.getElementById("f-winddir").value = entry.windDirDeg ?? "";
     document.getElementById("f-cloud").value = entry.cloudPct ?? "";
     document.getElementById("f-precip").value = entry.precipIn ?? "";
+    document.getElementById("f-uv-index").value = entry.uvIndex ?? "";
+    document.getElementById("f-pm25").value = entry.pm25 ?? "";
     document.getElementById("f-sky").value = entry.sky || "";
     toggleCloudClassificationBlock();
     document.getElementById("f-cloud-genus").value = entry.cloudGenus || "";
@@ -2016,6 +2483,10 @@
     document.getElementById("f-alert-severity").value = entry.alertSeverity || "";
     document.getElementById("f-alert-summary").value = entry.alertSummary || "";
     document.getElementById("f-alert-fulltext").value = entry.alertFullText || "";
+    document.getElementById("f-tide-state").value = entry.tideState || "";
+    document.getElementById("f-tide-height").value = entry.tideHeightFt ?? "";
+    document.getElementById("f-tide-next").value = entry.tideNext || "";
+    toggleTidesBlock();
     setEquipmentValue(entry.equipment || "");
     document.getElementById("f-impression").value = entry.impression || "";
     document.getElementById("f-notes").value = entry.notes || "";
@@ -2031,8 +2502,9 @@
 
     document.getElementById("entrySectionTitle").textContent = "Edit Reading";
     document.getElementById("saveEntryBtn").textContent = "Update Reading";
-    document.getElementById("editBannerText").textContent = "Editing entry from " + formatTs(entry.timestamp) + " — fill in anything you missed, then Update.";
-    document.getElementById("editBanner").style.display = "flex";
+    document.getElementById("editBannerText").textContent = formatTs(entry.timestamp) + " · " + escapeHtml(entry.title);
+    document.getElementById("editModeHeader").style.display = "block";
+    document.getElementById("quickLogBtn").parentElement.parentElement.style.display = "none";
 
     switchToTab("entry");
     document.getElementById("f-title").focus();
@@ -2050,7 +2522,9 @@
     document.getElementById("weatherStatus").style.display = "none";
     document.getElementById("alertStatus").style.display = "none";
     document.getElementById("saveEntryBtn").textContent = "Save Reading";
-    document.getElementById("editBanner").style.display = "none";
+    document.getElementById("editModeHeader").style.display = "none";
+    document.getElementById("entrySectionTitle").textContent = "Record a Reading";
+    document.getElementById("quickLogBtn").parentElement.parentElement.style.display = "flex";
   }
   document.getElementById("cancelEditBtn").addEventListener("click", resetFormToCreateMode);
 
@@ -2072,6 +2546,8 @@
     const winddir = parseFloat(document.getElementById("f-winddir").value);
     const cloud = parseFloat(document.getElementById("f-cloud").value);
     const precip = parseFloat(document.getElementById("f-precip").value);
+    const uvIndex = parseFloat(document.getElementById("f-uv-index").value);
+    const pm25 = parseFloat(document.getElementById("f-pm25").value);
     const timestamp = editingId
       ? entries.find(x=>x.id===editingId).timestamp
       : new Date().toISOString();
@@ -2095,6 +2571,8 @@
       windDirDeg: isFinite(winddir) ? winddir : null,
       cloudPct: isFinite(cloud) ? cloud : null,
       precipIn: isFinite(precip) ? precip : null,
+      uvIndex: isFinite(uvIndex) ? uvIndex : null,
+      pm25: isFinite(pm25) ? pm25 : null,
       sky: document.getElementById("f-sky").value.trim(),
       cloudGenus: document.getElementById("f-cloud-genus").value || null,
       cloudSpecies: document.getElementById("f-cloud-species").value || null,
@@ -2103,6 +2581,9 @@
       alertSeverity: document.getElementById("f-alert-severity").value || null,
       alertSummary: document.getElementById("f-alert-summary").value.trim(),
       alertFullText: document.getElementById("f-alert-fulltext").value.trim(),
+      tideState: document.getElementById("f-tide-state").value || null,
+      tideHeightFt: parseFloat(document.getElementById("f-tide-height").value) || null,
+      tideNext: document.getElementById("f-tide-next").value.trim() || null,
       moonPhase: moon.phaseName,
       moonIllumination: moon.illumination,
       equipment: getEquipmentValue(),
@@ -2310,10 +2791,16 @@
       meta.push(["Coordinates", `${e.location.lat}, ${e.location.lng}`]);
     }
     if(e.tempF != null) meta.push(["Temp", e.tempF + "°F"]);
+    if(e.tempF != null && e.humidity != null){
+      const hi = calcHeatIndex(e.tempF, e.humidity);
+      if(hi !== e.tempF) meta.push(["Feels Like", hi + "°F"]);
+    }
     if(e.humidity != null) meta.push(["Humidity", e.humidity + "%"]);
     if(e.pressureInHg != null) meta.push(["Pressure", e.pressureInHg + " inHg"]);
     if(e.windMph != null) meta.push(["Wind", e.windMph + " mph" + (e.windDirDeg != null ? " " + compassLabel(e.windDirDeg) : "")]);
     if(e.cloudPct != null) meta.push(["Cloud cover", e.cloudPct + "%"]);
+    if(e.uvIndex != null) meta.push(["UV Index", e.uvIndex]);
+    if(e.pm25 != null) meta.push(["PM2.5", e.pm25 + " µg/m³"]);
     if(e.precipIn != null) meta.push(["Precipitation", e.precipIn + " in"]);
     if(e.sky) meta.push(["Sky", e.sky]);
     if(e.cloudGenus) meta.push(["Cloud genus", e.cloudGenus]);
@@ -2325,6 +2812,8 @@
     if(e.alertActive) meta.push(["Alert active", e.alertActive === "yes" ? "Yes" : "No"]);
     if(e.alertSeverity) meta.push(["Alert severity", e.alertSeverity]);
     if(e.alertSummary) meta.push(["Alert summary", e.alertSummary]);
+    if(e.tideState) meta.push(["Tide", e.tideState + (e.tideHeightFt != null ? ` (${e.tideHeightFt} ft)` : "")]);
+    if(e.tideNext) meta.push(["Next tide", e.tideNext]);
     if(e.moonPhase) meta.push(["Moon phase", e.moonPhase + (e.moonIllumination != null ? ` (${e.moonIllumination}%)` : "")]);
 
     document.getElementById("sheetMetaGrid").innerHTML = meta.map(([k,v])=>`
@@ -2503,10 +2992,11 @@
   const CSV_FIELDS = [
     "id", "timestamp", "level", "category", "title",
     "location_name", "latitude", "longitude",
-    "tempF", "humidity", "pressureInHg", "windMph", "windDirDeg",
-    "cloudPct", "precipIn", "sky",
+    "tempF", "humidity", "heatIndex", "pressureInHg", "windMph", "windDirDeg",
+    "cloudPct", "precipIn", "uvIndex", "pm25", "sky",
     "cloudGenus", "cloudSpecies", "cloudVarieties",
     "alertActive", "alertSeverity", "alertSummary", "alertFullText",
+    "tideState", "tideHeightFt", "tideNext",
     "moonPhase", "moonIllumination",
     "equipment", "impression", "timeOfDayTag", "notes", "hasPhoto"
   ];
@@ -2531,11 +3021,14 @@
       longitude: loc.lng ?? "",
       tempF: e.tempF ?? "",
       humidity: e.humidity ?? "",
+      heatIndex: (e.tempF != null && e.humidity != null) ? (calcHeatIndex(e.tempF, e.humidity) ?? "") : "",
       pressureInHg: e.pressureInHg ?? "",
       windMph: e.windMph ?? "",
       windDirDeg: e.windDirDeg ?? "",
       cloudPct: e.cloudPct ?? "",
       precipIn: e.precipIn ?? "",
+      uvIndex: e.uvIndex ?? "",
+      pm25: e.pm25 ?? "",
       sky: e.sky || "",
       cloudGenus: e.cloudGenus || "",
       cloudSpecies: e.cloudSpecies || "",
@@ -2544,6 +3037,9 @@
       alertSeverity: e.alertSeverity || "",
       alertSummary: e.alertSummary || "",
       alertFullText: (e.alertFullText || "").replace(/\r?\n/g, " "),
+      tideState: e.tideState || "",
+      tideHeightFt: e.tideHeightFt ?? "",
+      tideNext: e.tideNext || "",
       moonPhase: e.moonPhase || "",
       moonIllumination: e.moonIllumination ?? "",
       equipment: e.equipment || "",
@@ -2642,6 +3138,63 @@
   // attempting it, rather than crash partway through.
   const IMPORT_HARD_LIMIT_MB = 50;
 
+  /* ---------- delete all data ---------- */
+  function resetDeleteAllUI(){
+    document.getElementById("deleteAllDefault").style.display = "block";
+    document.getElementById("deleteAllStep1").style.display = "none";
+    document.getElementById("deleteAllStep2").style.display = "none";
+    document.getElementById("deleteAllConfirmBtn").disabled = false;
+  }
+  document.getElementById("deleteAllBtn").addEventListener("click", ()=>{
+    document.getElementById("deleteAllCount").textContent = entries.length + " entr" + (entries.length === 1 ? "y" : "ies");
+    document.getElementById("deleteAllDefault").style.display = "none";
+    document.getElementById("deleteAllStep1").style.display = "block";
+  });
+  document.getElementById("deleteAllCancelBtn").addEventListener("click", resetDeleteAllUI);
+  document.getElementById("deleteAllBackBtn").addEventListener("click", ()=>{
+    document.getElementById("deleteAllStep2").style.display = "none";
+    document.getElementById("deleteAllStep1").style.display = "block";
+  });
+  document.getElementById("deleteAllStep2Btn").addEventListener("click", ()=>{
+    document.getElementById("deleteAllStep1").style.display = "none";
+    document.getElementById("deleteAllStep2").style.display = "block";
+  });
+  document.getElementById("deleteAllConfirmBtn").addEventListener("click", async function(){
+    const btn = this;
+    btn.disabled = true;
+    btn.textContent = "Deleting…";
+    const statusEl = document.getElementById("importStatus");
+    statusEl.style.display = "block";
+    try{
+      // Auto-export backup before wiping — belt and suspenders
+      if(entries.length > 0){
+        statusEl.textContent = "Exporting backup first…";
+        await runExportFlow(entries.slice(), ()=>{});
+      }
+      statusEl.textContent = "Deleting all entries…";
+      if(idbAvailable){
+        try{ const db = await openDB(); db.close(); }catch(e){}
+        dbPromise = null;
+        await deleteDatabaseWithTimeout(IDB_NAME, 8000);
+      } else {
+        try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
+      }
+      entries = [];
+      renderAll();
+      refreshStorageIndicator();
+      resetDeleteAllUI();
+      showToast("All data deleted. A backup was downloaded first — check your Downloads.", "success");
+    }catch(err){
+      console.warn("Delete all failed:", err.message || err);
+      showStorageFailureWarning("Delete all failed: " + (err.message || err) + ". Nothing was deleted — your data is intact.");
+      resetDeleteAllUI();
+    }finally{
+      btn.disabled = false;
+      btn.textContent = "Delete everything";
+      statusEl.style.display = "none";
+    }
+  });
+
   document.getElementById("importInput").addEventListener("change", function(e){
     const file = e.target.files[0];
     if(!file) return;
@@ -2706,18 +3259,102 @@
   document.getElementById("chartTempBtn").addEventListener("click", ()=>renderChart("temp"));
   document.getElementById("chartPressureBtn").addEventListener("click", ()=>renderChart("pressure"));
   document.getElementById("chartHumidityBtn").addEventListener("click", ()=>renderChart("humidity"));
+  document.getElementById("chartHeatIdxBtn").addEventListener("click", ()=>renderChart("heatidx"));
+  document.getElementById("chartDailyBtn").addEventListener("click", ()=>renderChart("daily"));
+  document.getElementById("chartAlertBtn").addEventListener("click", ()=>renderChart("alert"));
   document.getElementById("chartCatBtn").addEventListener("click", ()=>renderChart("cat"));
 
   function renderChart(mode){
     currentChartMode = mode;
     const ctx = document.getElementById("trendChart");
     const titleEl = document.getElementById("chartTitle");
-    const titles = { temp:"Temperature Over Time", pressure:"Pressure Over Time", humidity:"Humidity Over Time", cat:"Entries by Category" };
+    const titles = {
+      temp:"Temperature Over Time", pressure:"Pressure Over Time",
+      humidity:"Humidity Over Time", heatidx:"Heat Index — Feels Like Over Time",
+      daily:"Daily Min / Avg / Max Temperature", alert:"Alert Severity Over Time",
+      cat:"Entries by Category"
+    };
     if(titleEl) titleEl.textContent = titles[mode] || "";
     if(chartInstance) chartInstance.destroy();
 
-    if(mode === "temp"){
-      const withTemp = entries.filter(e=>isFinite(e.tempF)).slice().sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
+    if(mode === "heatidx"){
+      const paired = trendsEntries().filter(e=>isFinite(e.tempF)&&isFinite(e.humidity))
+        .slice().sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
+      chartInstance = new Chart(ctx, {
+        type:"line",
+        data:{
+          labels: paired.map(e=>formatTs(e.timestamp)),
+          datasets:[
+            {label:"Actual Temp (°F)",data:paired.map(e=>e.tempF),borderColor:"#3E6079",borderWidth:1.5,tension:0.25,pointRadius:0},
+            {label:"Feels Like (°F)",data:paired.map(e=>calcHeatIndex(e.tempF,e.humidity)),borderColor:"#c0392b",backgroundColor:"rgba(192,57,43,0.08)",tension:0.25,fill:true,pointRadius:2}
+          ]
+        },
+        options:{responsive:true,interaction:{mode:"index"},plugins:{legend:{labels:{boxWidth:10,font:{size:10}}}},
+          scales:{x:{ticks:{maxTicksLimit:7},grid:{display:false}},y:{title:{display:true,text:"°F",font:{size:10}}}}}
+      });
+    } else if(mode === "daily"){
+      // Group entries by calendar date, compute min/avg/max temp per day
+      const byDay = {};
+      trendsEntries().filter(e=>isFinite(e.tempF)).forEach(e=>{
+        const day = new Date(e.timestamp).toLocaleDateString(undefined,{month:"short",day:"numeric"});
+        if(!byDay[day]) byDay[day] = [];
+        byDay[day].push(e.tempF);
+      });
+      const days = Object.keys(byDay);
+      const mins = days.map(d=>Math.min(...byDay[d]));
+      const avgs = days.map(d=>parseFloat((byDay[d].reduce((a,b)=>a+b,0)/byDay[d].length).toFixed(1)));
+      const maxs = days.map(d=>Math.max(...byDay[d]));
+      chartInstance = new Chart(ctx, {
+        type:"bar",
+        data:{
+          labels:days,
+          datasets:[
+            {label:"Min",data:mins,backgroundColor:"rgba(62,96,121,0.3)",borderColor:"#3E6079",borderWidth:1},
+            {label:"Avg",data:avgs,backgroundColor:"rgba(62,96,121,0.55)",borderColor:"#3E6079",borderWidth:1},
+            {label:"Max",data:maxs,backgroundColor:"rgba(62,96,121,0.80)",borderColor:"#3E6079",borderWidth:1}
+          ]
+        },
+        options:{responsive:true,plugins:{legend:{labels:{boxWidth:10,font:{size:10}}}},
+          scales:{x:{grid:{display:false}},y:{title:{display:true,text:"°F",font:{size:10}}}}}
+      });
+    } else if(mode === "alert"){
+      const SEVERITY_VAL = {"":0,"Minor":1,"Moderate":2,"Severe":3,"Extreme":4};
+      const SEVERITY_COLOR = {"":["#C2D2DC","rgba(194,210,220,0.2)"],"Minor":["#5C8AA3","rgba(92,138,163,0.2)"],
+        "Moderate":["#8A6A3D","rgba(138,106,61,0.2)"],"Severe":["#c0392b","rgba(192,57,43,0.2)"],
+        "Extreme":["#7b0000","rgba(123,0,0,0.2)"]};
+      const withAlerts = trendsEntries().filter(e=>e.alertActive!=null)
+        .slice().sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
+      if(!withAlerts.length){
+        if(titleEl) titleEl.textContent = "Alert Severity Over Time — no alert data yet";
+        return;
+      }
+      const sevValues = withAlerts.map(e=>SEVERITY_VAL[e.alertActive==="yes"?(e.alertSeverity||"Minor"):""]||0);
+      const colors = withAlerts.map(e=>{
+        const k = e.alertActive==="yes"?(e.alertSeverity||"Minor"):"";
+        return SEVERITY_COLOR[k]||SEVERITY_COLOR[""];
+      });
+      chartInstance = new Chart(ctx, {
+        type:"bar",
+        data:{
+          labels:withAlerts.map(e=>formatTs(e.timestamp)),
+          datasets:[{
+            label:"Alert Severity",
+            data:sevValues,
+            backgroundColor:colors.map(c=>c[1]),
+            borderColor:colors.map(c=>c[0]),
+            borderWidth:1
+          }]
+        },
+        options:{responsive:true,plugins:{legend:{display:false},
+          tooltip:{callbacks:{label:(ctx)=>{
+            const labels=["None","Minor","Moderate","Severe","Extreme"];
+            return "Severity: "+(labels[ctx.raw]||"None");
+          }}}},
+          scales:{x:{ticks:{maxTicksLimit:7},grid:{display:false}},
+            y:{min:0,max:4,ticks:{stepSize:1,callback:(v)=>["None","Minor","Moderate","Severe","Extreme"][v]||""}}}}
+      });
+    } else if(mode === "temp"){
+      const withTemp = trendsEntries().filter(e=>isFinite(e.tempF)).slice().sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
       chartInstance = new Chart(ctx, {
         type:"line",
         data:{
@@ -2735,7 +3372,7 @@
         options:{ responsive:true, plugins:{ legend:{ display:false } } }
       });
     } else if(mode === "pressure"){
-      const withPressure = entries.filter(e=>isFinite(e.pressureInHg)).slice().sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
+      const withPressure = trendsEntries().filter(e=>isFinite(e.pressureInHg)).slice().sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
       chartInstance = new Chart(ctx, {
         type:"line",
         data:{
@@ -2753,7 +3390,7 @@
         options:{ responsive:true, plugins:{ legend:{ display:false } } }
       });
     } else if(mode === "humidity"){
-      const withHumidity = entries.filter(e=>isFinite(e.humidity)).slice().sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
+      const withHumidity = trendsEntries().filter(e=>isFinite(e.humidity)).slice().sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
       chartInstance = new Chart(ctx, {
         type:"line",
         data:{
@@ -2770,9 +3407,9 @@
         },
         options:{ responsive:true, plugins:{ legend:{ display:false } } }
       });
-    } else {
+    } else if(mode === "cat"){
       const cats = ["Temperature","Precipitation","Wind","Pressure","Sky & Cloud","Storm"];
-      const counts = cats.map(c=>entries.filter(e=>e.category===c).length);
+      const counts = cats.map(c=>trendsEntries().filter(e=>e.category===c).length);
       chartInstance = new Chart(ctx, {
         type:"bar",
         data:{
@@ -2822,37 +3459,119 @@
     }
   }
   const MAP_MARKER_LIMIT = 300;
+  // Haversine distance in metres between two lat/lng points
+  function haversineMetres(lat1, lng1, lat2, lng2){
+    const R = 6371000;
+    const dLat = (lat2-lat1) * Math.PI/180;
+    const dLng = (lng2-lng1) * Math.PI/180;
+    const a = Math.sin(dLat/2)**2 +
+              Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) *
+              Math.sin(dLng/2)**2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  }
+
+  // Cluster entries within CLUSTER_RADIUS_M of each other into one pin.
+  // Each cluster carries the centroid lat/lng and all its member entries.
+  const CLUSTER_RADIUS_M = 100;
+  function clusterEntries(pts){
+    const clusters = [];
+    pts.forEach(e=>{
+      const lat = e.location.lat, lng = e.location.lng;
+      let placed = false;
+      for(const c of clusters){
+        if(haversineMetres(lat, lng, c.lat, c.lng) <= CLUSTER_RADIUS_M){
+          c.entries.push(e);
+          // Recalculate centroid
+          c.lat = c.entries.reduce((s,x)=>s+x.location.lat,0)/c.entries.length;
+          c.lng = c.entries.reduce((s,x)=>s+x.location.lng,0)/c.entries.length;
+          placed = true;
+          break;
+        }
+      }
+      if(!placed) clusters.push({ lat, lng, entries:[e] });
+    });
+    return clusters;
+  }
+
+  const CLUSTER_ICON_SINGLE = L.divIcon({
+    className:"field-pin",
+    html:'<div class="field-pin-dot"></div>',
+    iconSize:[18,18], iconAnchor:[9,9], popupAnchor:[0,-10]
+  });
+  function clusterIcon(count){
+    return L.divIcon({
+      className:"",
+      html:`<div style="background:var(--steel,#3E6079);color:#F1F6F9;border:2px solid #F1F6F9;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;box-shadow:0 0 0 1.5px #2C3A47,0 2px 4px rgba(0,0,0,0.30);">${count}</div>`,
+      iconSize:[28,28], iconAnchor:[14,14], popupAnchor:[0,-14]
+    });
+  }
+
   function renderMap(){
     if(!mapAvailable || !map) return;
     try{
       markersLayer.clearLayers();
       const allPts = entries.filter(e=>e.location && isFinite(e.location.lat) && isFinite(e.location.lng));
-      const pts = allPts
-        .slice()
-        .sort((a,b)=> new Date(b.timestamp) - new Date(a.timestamp))
-        .slice(0, MAP_MARKER_LIMIT);
-      pts.forEach(e=>{
-        const marker = L.marker([e.location.lat, e.location.lng], fieldPinIcon ? { icon: fieldPinIcon } : undefined);
-        // Popup HTML is built without the photo to avoid embedding hundreds of
-        // base64 images upfront; the photo is added lazily only if/when this
-        // specific popup is actually opened.
-        marker.bindPopup(`<strong>${escapeHtml(e.title)}</strong><br>${escapeHtml(e.category)} — ${escapeHtml(e.level)}<br>${escapeHtml(formatTs(e.timestamp))}<br>${escapeHtml(e.notes || "")}${e.photo ? `<br><span class="map-popup-photo-slot" style="display:block; margin-top:6px; font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--ink-soft);">(loading photo…)</span>` : ""}`);
-        if(e.photo){
-          marker.on("popupopen", function(ev){
-            const el = ev.popup.getElement();
-            const slot = el && el.querySelector(".map-popup-photo-slot");
-            if(slot){
-              slot.outerHTML = `<img src="${e.photo}" alt="Photo for ${escapeHtml(e.title)}" style="width:120px; margin-top:6px; border-radius:4px; display:block;">`;
-            }
-          });
+      const sorted = allPts.slice().sort((a,b)=> new Date(b.timestamp) - new Date(a.timestamp));
+      const limited = sorted.slice(0, MAP_MARKER_LIMIT);
+
+      const clusters = clusterEntries(limited);
+
+      clusters.forEach(c=>{
+        const icon = c.entries.length === 1 ? CLUSTER_ICON_SINGLE : clusterIcon(c.entries.length);
+        const marker = L.marker([c.lat, c.lng], { icon });
+
+        if(c.entries.length === 1){
+          const e = c.entries[0];
+          marker.bindPopup(`<strong>${escapeHtml(e.title)}</strong><br>${escapeHtml(e.category)} — ${escapeHtml(e.level)}<br>${escapeHtml(formatTs(e.timestamp))}<br>${escapeHtml(e.notes || "")}${e.photo ? `<br><span class="map-popup-photo-slot" style="display:block;margin-top:6px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#5C6E7C;">(loading photo…)</span>` : ""}`);
+          if(e.photo){
+            marker.on("popupopen", function(ev){
+              const el = ev.popup.getElement();
+              const slot = el && el.querySelector(".map-popup-photo-slot");
+              if(slot) slot.outerHTML = `<img src="${e.photo}" alt="" style="width:120px;margin-top:6px;border-radius:4px;display:block;">`;
+            });
+          }
+        } else {
+          // Multi-entry cluster popup: show location name + count + most recent entries
+          const locationName = c.entries[0].location.name || "Multiple locations";
+          const recent = c.entries.slice(0,3);
+          const moreCount = c.entries.length - recent.length;
+          const recentHtml = recent.map(e=>
+            `<div style="border-top:1px solid #C2D2DC;margin-top:6px;padding-top:6px;">
+              <strong>${escapeHtml(e.title)}</strong><br>
+              <span style="font-size:11px;color:#5C6E7C;">${escapeHtml(formatTs(e.timestamp))}</span>
+            </div>`
+          ).join("");
+          marker.bindPopup(
+            `<strong>${escapeHtml(locationName)}</strong><br>` +
+            `<span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#5C6E7C;">${c.entries.length} entries within 100m</span>` +
+            recentHtml +
+            (moreCount > 0 ? `<div style="margin-top:6px;font-size:11px;color:#5C6E7C;">+ ${moreCount} more</div>` : "")
+          );
         }
         marker.addTo(markersLayer);
       });
+
+      // Update stats bar
+      const statsBar = document.getElementById("mapStatsBar");
+      if(statsBar){
+        const uniqueClusters = clusters.length;
+        const totalMapped = allPts.length;
+        statsBar.innerHTML = [
+          { label:"Mapped Entries", value: totalMapped },
+          { label:"Unique Locations", value: uniqueClusters },
+        ].map(s=>`
+          <div class="card records-grid" style="flex:1;min-width:120px;padding:12px 14px;">
+            <div class="label">${s.label}</div>
+            <div class="value" style="font-size:22px;">${s.value}</div>
+          </div>
+        `).join("");
+      }
+
       if(allPts.length > MAP_MARKER_LIMIT){
         showToast(`Showing the ${MAP_MARKER_LIMIT} most recent mapped entries of ${allPts.length} total.`, "success");
       }
-      if(pts.length){
-        const bounds = L.latLngBounds(pts.map(e=>[e.location.lat, e.location.lng]));
+      if(limited.length){
+        const bounds = L.latLngBounds(limited.map(e=>[e.location.lat, e.location.lng]));
         map.fitBounds(bounds, { padding:[30,30], maxZoom:14 });
       }
     }catch(err){
@@ -2863,7 +3582,9 @@
   /* ---------- render all ---------- */
   function renderAll(){
     renderCards();
+    populateTrendsLocationFilter();
     renderRecords();
+    renderInsights();
     renderPressureWatch();
     renderOnThisDay();
     renderTable();

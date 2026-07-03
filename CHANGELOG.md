@@ -2,6 +2,43 @@
 
 All notable changes to Weatherglass are documented here.
 
+## [2.6.0]
+
+### Bug fixes
+- **Quick Log duplicate prevention** — a 60-second cooldown now
+  prevents accidental duplicate entries from rapid taps. The button
+  shows "Wait Xs before logging again." and clears after 2.5 seconds
+  if tapped too soon after the last save.
+
+### New features
+- **Heat Index ("Feels Like")** — auto-calculated from temp +
+  humidity on every entry using the Rothfusz equation. Shown in the
+  entry detail view as "Feels Like: X°F" whenever temp ≥ 80°F and
+  humidity is present. Also added as a new `heatIndex` column in
+  CSV exports.
+- **NOAA Tides** — a "Tides" section appears automatically in the
+  Record form when Location is set to a coastal spot (Beach, Bay,
+  Dock, Shoreline, Boat, Lake shore, Coastal lookout). Tap "Check
+  tide conditions" to find the nearest NOAA tide prediction station
+  and fetch today's tide state (Rising/Falling/High/Low), current
+  approximate water level, and next predicted tide. Shows in entry
+  detail and exports to JSON/CSV.
+- **Air Quality (UV + PM2.5)** — "Use current weather" now fetches
+  UV Index and PM2.5 in parallel from Open-Meteo's air quality API
+  alongside the existing weather data. New UV Index and PM2.5 fields
+  added to the Record form, entry detail view, and CSV export.
+- **Historical weather** — a "Fill historical weather" button sits
+  alongside "Use current weather." For backdated entries, it pulls
+  what conditions actually were from Open-Meteo's archive API, using
+  the entry's Time of Day to pick the nearest hour. Prompts for a
+  date (YYYY-MM-DD) if not editing an existing entry.
+- **Location filter in Trends** — a "Filter by location" dropdown
+  at the top of the Trends tab filters all charts, Personal Records,
+  Insights, and Pressure Watch to only the selected location.
+  Populated automatically from your logged entries; "All locations"
+  is the default. Particularly useful once Illinois and Florida
+  entries coexist in the same log.
+
 ## [2.5.0]
 
 ### Added
