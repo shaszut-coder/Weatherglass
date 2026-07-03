@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Weatherglass — personal weather station & log
-  Version: 2.6.0
+  Version: 2.6.1
 
   Single-file app: no build step, no backend. Data lives in the
   visitor's own browser via localStorage.
@@ -1082,7 +1082,7 @@
 (function(){
   "use strict";
 
-  const APP_VERSION = "2.6.0";
+  const APP_VERSION = "2.6.1";
   const STORAGE_KEY = "weatherglass.entries.v1";
 
   function showToast(message, kind){
@@ -1747,11 +1747,15 @@
         const found = [];
         const dateStr = EXIF.getTag(this, "DateTimeOriginal") || EXIF.getTag(this, "DateTime");
         const todField = document.getElementById("f-timeofday");
-        if(dateStr && todField && !todField.value){
+        if(dateStr){
           const d = parseExifDate(dateStr);
           if(d){
-            todField.value = nearestTimeOfDay(d);
-            found.push("time of day");
+            exifCapturedDate = d;
+            if(todField && !todField.value){
+              todField.value = nearestTimeOfDay(d);
+              found.push("time of day");
+            }
+            found.push("capture date (" + d.toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}) + ")");
           }
         }
         const lat = EXIF.getTag(this, "GPSLatitude");
@@ -1767,9 +1771,11 @@
           if(lngField && !lngField.value && lngDec != null){ lngField.value = lngDec.toFixed(6); found.push("location"); }
         }
         const unique = [...new Set(found)];
-        statusEl.textContent = unique.length
-          ? "Auto-filled " + unique.join(", ") + " from the photo."
-          : "No location or time data found in this photo (common after sharing through Messages or other apps that strip it).";
+        if(unique.length){
+          statusEl.textContent = "Auto-filled " + unique.join(", ") + " from the photo. This entry will be saved with the photo's date.";
+        } else {
+          statusEl.textContent = "No location or time data found in this photo (common after sharing through Messages or other apps that strip it).";
+        }
       });
     }catch(err){
       console.warn("EXIF read failed:", err.message || err);
@@ -1909,13 +1915,15 @@
     const todVal = todField.value;
     const hour = TOD_HOURS[todVal] ?? 12;
 
-    // We need a date — get it from the entry's timestamp if editing,
-    // or ask the user to pick a Time of Day and we'll use yesterday as a demo
-    // date. The user can also just enter a specific past date via a prompt.
+    // Date priority: 1) editing an existing entry, 2) EXIF date from attached photo, 3) manual prompt
     let dateStr;
     if(editingId){
       const existing = entries.find(e=>e.id===editingId);
       dateStr = existing ? existing.timestamp.slice(0,10) : null;
+    }
+    if(!dateStr && exifCapturedDate){
+      dateStr = exifCapturedDate.toISOString().slice(0,10);
+      statusEl.textContent = `Using photo date: ${dateStr}…`;
     }
     if(!dateStr){
       // Prompt for a date since we have no timestamp yet
@@ -2311,6 +2319,7 @@
   let pendingPhoto = null;
   let editingId = null;
   let lastQuickLogTime = 0;
+  let exifCapturedDate = null; // set when a photo with EXIF date is attached
 
   function compressImage(file, maxDim, quality){
     return new Promise((resolve, reject)=>{
@@ -2352,6 +2361,7 @@
   document.getElementById("f-photo-library").addEventListener("change", handlePhotoFileChange);
   document.getElementById("removePhotoBtn").addEventListener("click", ()=>{
     pendingPhoto = null;
+    exifCapturedDate = null;
     document.getElementById("f-photo-camera").value = "";
     document.getElementById("f-photo-library").value = "";
     document.getElementById("photoPreviewWrap").style.display = "none";
@@ -2512,6 +2522,7 @@
 
   function resetFormToCreateMode(){
     editingId = null;
+    exifCapturedDate = null;
     document.getElementById("entryForm").reset();
     document.getElementById("f-location-custom").style.display = "none";
     document.getElementById("f-equipment-custom").style.display = "none";
@@ -2550,7 +2561,7 @@
     const pm25 = parseFloat(document.getElementById("f-pm25").value);
     const timestamp = editingId
       ? entries.find(x=>x.id===editingId).timestamp
-      : new Date().toISOString();
+      : (exifCapturedDate ? exifCapturedDate.toISOString() : new Date().toISOString());
     const moon = getMoonPhase(new Date(timestamp));
 
     const entry = {
