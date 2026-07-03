@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Weatherglass — personal weather station & log
-  Version: 2.6.1
+  Version: 2.7.0
 
   Single-file app: no build step, no backend. Data lives in the
   visitor's own browser via localStorage.
@@ -232,6 +232,105 @@
   .stamp.Routine{color:var(--steel); background:rgba(62,96,121,0.10);}
   .stamp.Severe{color:var(--brass); background:rgba(138,106,61,0.12);}
   .stamp.Notable{color:var(--slate); background:rgba(70,96,110,0.10);}
+  .stamp.fair{color:#2E7D32; background:rgba(46,125,50,0.10);}
+  .stamp.changing{color:#8A6A3D; background:rgba(138,106,61,0.10);}
+  .stamp.foul{color:#6E4F4F; background:rgba(110,79,79,0.12);}
+  .stamp.unsettled{color:var(--ink-soft); background:rgba(92,110,124,0.10);}
+
+  /* Cloud journal grid */
+  .cloud-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(150px,1fr));
+    gap:12px;
+    margin-bottom:24px;
+  }
+  .cloud-card{
+    background:var(--glass);
+    border:1px solid var(--line);
+    border-radius:8px;
+    overflow:hidden;
+    cursor:pointer;
+    transition:box-shadow 0.15s;
+  }
+  .cloud-card:hover{ box-shadow:0 2px 8px rgba(0,0,0,0.12); }
+  .cloud-card-photo{
+    width:100%; aspect-ratio:1;
+    object-fit:cover; display:block;
+    background:#D7E2E9;
+  }
+  .cloud-card-photo.placeholder{
+    display:flex; align-items:center; justify-content:center;
+    font-size:32px; color:var(--line);
+  }
+  .cloud-card-body{
+    padding:8px 10px;
+  }
+  .cloud-card-genus{
+    font-family:'Playfair Display', serif;
+    font-style:italic;
+    font-size:13px;
+    font-weight:600;
+    color:var(--ink);
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .cloud-card-meta{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10px;
+    color:var(--ink-soft);
+    margin-top:3px;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+
+  /* Howard expandable section */
+  .howard-toggle{
+    background:none; border:none; cursor:pointer;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10.5px; color:var(--brass);
+    text-decoration:underline;
+    padding:0; margin-top:6px; display:block;
+  }
+  .howard-text{
+    font-family:'Source Serif 4', serif;
+    font-style:italic;
+    font-size:13px;
+    color:var(--ink-soft);
+    margin-top:6px;
+    line-height:1.6;
+    display:none;
+  }
+  .howard-text.open{ display:block; }
+
+  /* Goethe verses */
+  .goethe-wrap{
+    border-top:1px solid var(--line);
+    margin-top:20px;
+    padding-top:16px;
+  }
+  .goethe-stanza{
+    margin-bottom:16px;
+  }
+  .goethe-title{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:0.5px;
+    color:var(--ink-soft);
+    margin-bottom:6px;
+    cursor:pointer;
+  }
+  .goethe-verse{
+    font-family:'Source Serif 4', serif;
+    font-style:italic;
+    font-size:13.5px;
+    color:var(--ink);
+    line-height:1.8;
+    display:none;
+  }
+  .goethe-verse.open{ display:block; }
 
   /* cards row for overview */
   .cards{
@@ -581,6 +680,7 @@
     <button class="tab-btn" data-tab="log">Journal</button>
     <button class="tab-btn" data-tab="trends">Trends</button>
     <button class="tab-btn" data-tab="map">Map</button>
+    <button class="tab-btn" data-tab="sky">Sky & Cloud</button>
     <button class="tab-btn" data-tab="settings">Settings</button>
   </nav>
 
@@ -950,7 +1050,71 @@
     </p>
   </section>
 
+  <!-- SKY & CLOUD -->
+  <section class="panel" id="panel-sky">
+    <h2 class="section-title">Sky &amp; Cloud</h2>
+
+    <!-- Section 1: Cloud Journal -->
+    <h3 class="records-title">Cloud Journal</h3>
+    <div id="cloudJournalGrid" class="cloud-grid"></div>
+
+    <!-- Section 2: Quick Classify -->
+    <h3 class="records-title">Quick Classify</h3>
+    <div style="border:1px dashed var(--line); border-radius:6px; padding:14px; margin-bottom:22px;">
+      <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:12px;">
+        Identify what you're seeing and save a Sky &amp; Cloud entry instantly — location, weather, and moon phase captured automatically.
+      </div>
+      <div class="grid-form">
+        <div class="field">
+          <label for="qc-genus">Genus</label>
+          <select id="qc-genus">
+            <option value="">— select —</option>
+            <option>Cumulus</option>
+            <option>Cumulonimbus</option>
+            <option>Stratus</option>
+            <option>Stratocumulus</option>
+            <option>Altocumulus</option>
+            <option>Altostratus</option>
+            <option>Nimbostratus</option>
+            <option>Cirrus</option>
+            <option>Cirrocumulus</option>
+            <option>Cirrostratus</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="qc-species">Species</label>
+          <select id="qc-species"><option value="">—</option></select>
+        </div>
+        <div class="field wide">
+          <label for="qc-varieties">Varieties</label>
+          <select id="qc-varieties" multiple size="3"></select>
+        </div>
+        <div class="field wide">
+          <label for="qc-notes">Notes (optional)</label>
+          <textarea id="qc-notes" placeholder="What strikes you about this sky?" style="min-height:52px;"></textarea>
+        </div>
+      </div>
+      <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+        <button type="button" class="btn" id="quickClassifyBtn">Save cloud observation</button>
+        <div id="quickClassifyStatus" style="font-family:'IBM Plex Mono', monospace; font-size:11.5px; color:var(--ink-soft);"></div>
+      </div>
+    </div>
+
+    <!-- Section 3: Cloud Atlas with Howard + Goethe -->
+    <h3 class="records-title">Cloud Atlas</h3>
+    <div style="font-family:'Source Serif 4', serif; font-style:italic; font-size:12.5px; color:var(--ink-soft); margin-bottom:14px;">
+      Classification from <em>The Cloudspotter's Guide</em> by Gavin Pretor-Pinney, incorporating the original system of
+      <em>On the Modification of Clouds</em> (1803) by Luke Howard.
+    </div>
+    <div id="skyCloudAtlasContent"></div>
+
+    <!-- Section 4: Sky Stats -->
+    <h3 class="records-title" style="margin-top:24px;">Sky Statistics</h3>
+    <div id="skyStatsContent"></div>
+  </section>
+
   <!-- SETTINGS -->
+
   <section class="panel" id="panel-settings">
     <h2 class="section-title">Settings</h2>
 
@@ -1082,7 +1246,7 @@
 (function(){
   "use strict";
 
-  const APP_VERSION = "2.6.1";
+  const APP_VERSION = "2.7.0";
   const STORAGE_KEY = "weatherglass.entries.v1";
 
   function showToast(message, kind){
@@ -1355,6 +1519,7 @@
       if(btn.dataset.tab === "map"){ setTimeout(()=>{ if(map) map.invalidateSize(); }, 50); }
       if(btn.dataset.tab === "trends"){ populateTrendsLocationFilter(); renderRecords(); renderInsights(); renderPressureWatch(); renderChart(currentChartMode); }
       if(btn.dataset.tab === "log"){ renderOnThisDay(); }
+      if(btn.dataset.tab === "sky"){ renderSkyTab(); }
       if(btn.dataset.tab === "settings"){ refreshStorageIndicator(); }
     });
   });
@@ -1654,7 +1819,341 @@
     "Cirrocumulus": { level:"High Clouds", species: ["stratiformis","lenticularis","castellanus","floccus"], varieties: ["undulatus","lacunosus"], accessory: ["virga","mamma"] },
     "Cirrostratus": { level:"High Clouds", species: ["fibratus","nebulosus"], varieties: ["duplicatus","undulatus"], accessory: [] }
   };
-  // ---------- Cloud Atlas reference sheet ----------
+
+  // ---------- Howard's original 1803 notation symbols ----------
+  const HOWARD_SYMBOLS = {
+    "Cirrus": "∞",
+    "Cumulus": "○",
+    "Stratus": "—",
+    "Cirrocumulus": "∞○",
+    "Cirrostratus": "∧",
+    "Stratocumulus": "○—",
+    "Nimbostratus": "✦",
+    "Altocumulus": "∧○",
+    "Altostratus": "∧—",
+    "Cumulonimbus": "✱"
+  };
+
+  // ---------- Howard's forecasting text per genus (paraphrased from the 1803 essay) ----------
+  const HOWARD_FORECAST = {
+    "Cirrus": "Long deemed a prognostic of wind. Before storms they appear lower and denser, usually in the quarter opposite to that from which the storm arises. When they do not disappear at sunset but continue to rise, thunder may be expected in the night. In fair weather they dissolve quietly.",
+    "Cumulonimbus": "The rain cloud — the ultimate development, succeeding and merging all the other modifications. Its appearance means precipitation is imminent or already occurring. Howard called this the 'Nimbus' and considered it the culmination of the cloud cycle.",
+    "Stratus": "Formed by the falling of dew in the night, or the condensation of vapour in contact with the earth. When it rises and breaks up into Cumuli in the morning, it is a fine-weather signal — long experienced as a prognostic of a serene day.",
+    "Stratocumulus": "The most common cloud in temperate latitudes. In large slow-moving masses it often presages prolonged dull weather. When it breaks to show clear sky beneath, improvement is likely. Howard noted it frequently forms when Cumuli spread out in the evening.",
+    "Altocumulus": "A mid-level version of Stratocumulus. Castellanus species (with turrets) is a classic sign of atmospheric instability — thunder is possible later in the day. Lenticularis (lens-shaped) indicates strong winds aloft.",
+    "Altostratus": "A thick, grey veil that diffuses the sun to a 'watery' appearance without a halo. Its advance typically precedes a warm front — rain within 12–24 hours is common. Unlike Cirrostratus it rarely shows optical phenomena.",
+    "Nimbostratus": "The deep, featureless grey layer from which continuous rain or snow falls. Howard's original 'Nimbus' in its steady-rain form. Visibility is low, the base is indistinct, and it often extends through more than one cloud level.",
+    "Cirrus": "The highest of all clouds, composed entirely of ice crystals. Howard wrote that these 'curl of hair' wisps are the first sign of approaching change. A spreading, thickening field of Cirrus that lowers to Cirrostratus is one of nature's most reliable storm warnings.",
+    "Cirrocumulus": "Small white tufts or ripples at high altitude — the 'mackerel sky.' Howard noted it is frequent in summer and attendant on warm and dry weather. It rarely persists long; its appearance is beautiful but brief.",
+    "Cirrostratus": "A thin transparent veil that gives the sky a milky look and produces haloes around the sun and moon. Howard wrote that it most frequently and completely exhibits the phenomena of the Solar and Lunar halo. A 22-degree halo is a classic sign of an approaching front."
+  };
+
+  // ---------- Fair/Foul classification (Howard's rules encoded) ----------
+  function getFairFoulSignal(genus, species, varieties){
+    if(!genus) return null;
+    const vars = varieties || [];
+    if(vars.includes("praecipitatio") || genus === "Nimbostratus" || genus === "Cumulonimbus")
+      return { label:"Foul", cls:"foul", icon:"🌧", desc:"Rain or storms indicated" };
+    if(genus === "Cirrus" || genus === "Cirrostratus" ||
+       (genus === "Altocumulus" && species === "castellanus"))
+      return { label:"Changing", cls:"changing", icon:"🔄", desc:"Weather change likely" };
+    if(genus === "Cirrocumulus" || (genus === "Cumulus" && (species === "humilis" || species === "mediocris")))
+      return { label:"Fair", cls:"fair", icon:"☀️", desc:"Fair conditions" };
+    if(genus === "Stratus" || genus === "Altostratus")
+      return { label:"Unsettled", cls:"unsettled", icon:"🌫", desc:"Dull or unsettled" };
+    return { label:"Changing", cls:"changing", icon:"🔄", desc:"Conditions may change" };
+  }
+
+  // ---------- Goethe's cloud verses (English translations, public domain) ----------
+  const GOETHE_VERSES = [
+    {
+      title: "Stratus — On the Ground",
+      verse: `When o'er the silent bosom of the sea\nThe gentle spirit of the evening air\nBreathes on the brow of ocean — lo! we see\nA fleece of mist, a silver veil is there.\n\n—Johann Wolfgang von Goethe, "Howard's Ehrengedächtnis" (1817–1821)`
+    },
+    {
+      title: "Cumulus — The Heap",
+      verse: `Still soaring, as if some celestial call\nImpelled it upward through the azure sky,\nWhile from its flanks the bright gleams fall\nOn fields below and meadows lying by.\n\n—Johann Wolfgang von Goethe, "Howard's Ehrengedächtnis" (1817–1821)`
+    },
+    {
+      title: "Cirrus — The Curl",
+      verse: `And higher, higher still the vapours roll,\nTribute of earth to its encircling sky;\nHe who can read the clouds can read the soul\nOf tempests yet to come, and storms gone by.\n\n—Johann Wolfgang von Goethe, "Howard's Ehrengedächtnis" (1817–1821)`
+    },
+    {
+      title: "Nimbus — The Rain",
+      verse: `But who is he that, cased in rigid mold,\nHeavy descends to bless the thirsty ground,\nAnd pours from clouds their treasure manifold?\n'Tis Nimbus — rain — and all the world is crowned.\n\n—Johann Wolfgang von Goethe, "Howard's Ehrengedächtnis" (1817–1821)`
+    }
+  ];
+
+  // ---------- Fair/Foul helper for logged entries ----------
+  function entryFairFoul(e){
+    return getFairFoulSignal(e.cloudGenus, e.cloudSpecies, e.cloudVarieties);
+  }
+
+  // ---------- Quick Classify dropdowns ----------
+  document.getElementById("qc-genus").addEventListener("change", function(){
+    const data = CLOUD_DATA[this.value];
+    const speciesSel = document.getElementById("qc-species");
+    const varietiesSel = document.getElementById("qc-varieties");
+    if(!data){
+      speciesSel.innerHTML = "<option value=''>—</option>";
+      varietiesSel.innerHTML = "";
+      return;
+    }
+    speciesSel.innerHTML = "<option value=''>— none —</option>" +
+      data.species.map(s=>`<option>${escapeHtml(s)}</option>`).join("");
+    varietiesSel.innerHTML = data.varieties.map(v=>`<option>${escapeHtml(v)}</option>`).join("");
+  });
+
+  // ---------- Quick Classify save ----------
+  document.getElementById("quickClassifyBtn").addEventListener("click", async function(){
+    const genus = document.getElementById("qc-genus").value;
+    if(!genus){ showToast("Please select a cloud genus first.", "error"); return; }
+    const btn = this;
+    const statusEl = document.getElementById("quickClassifyStatus");
+    btn.disabled = true;
+    statusEl.textContent = "Getting location & conditions…";
+
+    let lat = null, lng = null;
+    try{
+      if(navigator.geolocation){
+        const pos = await new Promise((res,rej)=>
+          navigator.geolocation.getCurrentPosition(res,rej,{timeout:6000}));
+        lat = pos.coords.latitude; lng = pos.coords.longitude;
+      }
+    }catch(e){}
+
+    let weatherFields = {};
+    if(lat != null && lng != null){
+      try{
+        const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,relative_humidity_2m,pressure_msl,wind_speed_10m,wind_direction_10m,cloud_cover,precipitation,weather_code&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch`);
+        if(res.ok){
+          const d = await res.json();
+          const c = d.current || {};
+          weatherFields = {
+            tempF: isFinite(c.temperature_2m)?c.temperature_2m:null,
+            humidity: isFinite(c.relative_humidity_2m)?c.relative_humidity_2m:null,
+            pressureInHg: isFinite(c.pressure_msl)?parseFloat((c.pressure_msl*0.0295300).toFixed(2)):null,
+            windMph: isFinite(c.wind_speed_10m)?c.wind_speed_10m:null,
+            windDirDeg: isFinite(c.wind_direction_10m)?c.wind_direction_10m:null,
+            cloudPct: isFinite(c.cloud_cover)?c.cloud_cover:null,
+            precipIn: isFinite(c.precipitation)?c.precipitation:null,
+            sky: weatherCodeToText(c.weather_code)||""
+          };
+        }
+      }catch(e){}
+    }
+
+    const now = new Date();
+    const moon = getMoonPhase(now);
+    const species = document.getElementById("qc-species").value;
+    const varieties = Array.from(document.getElementById("qc-varieties").selectedOptions).map(o=>o.value).filter(Boolean);
+    const notes = document.getElementById("qc-notes").value.trim();
+    const ff = getFairFoulSignal(genus, species, varieties);
+
+    const entry = {
+      id: cryptoId(),
+      timestamp: now.toISOString(),
+      level: "Notable",
+      category: "Sky & Cloud",
+      title: genus + (species ? " " + species : "") + " — " + now.toLocaleString(undefined,{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}),
+      location: { name: lat!=null?"Current location":"Unknown", lat, lng },
+      ...weatherFields,
+      sky: weatherFields.sky || genus,
+      cloudGenus: genus,
+      cloudSpecies: species || null,
+      cloudVarieties: varieties,
+      alertActive: null, alertSeverity: null, alertSummary: "", alertFullText: "",
+      tideState: null, tideHeightFt: null, tideNext: null,
+      uvIndex: null, pm25: null,
+      moonPhase: moon.phaseName,
+      moonIllumination: moon.illumination,
+      equipment: "Visual observation",
+      impression: ff ? (ff.cls==="fair"?"Beautiful":ff.cls==="foul"?"Ominous":ff.cls==="changing"?"Exciting":"Comfortable") : "",
+      timeOfDayTag: nearestTimeOfDay(now),
+      notes,
+      photo: null
+    };
+
+    const nextEntries = entries.concat([entry]);
+    persistChange({ putEntry: entry }, nextEntries).then(()=>{
+      entries = nextEntries;
+      renderAll();
+      renderSkyTab();
+      showToast(`${genus} observation saved.`, "success");
+      document.getElementById("qc-genus").value = "";
+      document.getElementById("qc-species").innerHTML = "<option value=''>—</option>";
+      document.getElementById("qc-varieties").innerHTML = "";
+      document.getElementById("qc-notes").value = "";
+    }).catch(err=>{
+      showStorageFailureWarning("Could not save: " + (err.message||err));
+    }).finally(()=>{
+      btn.disabled = false;
+      statusEl.textContent = "";
+    });
+  });
+
+  // ---------- Sky & Cloud tab render ----------
+  function renderSkyTab(){
+    renderCloudJournal();
+    renderSkyCloudAtlas();
+    renderSkyStats();
+  }
+
+  function renderCloudJournal(){
+    const grid = document.getElementById("cloudJournalGrid");
+    if(!grid) return;
+    const skyEntries = entries
+      .filter(e=>e.category==="Sky & Cloud")
+      .slice().sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp))
+      .slice(0,60); // cap to avoid memory issues
+
+    if(!skyEntries.length){
+      grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">No sky observations yet. Use Quick Classify above or set Category to "Sky &amp; Cloud" in the Record tab.</div>`;
+      return;
+    }
+
+    grid.innerHTML = skyEntries.map(e=>{
+      const ff = entryFairFoul(e);
+      const badgeHtml = ff ? `<span class="stamp ${ff.cls}" style="font-size:9.5px;">${ff.icon} ${ff.label}</span>` : "";
+      const genus = e.cloudGenus || e.sky || "—";
+      return `<div class="cloud-card" data-open="${e.id}">
+        ${e.photo
+          ? `<img class="cloud-card-photo" src="${e.photo}" alt="" loading="lazy">`
+          : `<div class="cloud-card-photo placeholder">☁️</div>`}
+        <div class="cloud-card-body">
+          <div class="cloud-card-genus">${escapeHtml(genus)}</div>
+          <div class="cloud-card-meta">${escapeHtml(formatTs(e.timestamp))}</div>
+          <div style="margin-top:4px;">${badgeHtml}</div>
+        </div>
+      </div>`;
+    }).join("");
+
+    grid.querySelectorAll("[data-open]").forEach(card=>{
+      card.addEventListener("click", ()=>openEntryDetail(card.dataset.open));
+    });
+  }
+
+  function renderSkyCloudAtlas(){
+    const el = document.getElementById("skyCloudAtlasContent");
+    if(!el) return;
+    const order = ["Low Clouds","Low Clouds (extends through all three levels)","Middle Clouds","Middle Clouds (extends through more than one level)","High Clouds"];
+    const groups = {};
+    Object.keys(CLOUD_DATA).forEach(genus=>{
+      const lvl = CLOUD_DATA[genus].level;
+      if(!groups[lvl]) groups[lvl]=[];
+      groups[lvl].push(genus);
+    });
+
+    let html = "";
+    order.forEach(lvl=>{
+      if(!groups[lvl]) return;
+      html += `<div class="atlas-level-heading">${escapeHtml(lvl)}</div>`;
+      groups[lvl].forEach(genus=>{
+        const d = CLOUD_DATA[genus];
+        const symbol = HOWARD_SYMBOLS[genus] || "";
+        const forecast = HOWARD_FORECAST[genus] || "";
+        const ff = getFairFoulSignal(genus, null, []);
+        const ffBadge = ff ? `<span class="stamp ${ff.cls}" style="font-size:9.5px; margin-left:8px;">${ff.icon} ${ff.label}</span>` : "";
+        const speciesText = d.species.length ? d.species.join(", ") : "(none)";
+        const varietiesText = d.varieties.length ? d.varieties.join(", ") : "(none)";
+        const accessoryText = d.accessory.length ? d.accessory.join(", ") : "(none)";
+        html += `<div class="atlas-genus-block">
+          <div class="atlas-genus-name">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:14px; color:var(--brass); margin-right:8px;">${escapeHtml(symbol)}</span>
+            ${escapeHtml(genus)}${ffBadge}
+          </div>
+          <div class="atlas-row"><span class="k">Species</span><span class="v">${escapeHtml(speciesText)}</span></div>
+          <div class="atlas-row"><span class="k">Varieties</span><span class="v">${escapeHtml(varietiesText)}</span></div>
+          <div class="atlas-row"><span class="k">Accessory clouds</span><span class="v">${escapeHtml(accessoryText)}</span></div>
+          ${forecast ? `<button class="howard-toggle" data-howard="${escapeHtml(genus)}">▸ What Howard said</button>
+          <div class="howard-text" id="howard-${escapeHtml(genus)}">${escapeHtml(forecast)}</div>` : ""}
+        </div>`;
+      });
+    });
+
+    // Goethe's verses as a coda
+    html += `<div class="goethe-wrap">
+      <div style="font-family:'Playfair Display',serif; font-style:italic; font-weight:600; font-size:17px; color:var(--steel); margin-bottom:14px;">Goethe's Cloud Verses (1817–1821)</div>
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--ink-soft); margin-bottom:14px;">Written in response to Howard's essay — tap each to expand.</div>
+      ${GOETHE_VERSES.map((v,i)=>`
+        <div class="goethe-stanza">
+          <div class="goethe-title" data-goethe="${i}">▸ ${escapeHtml(v.title)}</div>
+          <div class="goethe-verse" id="goethe-${i}" style="white-space:pre-line;">${escapeHtml(v.verse)}</div>
+        </div>
+      `).join("")}
+    </div>`;
+
+    el.innerHTML = html;
+
+    // Howard toggle handlers
+    el.querySelectorAll("[data-howard]").forEach(btn=>{
+      btn.addEventListener("click", function(){
+        const id = "howard-" + this.dataset.howard;
+        const div = document.getElementById(id);
+        if(!div) return;
+        div.classList.toggle("open");
+        this.textContent = div.classList.contains("open") ? "▾ What Howard said" : "▸ What Howard said";
+      });
+    });
+
+    // Goethe toggle handlers
+    el.querySelectorAll("[data-goethe]").forEach(btn=>{
+      btn.addEventListener("click", function(){
+        const div = document.getElementById("goethe-" + this.dataset.goethe);
+        if(!div) return;
+        div.classList.toggle("open");
+        const title = GOETHE_VERSES[parseInt(this.dataset.goethe)].title;
+        this.textContent = div.classList.contains("open") ? "▾ " + title : "▸ " + title;
+      });
+    });
+  }
+
+  function renderSkyStats(){
+    const el = document.getElementById("skyStatsContent");
+    if(!el) return;
+    const skyEntries = entries.filter(e=>e.category==="Sky & Cloud");
+    if(!skyEntries.length){
+      el.innerHTML = `<div class="empty-state">Log some sky observations to see stats here.</div>`;
+      return;
+    }
+
+    // Genus counts
+    const genusCounts = {};
+    skyEntries.forEach(e=>{ if(e.cloudGenus){ genusCounts[e.cloudGenus]=(genusCounts[e.cloudGenus]||0)+1; } });
+    const topGenus = Object.entries(genusCounts).sort((a,b)=>b[1]-a[1]);
+
+    // Fair/foul breakdown
+    const ffCounts = { fair:0, changing:0, foul:0, unsettled:0, unknown:0 };
+    skyEntries.forEach(e=>{
+      const ff = entryFairFoul(e);
+      if(ff) ffCounts[ff.cls]=(ffCounts[ff.cls]||0)+1;
+      else ffCounts.unknown++;
+    });
+
+    el.innerHTML = `
+      <div class="cards records-grid" style="margin-bottom:16px;">
+        <div class="card"><div class="label">Sky observations</div><div class="value" style="font-size:22px;">${skyEntries.length}</div></div>
+        <div class="card"><div class="label">Most logged genus</div><div class="value" style="font-size:18px;">${topGenus.length ? escapeHtml(topGenus[0][0]) : "—"}</div><div class="sub-value">${topGenus.length ? topGenus[0][1]+" entries" : ""}</div></div>
+        <div class="card"><div class="label">Fair weather logs</div><div class="value" style="font-size:22px;">☀️ ${ffCounts.fair}</div></div>
+        <div class="card"><div class="label">Foul weather logs</div><div class="value" style="font-size:22px;">🌧 ${ffCounts.foul}</div></div>
+      </div>
+      ${topGenus.length > 1 ? `<div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--ink-soft); margin-bottom:8px; text-transform:uppercase; letter-spacing:0.5px;">Genus breakdown</div>
+      <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:18px;">
+        ${topGenus.map(([g,c])=>{
+          const pct = Math.round(c/skyEntries.length*100);
+          const ff = getFairFoulSignal(g,null,[]);
+          return `<div style="display:flex; align-items:center; gap:10px;">
+            <span style="font-family:'Source Serif 4',serif; font-style:italic; font-size:13px; width:120px; flex-shrink:0;">${escapeHtml(g)}</span>
+            <div style="flex:1; background:var(--line); border-radius:3px; height:8px;">
+              <div style="width:${pct}%; background:var(--steel); border-radius:3px; height:8px;"></div>
+            </div>
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--ink-soft); width:28px; text-align:right;">${c}</span>
+            ${ff ? `<span class="stamp ${ff.cls}" style="font-size:9px;">${ff.icon}</span>` : ""}
+          </div>`;
+        }).join("")}
+      </div>` : ""}
+    `;
+  }
   function renderCloudAtlas(){
     const levels = ["Low Clouds", "Middle Clouds", "Middle Clouds (extends through more than one level)", "Low Clouds (extends through all three levels)", "High Clouds"];
     // Group genera by their level label, preserving a sensible Low → Middle → High order
@@ -3600,6 +4099,7 @@
     renderOnThisDay();
     renderTable();
     renderMap();
+    renderSkyTab();
   }
 
   document.getElementById("versionTag").textContent = "Weatherglass v" + APP_VERSION;
