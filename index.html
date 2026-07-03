@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Weatherglass — personal weather station & log
-  Version: 2.7.0
+  Version: 2.7.4
 
   Single-file app: no build step, no backend. Data lives in the
   visitor's own browser via localStorage.
@@ -680,8 +680,7 @@
     <button class="tab-btn" data-tab="log">Journal</button>
     <button class="tab-btn" data-tab="trends">Trends</button>
     <button class="tab-btn" data-tab="map">Map</button>
-    <button class="tab-btn" data-tab="sky">Sky & Cloud</button>
-    <button class="tab-btn" data-tab="settings">Settings</button>
+    <button class="tab-btn" data-tab="sky">Sky</button>
   </nav>
 
   <!-- NEW ENTRY -->
@@ -720,7 +719,7 @@
             <option>Precipitation</option>
             <option>Wind</option>
             <option>Pressure</option>
-            <option>Sky &amp; Cloud</option>
+            <option>Sky</option>
             <option>Storm</option>
           </select>
         </div>
@@ -997,126 +996,21 @@
         <option>Precipitation</option>
         <option>Wind</option>
         <option>Pressure</option>
-        <option>Sky &amp; Cloud</option>
+        <option>Sky</option>
         <option>Storm</option>
       </select>
       <select id="sortOrder">
         <option value="desc">Newest first</option>
         <option value="asc">Oldest first</option>
       </select>
+      <button type="button" id="settingsToggleBtn" title="Settings" style="background:none; border:1.5px solid var(--line); border-radius:4px; padding:7px 10px; cursor:pointer; font-size:17px; color:var(--ink-soft); flex-shrink:0;">⚙️</button>
     </div>
-    <div id="tableWrap"></div>
-  </section>
-
-  <!-- TRENDS -->
-  <section class="panel" id="panel-trends">
-    <h2 class="section-title">Trends</h2>
-    <div style="margin-bottom:14px; display:flex; align-items:center; gap:10px;">
-      <label style="font-family:'IBM Plex Mono', monospace; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-soft); white-space:nowrap;">Filter by location</label>
-      <select id="trendsLocationFilter" style="font-family:'Source Serif 4', serif; font-size:14px; padding:7px 10px; border:1px solid var(--line); border-radius:4px; background:var(--glass); flex:1;">
-        <option value="">All locations</option>
-      </select>
-    </div>
-    <div id="pressureWatchCard" style="border:1.5px solid var(--line); border-radius:6px; padding:14px 16px; margin-bottom:22px;">
-      <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; text-transform:uppercase; letter-spacing:0.6px; color:var(--ink-soft); margin-bottom:6px;">Pressure Watch</div>
-      <div id="pressureWatchText" style="font-family:'Source Serif 4', serif; font-size:15px; color:var(--ink);"></div>
-    </div>
-    <h3 class="records-title">Personal Records</h3>
-    <div class="cards records-grid" id="recordsCards"></div>
-    <h3 class="records-title">Insights</h3>
-    <div class="cards records-grid" id="insightCards" style="margin-bottom:22px;"></div>
-    <div class="chart-toggle">
-      <button class="btn secondary" id="chartTempBtn" title="Temperature over time">TOT</button>
-      <button class="btn secondary" id="chartPressureBtn" title="Pressure over time">POT</button>
-      <button class="btn secondary" id="chartHumidityBtn" title="Humidity over time">HOT</button>
-      <button class="btn secondary" id="chartHeatIdxBtn" title="Heat index over time">WIT</button>
-      <button class="btn secondary" id="chartDailyBtn" title="Daily min / avg / max">DMM</button>
-      <button class="btn secondary" id="chartAlertBtn" title="Alert severity over time">AST</button>
-      <button class="btn secondary" id="chartCatBtn" title="Entries by category">EBC</button>
-    </div>
-    <div class="chart-wrap">
-      <h3 class="chart-title" id="chartTitle">Temperature Over Time</h3>
-      <canvas id="trendChart" height="120"></canvas>
-    </div>
-  </section>
-
-  <!-- MAP -->
-  <section class="panel" id="panel-map">
-    <h2 class="section-title">Station Map</h2>
-    <div id="mapStatsBar" style="display:flex; gap:12px; margin-bottom:14px; flex-wrap:wrap;"></div>
-    <div id="map"></div>
-    <p class="sub" style="margin-top:10px; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft);">
-      Pins plot every entry with latitude/longitude. Click a pin to see the reading.
-    </p>
-  </section>
-
-  <!-- SKY & CLOUD -->
-  <section class="panel" id="panel-sky">
-    <h2 class="section-title">Sky &amp; Cloud</h2>
-
-    <!-- Section 1: Cloud Journal -->
-    <h3 class="records-title">Cloud Journal</h3>
-    <div id="cloudJournalGrid" class="cloud-grid"></div>
-
-    <!-- Section 2: Quick Classify -->
-    <h3 class="records-title">Quick Classify</h3>
-    <div style="border:1px dashed var(--line); border-radius:6px; padding:14px; margin-bottom:22px;">
-      <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:12px;">
-        Identify what you're seeing and save a Sky &amp; Cloud entry instantly — location, weather, and moon phase captured automatically.
+    <!-- Settings drawer — toggled by ⚙️ gear icon in toolbar above -->
+    <div id="settingsDrawer" style="display:none; background:var(--sky-card); border:1px solid var(--line); border-radius:6px; padding:20px; margin-bottom:18px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <span style="font-family:'Playfair Display',serif; font-style:italic; font-weight:600; font-size:19px; color:var(--steel);">Settings</span>
+        <button type="button" id="settingsCloseBtn" style="background:none; border:none; font-size:20px; color:var(--ink-soft); cursor:pointer;">✕</button>
       </div>
-      <div class="grid-form">
-        <div class="field">
-          <label for="qc-genus">Genus</label>
-          <select id="qc-genus">
-            <option value="">— select —</option>
-            <option>Cumulus</option>
-            <option>Cumulonimbus</option>
-            <option>Stratus</option>
-            <option>Stratocumulus</option>
-            <option>Altocumulus</option>
-            <option>Altostratus</option>
-            <option>Nimbostratus</option>
-            <option>Cirrus</option>
-            <option>Cirrocumulus</option>
-            <option>Cirrostratus</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="qc-species">Species</label>
-          <select id="qc-species"><option value="">—</option></select>
-        </div>
-        <div class="field wide">
-          <label for="qc-varieties">Varieties</label>
-          <select id="qc-varieties" multiple size="3"></select>
-        </div>
-        <div class="field wide">
-          <label for="qc-notes">Notes (optional)</label>
-          <textarea id="qc-notes" placeholder="What strikes you about this sky?" style="min-height:52px;"></textarea>
-        </div>
-      </div>
-      <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-        <button type="button" class="btn" id="quickClassifyBtn">Save cloud observation</button>
-        <div id="quickClassifyStatus" style="font-family:'IBM Plex Mono', monospace; font-size:11.5px; color:var(--ink-soft);"></div>
-      </div>
-    </div>
-
-    <!-- Section 3: Cloud Atlas with Howard + Goethe -->
-    <h3 class="records-title">Cloud Atlas</h3>
-    <div style="font-family:'Source Serif 4', serif; font-style:italic; font-size:12.5px; color:var(--ink-soft); margin-bottom:14px;">
-      Classification from <em>The Cloudspotter's Guide</em> by Gavin Pretor-Pinney, incorporating the original system of
-      <em>On the Modification of Clouds</em> (1803) by Luke Howard.
-    </div>
-    <div id="skyCloudAtlasContent"></div>
-
-    <!-- Section 4: Sky Stats -->
-    <h3 class="records-title" style="margin-top:24px;">Sky Statistics</h3>
-    <div id="skyStatsContent"></div>
-  </section>
-
-  <!-- SETTINGS -->
-
-  <section class="panel" id="panel-settings">
-    <h2 class="section-title">Settings</h2>
 
     <h3 class="records-title">Data &amp; Backup</h3>
     <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:12px;">
@@ -1190,7 +1084,78 @@
       Current conditions via Open-Meteo (free, no API key required).
     </div>
     <div class="version-tag" id="versionTag" style="margin-top:10px;"></div>
+    </div><!-- end settingsDrawer -->
+
+    <div id="tableWrap"></div>
   </section>
+
+  <!-- TRENDS -->
+  <section class="panel" id="panel-trends">
+    <h2 class="section-title">Trends</h2>
+    <div style="margin-bottom:14px; display:flex; align-items:center; gap:10px;">
+      <label style="font-family:'IBM Plex Mono', monospace; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-soft); white-space:nowrap;">Filter by location</label>
+      <select id="trendsLocationFilter" style="font-family:'Source Serif 4', serif; font-size:14px; padding:7px 10px; border:1px solid var(--line); border-radius:4px; background:var(--glass); flex:1;">
+        <option value="">All locations</option>
+      </select>
+    </div>
+    <div id="pressureWatchCard" style="border:1.5px solid var(--line); border-radius:6px; padding:14px 16px; margin-bottom:22px;">
+      <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; text-transform:uppercase; letter-spacing:0.6px; color:var(--ink-soft); margin-bottom:6px;">Pressure Watch</div>
+      <div id="pressureWatchText" style="font-family:'Source Serif 4', serif; font-size:15px; color:var(--ink);"></div>
+    </div>
+    <h3 class="records-title">Personal Records</h3>
+    <div class="cards records-grid" id="recordsCards"></div>
+    <h3 class="records-title">Insights</h3>
+    <div class="cards records-grid" id="insightCards" style="margin-bottom:22px;"></div>
+    <div class="chart-toggle">
+      <button class="btn secondary" id="chartTempBtn" title="Temperature over time">TOT</button>
+      <button class="btn secondary" id="chartPressureBtn" title="Pressure over time">POT</button>
+      <button class="btn secondary" id="chartHumidityBtn" title="Humidity over time">HOT</button>
+      <button class="btn secondary" id="chartHeatIdxBtn" title="Heat index over time">WIT</button>
+      <button class="btn secondary" id="chartDailyBtn" title="Daily min / avg / max">DMM</button>
+      <button class="btn secondary" id="chartAlertBtn" title="Alert severity over time">AST</button>
+      <button class="btn secondary" id="chartCatBtn" title="Entries by category">EBC</button>
+    </div>
+    <div class="chart-wrap">
+      <h3 class="chart-title" id="chartTitle">Temperature Over Time</h3>
+      <canvas id="trendChart" height="120"></canvas>
+    </div>
+  </section>
+
+  <!-- MAP -->
+  <section class="panel" id="panel-map">
+    <h2 class="section-title">Station Map</h2>
+    <div id="mapStatsBar" style="display:flex; gap:12px; margin-bottom:14px; flex-wrap:wrap;"></div>
+    <div id="map"></div>
+    <p class="sub" style="margin-top:10px; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft);">
+      Pins plot every entry with latitude/longitude. Click a pin to see the reading.
+    </p>
+  </section>
+
+  <!-- SKY & CLOUD -->
+  <section class="panel" id="panel-sky">
+    <h2 class="section-title">Sky</h2>
+
+    <!-- Section 1: Cloud Journal -->
+    <h3 class="records-title">Cloud Journal</h3>
+    <div id="cloudJournalGrid" class="cloud-grid"></div>
+
+
+    <!-- Section 2: Cloud Atlas with Howard + Goethe -->
+    <h3 class="records-title">Cloud Atlas</h3>
+    <div style="font-family:'Source Serif 4', serif; font-style:italic; font-size:12.5px; color:var(--ink-soft); margin-bottom:14px;">
+      Classification from <em>The Cloudspotter's Guide</em> by Gavin Pretor-Pinney, incorporating the original system of
+      <em>On the Modification of Clouds</em> (1803) by Luke Howard.
+    </div>
+    <div id="skyCloudAtlasContent"></div>
+
+    <!-- Section 4: Sky Stats -->
+    <h3 class="records-title" style="margin-top:24px;">Sky Statistics</h3>
+    <div id="skyStatsContent"></div>
+  </section>
+
+  <!-- SETTINGS -->
+
+  <section class="panel" id="panel-settings" style="display:none !important;"><!-- settings moved to journal drawer --></section>
 
   <footer>
     Stored locally in this browser — nothing leaves your machine.
@@ -1246,7 +1211,7 @@
 (function(){
   "use strict";
 
-  const APP_VERSION = "2.7.0";
+  const APP_VERSION = "2.7.4";
   const STORAGE_KEY = "weatherglass.entries.v1";
 
   function showToast(message, kind){
@@ -1491,7 +1456,7 @@
         id: cryptoId(),
         timestamp: new Date(now - 0.2*day).toISOString(),
         level: "Notable",
-        category: "Sky & Cloud",
+        category: "Sky",
         title: "Unusual halo around moon",
         location: { name: "Backyard", lat: 30.4795, lng: -86.1574 },
         tempF: 58.0, humidity: 70, pressureInHg: 30.00, windMph: 4.0, windDirDeg: 90,
@@ -1520,7 +1485,6 @@
       if(btn.dataset.tab === "trends"){ populateTrendsLocationFilter(); renderRecords(); renderInsights(); renderPressureWatch(); renderChart(currentChartMode); }
       if(btn.dataset.tab === "log"){ renderOnThisDay(); }
       if(btn.dataset.tab === "sky"){ renderSkyTab(); }
-      if(btn.dataset.tab === "settings"){ refreshStorageIndicator(); }
     });
   });
 
@@ -1889,110 +1853,7 @@
     return getFairFoulSignal(e.cloudGenus, e.cloudSpecies, e.cloudVarieties);
   }
 
-  // ---------- Quick Classify dropdowns ----------
-  document.getElementById("qc-genus").addEventListener("change", function(){
-    const data = CLOUD_DATA[this.value];
-    const speciesSel = document.getElementById("qc-species");
-    const varietiesSel = document.getElementById("qc-varieties");
-    if(!data){
-      speciesSel.innerHTML = "<option value=''>—</option>";
-      varietiesSel.innerHTML = "";
-      return;
-    }
-    speciesSel.innerHTML = "<option value=''>— none —</option>" +
-      data.species.map(s=>`<option>${escapeHtml(s)}</option>`).join("");
-    varietiesSel.innerHTML = data.varieties.map(v=>`<option>${escapeHtml(v)}</option>`).join("");
-  });
-
-  // ---------- Quick Classify save ----------
-  document.getElementById("quickClassifyBtn").addEventListener("click", async function(){
-    const genus = document.getElementById("qc-genus").value;
-    if(!genus){ showToast("Please select a cloud genus first.", "error"); return; }
-    const btn = this;
-    const statusEl = document.getElementById("quickClassifyStatus");
-    btn.disabled = true;
-    statusEl.textContent = "Getting location & conditions…";
-
-    let lat = null, lng = null;
-    try{
-      if(navigator.geolocation){
-        const pos = await new Promise((res,rej)=>
-          navigator.geolocation.getCurrentPosition(res,rej,{timeout:6000}));
-        lat = pos.coords.latitude; lng = pos.coords.longitude;
-      }
-    }catch(e){}
-
-    let weatherFields = {};
-    if(lat != null && lng != null){
-      try{
-        const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,relative_humidity_2m,pressure_msl,wind_speed_10m,wind_direction_10m,cloud_cover,precipitation,weather_code&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch`);
-        if(res.ok){
-          const d = await res.json();
-          const c = d.current || {};
-          weatherFields = {
-            tempF: isFinite(c.temperature_2m)?c.temperature_2m:null,
-            humidity: isFinite(c.relative_humidity_2m)?c.relative_humidity_2m:null,
-            pressureInHg: isFinite(c.pressure_msl)?parseFloat((c.pressure_msl*0.0295300).toFixed(2)):null,
-            windMph: isFinite(c.wind_speed_10m)?c.wind_speed_10m:null,
-            windDirDeg: isFinite(c.wind_direction_10m)?c.wind_direction_10m:null,
-            cloudPct: isFinite(c.cloud_cover)?c.cloud_cover:null,
-            precipIn: isFinite(c.precipitation)?c.precipitation:null,
-            sky: weatherCodeToText(c.weather_code)||""
-          };
-        }
-      }catch(e){}
-    }
-
-    const now = new Date();
-    const moon = getMoonPhase(now);
-    const species = document.getElementById("qc-species").value;
-    const varieties = Array.from(document.getElementById("qc-varieties").selectedOptions).map(o=>o.value).filter(Boolean);
-    const notes = document.getElementById("qc-notes").value.trim();
-    const ff = getFairFoulSignal(genus, species, varieties);
-
-    const entry = {
-      id: cryptoId(),
-      timestamp: now.toISOString(),
-      level: "Notable",
-      category: "Sky & Cloud",
-      title: genus + (species ? " " + species : "") + " — " + now.toLocaleString(undefined,{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}),
-      location: { name: lat!=null?"Current location":"Unknown", lat, lng },
-      ...weatherFields,
-      sky: weatherFields.sky || genus,
-      cloudGenus: genus,
-      cloudSpecies: species || null,
-      cloudVarieties: varieties,
-      alertActive: null, alertSeverity: null, alertSummary: "", alertFullText: "",
-      tideState: null, tideHeightFt: null, tideNext: null,
-      uvIndex: null, pm25: null,
-      moonPhase: moon.phaseName,
-      moonIllumination: moon.illumination,
-      equipment: "Visual observation",
-      impression: ff ? (ff.cls==="fair"?"Beautiful":ff.cls==="foul"?"Ominous":ff.cls==="changing"?"Exciting":"Comfortable") : "",
-      timeOfDayTag: nearestTimeOfDay(now),
-      notes,
-      photo: null
-    };
-
-    const nextEntries = entries.concat([entry]);
-    persistChange({ putEntry: entry }, nextEntries).then(()=>{
-      entries = nextEntries;
-      renderAll();
-      renderSkyTab();
-      showToast(`${genus} observation saved.`, "success");
-      document.getElementById("qc-genus").value = "";
-      document.getElementById("qc-species").innerHTML = "<option value=''>—</option>";
-      document.getElementById("qc-varieties").innerHTML = "";
-      document.getElementById("qc-notes").value = "";
-    }).catch(err=>{
-      showStorageFailureWarning("Could not save: " + (err.message||err));
-    }).finally(()=>{
-      btn.disabled = false;
-      statusEl.textContent = "";
-    });
-  });
-
-  // ---------- Sky & Cloud tab render ----------
+  // ---------- Sky tab render ----------
   function renderSkyTab(){
     renderCloudJournal();
     renderSkyCloudAtlas();
@@ -2003,12 +1864,12 @@
     const grid = document.getElementById("cloudJournalGrid");
     if(!grid) return;
     const skyEntries = entries
-      .filter(e=>e.category==="Sky & Cloud")
+      .filter(e=>e.category==="Sky")
       .slice().sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp))
       .slice(0,60); // cap to avoid memory issues
 
     if(!skyEntries.length){
-      grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">No sky observations yet. Use Quick Classify above or set Category to "Sky &amp; Cloud" in the Record tab.</div>`;
+      grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">No sky observations yet — set Category to "Sky" in the Record tab to start your cloud journal.</div>`;
       return;
     }
 
@@ -2111,7 +1972,7 @@
   function renderSkyStats(){
     const el = document.getElementById("skyStatsContent");
     if(!el) return;
-    const skyEntries = entries.filter(e=>e.category==="Sky & Cloud");
+    const skyEntries = entries.filter(e=>e.category==="Sky");
     if(!skyEntries.length){
       el.innerHTML = `<div class="empty-state">Log some sky observations to see stats here.</div>`;
       return;
@@ -2223,7 +2084,7 @@
     populateCloudSpeciesAndVarieties(this.value);
   });
   function toggleCloudClassificationBlock(){
-    const isSkyCloud = document.getElementById("f-category").value === "Sky & Cloud";
+    const isSkyCloud = document.getElementById("f-category").value === "Sky";
     const block = document.getElementById("cloudClassificationBlock");
     block.style.display = isSkyCloud ? "block" : "none";
     if(!isSkyCloud){
@@ -3494,6 +3355,17 @@
     return new Date().toISOString().slice(0,10);
   }
 
+  /* ---------- settings drawer (gear icon in Journal toolbar) ---------- */
+  function toggleSettingsDrawer(forceOpen){
+    const drawer = document.getElementById("settingsDrawer");
+    const isOpen = drawer.style.display !== "none";
+    const shouldOpen = forceOpen !== undefined ? forceOpen : !isOpen;
+    drawer.style.display = shouldOpen ? "block" : "none";
+    if(shouldOpen) refreshStorageIndicator();
+  }
+  document.getElementById("settingsToggleBtn").addEventListener("click", ()=> toggleSettingsDrawer());
+  document.getElementById("settingsCloseBtn").addEventListener("click", ()=> toggleSettingsDrawer(false));
+
   document.getElementById("exportBtn").addEventListener("click", ()=>{
     runExportFlow(entries, ()=>{});
   });
@@ -3918,7 +3790,7 @@
         options:{ responsive:true, plugins:{ legend:{ display:false } } }
       });
     } else if(mode === "cat"){
-      const cats = ["Temperature","Precipitation","Wind","Pressure","Sky & Cloud","Storm"];
+      const cats = ["Temperature","Precipitation","Wind","Pressure","Sky","Storm"];
       const counts = cats.map(c=>trendsEntries().filter(e=>e.category===c).length);
       chartInstance = new Chart(ctx, {
         type:"bar",
