@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Weatherglass — personal weather station & log
-  Version: 2.7.4
+  Version: 2.7.6
 
   Single-file app: no build step, no backend. Data lives in the
   visitor's own browser via localStorage.
@@ -680,7 +680,7 @@
     <button class="tab-btn" data-tab="log">Journal</button>
     <button class="tab-btn" data-tab="trends">Trends</button>
     <button class="tab-btn" data-tab="map">Map</button>
-    <button class="tab-btn" data-tab="sky">Sky</button>
+    <button class="tab-btn" data-tab="sky">Gallery</button>
   </nav>
 
   <!-- NEW ENTRY -->
@@ -1113,6 +1113,9 @@
       <button class="btn secondary" id="chartHeatIdxBtn" title="Heat index over time">WIT</button>
       <button class="btn secondary" id="chartDailyBtn" title="Daily min / avg / max">DMM</button>
       <button class="btn secondary" id="chartAlertBtn" title="Alert severity over time">AST</button>
+      <button class="btn secondary" id="chartWindRoseBtn" title="Wind direction rose">WDR</button>
+      <button class="btn secondary" id="chartHeatRateBtn" title="Heating rate per day">HRC</button>
+      <button class="btn secondary" id="chartTodBtn" title="Entries by time of day">TOD</button>
       <button class="btn secondary" id="chartCatBtn" title="Entries by category">EBC</button>
     </div>
     <div class="chart-wrap">
@@ -1133,10 +1136,7 @@
 
   <!-- SKY & CLOUD -->
   <section class="panel" id="panel-sky">
-    <h2 class="section-title">Sky</h2>
 
-    <!-- Section 1: Cloud Journal -->
-    <h3 class="records-title">Cloud Journal</h3>
     <div id="cloudJournalGrid" class="cloud-grid"></div>
 
 
@@ -1211,7 +1211,7 @@
 (function(){
   "use strict";
 
-  const APP_VERSION = "2.7.4";
+  const APP_VERSION = "2.7.6";
   const STORAGE_KEY = "weatherglass.entries.v1";
 
   function showToast(message, kind){
@@ -3644,6 +3644,9 @@
   document.getElementById("chartHeatIdxBtn").addEventListener("click", ()=>renderChart("heatidx"));
   document.getElementById("chartDailyBtn").addEventListener("click", ()=>renderChart("daily"));
   document.getElementById("chartAlertBtn").addEventListener("click", ()=>renderChart("alert"));
+  document.getElementById("chartWindRoseBtn").addEventListener("click", ()=>renderChart("windrose"));
+  document.getElementById("chartHeatRateBtn").addEventListener("click", ()=>renderChart("heatrate"));
+  document.getElementById("chartTodBtn").addEventListener("click", ()=>renderChart("tod"));
   document.getElementById("chartCatBtn").addEventListener("click", ()=>renderChart("cat"));
 
   function renderChart(mode){
@@ -3654,7 +3657,8 @@
       temp:"Temperature Over Time", pressure:"Pressure Over Time",
       humidity:"Humidity Over Time", heatidx:"Heat Index — Feels Like Over Time",
       daily:"Daily Min / Avg / Max Temperature", alert:"Alert Severity Over Time",
-      cat:"Entries by Category"
+      windrose:"Wind Direction Rose", heatrate:"Heating Rate — Morning to Afternoon",
+      tod:"Entries by Time of Day", cat:"Entries by Category"
     };
     if(titleEl) titleEl.textContent = titles[mode] || "";
     if(chartInstance) chartInstance.destroy();
@@ -3789,6 +3793,134 @@
         },
         options:{ responsive:true, plugins:{ legend:{ display:false } } }
       });
+    } else if(mode === "windrose"){
+      // Bucket wind readings into 16 compass directions, weighted by speed
+      const DIRS = ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
+      const buckets = new Array(16).fill(0);
+      const counts = new Array(16).fill(0);
+      trendsEntries().filter(e=>isFinite(e.windDirDeg) && isFinite(e.windMph) && e.windMph > 0)
+        .forEach(e=>{
+          const idx = Math.round(e.windDirDeg / 22.5) % 16;
+          buckets[idx] += e.windMph;
+          counts[idx]++;
+        });
+      const avgSpeeds = buckets.map((sum,i)=> counts[i] ? parseFloat((sum/counts[i]).toFixed(1)) : 0);
+      if(avgSpeeds.every(v=>v===0)){
+        if(titleEl) titleEl.textContent = "Wind Direction Rose — no wind data yet";
+        return;
+      }
+      chartInstance = new Chart(ctx, {
+        type:"polarArea",
+        data:{
+          labels: DIRS,
+          datasets:[{
+            data: avgSpeeds,
+            backgroundColor: DIRS.map((_,i)=>`hsla(${i*22.5+200},40%,45%,0.6)`),
+            borderColor: DIRS.map((_,i)=>`hsla(${i*22.5+200},40%,35%,0.9)`),
+            borderWidth:1
+          }]
+        },
+        options:{
+          responsive:true,
+          plugins:{
+            legend:{display:false},
+            tooltip:{callbacks:{label:(ctx)=>`Avg ${ctx.raw} mph from ${DIRS[ctx.dataIndex]}`}}
+          },
+          scales:{
+            r:{
+              ticks:{display:false},
+              grid:{color:"rgba(194,210,220,0.4)"}
+            }
+          }
+        }
+      });
+
+    } else if(mode === "heatrate"){
+      // For each calendar day that has both a morning (before noon) and afternoon
+      // (noon or after) reading, compute °F/hour rise between them
+      const byDay = {};
+      trendsEntries().filter(e=>isFinite(e.tempF)).forEach(e=>{
+        const dt = new Date(e.timestamp);
+        const day = dt.toLocaleDateString(undefined,{month:"short",day:"numeric"});
+        if(!byDay[day]) byDay[day] = { morning:[], afternoon:[] };
+        const h = dt.getHours();
+        if(h < 12) byDay[day].morning.push({t:e.tempF, dt});
+        else byDay[day].afternoon.push({t:e.tempF, dt});
+      });
+      const days=[], rates=[];
+      Object.entries(byDay).forEach(([day,{morning,afternoon}])=>{
+        if(!morning.length || !afternoon.length) return;
+        const morn = morning.reduce((a,b)=>a.t<b.t?a:b); // coolest morning reading
+        const aftn = afternoon.reduce((a,b)=>a.t>b.t?a:b); // hottest afternoon reading
+        const hrs = (aftn.dt - morn.dt) / 3600000;
+        if(hrs <= 0) return;
+        const rate = parseFloat(((aftn.t - morn.t) / hrs).toFixed(2));
+        days.push(day);
+        rates.push(rate);
+      });
+      if(!days.length){
+        if(titleEl) titleEl.textContent = "Heating Rate — need both morning and afternoon readings on the same day";
+        return;
+      }
+      chartInstance = new Chart(ctx, {
+        type:"bar",
+        data:{
+          labels:days,
+          datasets:[{
+            label:"°F/hour",
+            data:rates,
+            backgroundColor:rates.map(r=>r>0?"rgba(192,57,43,0.6)":"rgba(62,96,121,0.5)"),
+            borderColor:rates.map(r=>r>0?"#c0392b":"#3E6079"),
+            borderWidth:1
+          }]
+        },
+        options:{
+          responsive:true,
+          plugins:{
+            legend:{display:false},
+            tooltip:{callbacks:{label:(ctx)=>`${ctx.raw>0?"+":""}${ctx.raw}°F/hr`}}
+          },
+          scales:{
+            x:{grid:{display:false}},
+            y:{title:{display:true,text:"°F / hour",font:{size:10}},
+               ticks:{callback:v=>(v>0?"+":"")+v}}
+          }
+        }
+      });
+
+    } else if(mode === "tod"){
+      const TOD_ORDER = ["Early Morning","Morning","Midday","Afternoon","Evening","Night","Late Night","Unspecified"];
+      const counts = {};
+      TOD_ORDER.forEach(t=>counts[t]=0);
+      trendsEntries().forEach(e=>{
+        const tag = e.timeOfDayTag || "Unspecified";
+        if(counts[tag] !== undefined) counts[tag]++;
+        else counts["Unspecified"]++;
+      });
+      const labels = TOD_ORDER.filter(t=>counts[t]>0);
+      const data = labels.map(t=>counts[t]);
+      chartInstance = new Chart(ctx, {
+        type:"bar",
+        data:{
+          labels,
+          datasets:[{
+            label:"Entries",
+            data,
+            backgroundColor:"rgba(62,96,121,0.6)",
+            borderColor:"#3E6079",
+            borderWidth:1
+          }]
+        },
+        options:{
+          responsive:true,
+          plugins:{legend:{display:false}},
+          scales:{
+            x:{grid:{display:false}},
+            y:{ticks:{stepSize:1},title:{display:true,text:"Entries",font:{size:10}}}
+          }
+        }
+      });
+
     } else if(mode === "cat"){
       const cats = ["Temperature","Precipitation","Wind","Pressure","Sky","Storm"];
       const counts = cats.map(c=>trendsEntries().filter(e=>e.category===c).length);
