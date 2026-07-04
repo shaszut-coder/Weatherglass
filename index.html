@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Weatherglass — personal weather station & log
-  Version: 2.7.6
+  Version: 2.7.8
 
   Single-file app: no build step, no backend. Data lives in the
   visitor's own browser via localStorage.
@@ -1137,6 +1137,17 @@
   <!-- SKY & CLOUD -->
   <section class="panel" id="panel-sky">
 
+    <div style="text-align:center; margin-bottom:22px; padding-bottom:18px; border-bottom:2px solid var(--ink);">
+      <div style="font-family:'IBM Plex Mono', monospace; font-size:10px; text-transform:uppercase; letter-spacing:3px; color:var(--ink-soft); margin-bottom:6px;">Est. by the observer</div>
+      <h2 style="font-family:'Playfair Display', serif; font-style:italic; font-weight:700; font-size:clamp(26px,5vw,38px); color:var(--ink); margin:0; line-height:1.1; letter-spacing:0.5px;">Gallery of the Skies</h2>
+      <div style="font-family:'IBM Plex Mono', monospace; font-size:10px; text-transform:uppercase; letter-spacing:3px; color:var(--ink-soft); margin-top:6px;">A Personal Cloud Record</div>
+      <div style="margin-top:10px; display:flex; align-items:center; justify-content:center; gap:10px;">
+        <div style="height:1px; width:40px; background:var(--ink-soft);"></div>
+        <span style="font-size:14px; color:var(--brass);">☁</span>
+        <div style="height:1px; width:40px; background:var(--ink-soft);"></div>
+      </div>
+    </div>
+
     <div id="cloudJournalGrid" class="cloud-grid"></div>
 
 
@@ -1211,7 +1222,7 @@
 (function(){
   "use strict";
 
-  const APP_VERSION = "2.7.6";
+  const APP_VERSION = "2.7.8";
   const STORAGE_KEY = "weatherglass.entries.v1";
 
   function showToast(message, kind){
@@ -1544,18 +1555,25 @@
     return entries.filter(e => e.location && e.location.name === val);
   }
 
+  let savedTrendsLocation = "";
+
   function populateTrendsLocationFilter(){
     const sel = document.getElementById("trendsLocationFilter");
     if(!sel) return;
-    const current = sel.value;
     const names = [...new Set(
       entries.map(e => e.location?.name).filter(Boolean)
     )].sort();
     sel.innerHTML = `<option value="">All locations</option>` +
-      names.map(n=>`<option${n===current?' selected':''}>${escapeHtml(n)}</option>`).join("");
+      names.map(n=>`<option${n===savedTrendsLocation?' selected':''}>${escapeHtml(n)}</option>`).join("");
+    // Restore saved selection — if the saved location no longer exists in data, reset
+    if(savedTrendsLocation && !names.includes(savedTrendsLocation)){
+      savedTrendsLocation = "";
+      sel.value = "";
+    }
   }
 
   document.getElementById("trendsLocationFilter").addEventListener("change", ()=>{
+    savedTrendsLocation = document.getElementById("trendsLocationFilter").value;
     renderRecords();
     renderInsights();
     renderPressureWatch();
@@ -1819,7 +1837,8 @@
     if(vars.includes("praecipitatio") || genus === "Nimbostratus" || genus === "Cumulonimbus")
       return { label:"Foul", cls:"foul", icon:"🌧", desc:"Rain or storms indicated" };
     if(genus === "Cirrus" || genus === "Cirrostratus" ||
-       (genus === "Altocumulus" && species === "castellanus"))
+       (genus === "Altocumulus" && species === "castellanus") ||
+       (genus === "Cumulus" && species === "congestus"))
       return { label:"Changing", cls:"changing", icon:"🔄", desc:"Weather change likely" };
     if(genus === "Cirrocumulus" || (genus === "Cumulus" && (species === "humilis" || species === "mediocris")))
       return { label:"Fair", cls:"fair", icon:"☀️", desc:"Fair conditions" };
@@ -4115,6 +4134,20 @@
       console.warn("Failed to load entries on startup:", e.message || e);
       entries = [];
     }
+
+    // Silent one-time migration: rename "Sky & Cloud" category → "Sky"
+    // so existing entries show up in the Gallery tab and new Sky filter
+    const toMigrate = entries.filter(e=>e.category === "Sky & Cloud");
+    if(toMigrate.length){
+      toMigrate.forEach(e=>{ e.category = "Sky"; });
+      try{
+        await idbPutEntries(toMigrate);
+        console.log(`Migrated ${toMigrate.length} entries from "Sky & Cloud" → "Sky"`);
+      }catch(err){
+        console.warn("Category migration failed:", err.message || err);
+      }
+    }
+
     renderAll();
     renderChart(currentChartMode);
     refreshStorageIndicator();
