@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Weatherglass — personal weather station & log
-  Version: 2.8.3
+  Version: 2.8.5
 
   Single-file app: no build step, no backend. Data lives in the
   visitor's own browser via localStorage.
@@ -1111,8 +1111,47 @@
       </select>
     </div>
     <div id="pressureWatchCard" style="border:1.5px solid var(--line); border-radius:6px; padding:14px 16px; margin-bottom:22px;">
-      <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; text-transform:uppercase; letter-spacing:0.6px; color:var(--ink-soft); margin-bottom:6px;">Pressure Watch</div>
-      <div id="pressureWatchText" style="font-family:'Source Serif 4', serif; font-size:15px; color:var(--ink);"></div>
+      <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; text-transform:uppercase; letter-spacing:0.6px; color:var(--ink-soft); margin-bottom:10px;">Pressure Watch</div>
+
+      <!-- Barometer dial — cx=130, cy=120, r=90. Angles measured from top (0°=up), -90°=left, +90°=right -->
+      <!-- Zone boundaries: -90° Stormy | -54° Rain | -18° Change | +18° Fair | +54° Dry | +90° -->
+      <!-- Arc coords at r=90: -90°→(40,120)  -54°→(57.2,67.1)  -18°→(102.2,34.4)  0°→(130,30)  +18°→(157.8,34.4)  +54°→(202.8,67.1)  +90°→(220,120) -->
+      <svg id="barometerDial" viewBox="0 0 260 148" style="width:100%; max-width:280px; display:block; margin:0 auto 12px;" aria-label="Barometer dial">
+
+        <!-- Dial face subtle background -->
+        <path d="M 40 120 A 90 90 0 0 1 220 120" fill="none" stroke="#E6EDF2" stroke-width="22" stroke-linecap="round"/>
+
+        <!-- Colored zones — five equal 36° sectors -->
+        <path d="M 40 120    A 90 90 0 0 1 57.2 67.1"   fill="none" stroke="#8B3A3A" stroke-width="16" stroke-linecap="butt" opacity="0.6"/>
+        <path d="M 57.2 67.1 A 90 90 0 0 1 102.2 34.4"  fill="none" stroke="#3E6079" stroke-width="16" stroke-linecap="butt" opacity="0.6"/>
+        <path d="M 102.2 34.4 A 90 90 0 0 1 157.8 34.4" fill="none" stroke="#8A6A3D" stroke-width="16" stroke-linecap="butt" opacity="0.6"/>
+        <path d="M 157.8 34.4 A 90 90 0 0 1 202.8 67.1"  fill="none" stroke="#46606E" stroke-width="16" stroke-linecap="butt" opacity="0.6"/>
+        <path d="M 202.8 67.1 A 90 90 0 0 1 220 120"    fill="none" stroke="#2E7D32" stroke-width="16" stroke-linecap="butt" opacity="0.6"/>
+
+        <!-- Tick marks (9 ticks, every 22.5° from -90° to +90°) -->
+        <g id="dialTicks" stroke="#5C6E7C" stroke-width="1.5"></g>
+
+        <!-- Previous reading needle (ghost) -->
+        <line id="dialNeedlePrev" x1="130" y1="120" x2="130" y2="36" stroke="#C2D2DC" stroke-width="2" stroke-linecap="round" transform="rotate(0,130,120)"/>
+        <!-- Current reading needle — brass, tapered with polygon -->
+        <polygon id="dialNeedle" points="130,36 127,120 133,120" fill="#8A6A3D" transform="rotate(0,130,120)"/>
+
+        <!-- Center pivot -->
+        <circle cx="130" cy="120" r="6" fill="#2C3A47"/>
+        <circle cx="130" cy="120" r="3" fill="#8A6A3D"/>
+
+        <!-- Pressure readout centered below center -->
+        <text id="dialPressureText" x="130" y="113" font-family="IBM Plex Mono, monospace" font-size="9.5" fill="#2C3A47" text-anchor="middle" font-weight="600"></text>
+
+        <!-- Zone labels — all horizontal, placed radially outside arc at r=108 -->
+        <text x="22"  y="124" font-family="IBM Plex Mono, monospace" font-size="8" fill="#8B3A3A" text-anchor="middle" font-weight="600">STORMY</text>
+        <text x="44"  y="58"  font-family="IBM Plex Mono, monospace" font-size="8" fill="#3E6079" text-anchor="middle" font-weight="600">RAIN</text>
+        <text x="130" y="16"  font-family="IBM Plex Mono, monospace" font-size="8" fill="#8A6A3D" text-anchor="middle" font-weight="600">CHANGE</text>
+        <text x="216" y="58"  font-family="IBM Plex Mono, monospace" font-size="8" fill="#46606E" text-anchor="middle" font-weight="600">FAIR</text>
+        <text x="238" y="124" font-family="IBM Plex Mono, monospace" font-size="8" fill="#2E7D32" text-anchor="middle" font-weight="600">DRY</text>
+      </svg>
+
+      <div id="pressureWatchText" style="font-family:'Source Serif 4', serif; font-size:14px; color:var(--ink); line-height:1.5;"></div>
     </div>
     <h3 class="records-title">Personal Records</h3>
     <div class="cards records-grid" id="recordsCards"></div>
@@ -1133,6 +1172,9 @@
       </button>
       <button class="btn secondary" id="chartHeatRateBtn" title="Heating rate per day" style="display:flex; flex-direction:column; align-items:center; gap:2px; padding:8px 12px; font-size:10px; min-width:52px;">
         <span style="font-size:18px; font-family:'Playfair Display',serif; color:var(--brass); line-height:1;">▲</span>HRC
+      </button>
+      <button class="btn secondary" id="chartYoyBtn" title="Year-over-year temperature comparison" style="display:flex; flex-direction:column; align-items:center; gap:2px; padding:8px 12px; font-size:10px; min-width:52px;">
+        <span style="font-size:18px; font-family:'Playfair Display',serif; color:var(--brass); line-height:1;">⟳</span>YOY
       </button>
     </div>
     <div style="display:flex; justify-content:center; gap:6px; margin-bottom:14px;">
@@ -1251,7 +1293,7 @@
 (function(){
   "use strict";
 
-  const APP_VERSION = "2.8.3";
+  const APP_VERSION = "2.8.5";
   const STORAGE_KEY = "weatherglass.entries.v1";
 
   function showToast(message, kind){
@@ -1913,6 +1955,60 @@
 
     textEl.textContent = message;
     card.style.display = "block";
+
+    // Animate the brass dial needle
+    updateBarometerDial(latest.pressureInHg, previous.pressureInHg);
+  }
+
+  // Map a pressure reading to a dial rotation angle
+  // Range: 28.50 inHg (far left, -90°) → 31.00 inHg (far right, +90°)
+  const DIAL_MIN_INHG = 28.50;
+  const DIAL_MAX_INHG = 31.00;
+  function pressureToAngle(inHg){
+    const clamped = Math.max(DIAL_MIN_INHG, Math.min(DIAL_MAX_INHG, inHg));
+    const pct = (clamped - DIAL_MIN_INHG) / (DIAL_MAX_INHG - DIAL_MIN_INHG);
+    return -90 + pct * 180; // -90° (stormy) → +90° (dry)
+  }
+
+  function updateBarometerDial(currentPressure, prevPressure){
+    const needle = document.getElementById("dialNeedle");
+    const needlePrev = document.getElementById("dialNeedlePrev");
+    const readout = document.getElementById("dialPressureText");
+    if(!needle) return;
+
+    const angle = pressureToAngle(currentPressure);
+    needle.setAttribute("transform", `rotate(${angle.toFixed(1)},130,120)`);
+    if(readout) readout.textContent = currentPressure.toFixed(2) + " inHg";
+
+    if(needlePrev && isFinite(prevPressure)){
+      const prevAngle = pressureToAngle(prevPressure);
+      needlePrev.setAttribute("transform", `rotate(${prevAngle.toFixed(1)},130,120)`);
+    }
+
+    // Draw tick marks once (9 ticks every 22.5° across the 180° arc)
+    const tickGroup = document.getElementById("dialTicks");
+    if(tickGroup && !tickGroup.children.length){
+      const cx = 130, cy = 120, r = 90;
+      for(let i=0; i<=8; i++){
+        const angleDeg = -90 + i * (180/8);
+        const rad = angleDeg * Math.PI / 180;
+        const major = i % 2 === 0;
+        const inner = r - (major ? 14 : 8);
+        const outer = r - 1;
+        const x1 = cx + inner * Math.sin(rad);
+        const y1 = cy - inner * Math.cos(rad);
+        const x2 = cx + outer * Math.sin(rad);
+        const y2 = cy - outer * Math.cos(rad);
+        const line = document.createElementNS("http://www.w3.org/2000/svg","line");
+        line.setAttribute("x1", x1.toFixed(1));
+        line.setAttribute("y1", y1.toFixed(1));
+        line.setAttribute("x2", x2.toFixed(1));
+        line.setAttribute("y2", y2.toFixed(1));
+        line.setAttribute("stroke-width", major ? "2.5" : "1.5");
+        line.setAttribute("stroke", major ? "#2C3A47" : "#5C6E7C");
+        tickGroup.appendChild(line);
+      }
+    }
   }
 
   function parseExifDate(str){
@@ -3879,6 +3975,7 @@
   document.getElementById("chartHumidityBtn").addEventListener("click", ()=>renderChart("humidity"));
   document.getElementById("chartHeatIdxBtn").addEventListener("click", ()=>renderChart("heatidx"));
   document.getElementById("chartHeatRateBtn").addEventListener("click", ()=>renderChart("heatrate"));
+  document.getElementById("chartYoyBtn").addEventListener("click", ()=>renderChart("yoy"));
 
   // Time range filter — how many days back to show in the main chart
   let chartRangeDays = 7;
@@ -3917,7 +4014,7 @@
       temp:"Temperature Over Time", pressure:"Pressure Over Time",
       humidity:"Humidity Over Time", heatidx:"Heat Index Over Time (Feels Like)",
       daily:"Daily Min / Avg / Max Temperature", alert:"Alert Severity Over Time",
-      windrose:"Wind Direction Rose", heatrate:"Heating Rate — Morning to Afternoon",
+      windrose:"Wind Direction Rose", heatrate:"Heating Rate — Morning to Afternoon", yoy:"Year-over-Year Temperature",
       tod:"Entries by Time of Day", cat:"Entries by Category"
     };
     if(titleEl) titleEl.textContent = titles[mode] || "";
@@ -4177,6 +4274,67 @@
           scales:{
             x:xAxis,
             y:{ticks:{stepSize:1},title:{display:true,text:"Entries",font:{size:10}}}
+          }
+        }
+      });
+
+    } else if(mode === "yoy"){
+      // Group temp entries by year and day-of-year, overlay years on one chart
+      const byYear = {};
+      trendsEntries().filter(e=>isFinite(e.tempF)).forEach(e=>{
+        const d = new Date(e.timestamp);
+        const yr = d.getFullYear();
+        const doy = Math.floor((d - new Date(yr,0,0)) / 86400000); // day of year 1-366
+        if(!byYear[yr]) byYear[yr] = {};
+        if(!byYear[yr][doy]) byYear[yr][doy] = [];
+        byYear[yr][doy].push(e.tempF);
+      });
+      const years = Object.keys(byYear).sort();
+      if(years.length < 2){
+        if(titleEl) titleEl.textContent = "Year-over-Year — need data from at least 2 different years";
+        return;
+      }
+      // Build a common set of day-of-year labels from all years
+      const allDoys = [...new Set(
+        Object.values(byYear).flatMap(yr=>Object.keys(yr).map(Number))
+      )].sort((a,b)=>a-b);
+
+      const COLORS = ["#3E6079","#8A6A3D","#46606E","#6E4F4F","#2E7D32","#5C6E7C"];
+      const datasets = years.map((yr,i)=>({
+        label: yr,
+        data: allDoys.map(doy=>{
+          const vals = byYear[yr][doy];
+          return vals ? parseFloat((vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1)) : null;
+        }),
+        borderColor: COLORS[i % COLORS.length],
+        backgroundColor: COLORS[i % COLORS.length] + "22",
+        tension:0.3,
+        fill:false,
+        pointRadius:2,
+        spanGaps:true
+      }));
+
+      // Label doys as approximate month/day
+      const labels = allDoys.map(doy=>{
+        const d = new Date(2024, 0, doy); // use leap year for correct mapping
+        return d.toLocaleDateString(undefined,{month:"short",day:"numeric"});
+      });
+
+      chartInstance = new Chart(ctx, {
+        type:"line",
+        data:{ labels, datasets },
+        options:{
+          responsive:true,
+          interaction:{mode:"index"},
+          plugins:{
+            legend:{
+              display:true,
+              labels:{boxWidth:10,font:{size:10}}
+            }
+          },
+          scales:{
+            x:xAxis,
+            y:{title:{display:true,text:"°F",font:{size:10}}}
           }
         }
       });
