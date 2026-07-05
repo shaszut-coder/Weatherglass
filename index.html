@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Weatherglass — personal weather station & log
-  Version: 2.7.8
+  Version: 2.8.2
 
   Single-file app: no build step, no backend. Data lives in the
   visitor's own browser via localStorage.
@@ -452,6 +452,12 @@
     font-size:10.5px;
     letter-spacing:0.3px;
     text-align:center;
+  }
+  .btn.active{
+    background:var(--steel);
+    border-color:var(--steel);
+    color:#F1F6F9;
+    font-weight:600;
   }
   .chart-wrap{background:var(--glass); border:1px solid var(--line); border-radius:6px; padding:14px;}
   .chart-title{
@@ -1106,22 +1112,34 @@
     <div class="cards records-grid" id="recordsCards"></div>
     <h3 class="records-title">Insights</h3>
     <div class="cards records-grid" id="insightCards" style="margin-bottom:22px;"></div>
-    <div class="chart-toggle">
-      <button class="btn secondary" id="chartTempBtn" title="Temperature over time">TOT</button>
-      <button class="btn secondary" id="chartPressureBtn" title="Pressure over time">POT</button>
-      <button class="btn secondary" id="chartHumidityBtn" title="Humidity over time">HOT</button>
-      <button class="btn secondary" id="chartHeatIdxBtn" title="Heat index over time">WIT</button>
-      <button class="btn secondary" id="chartDailyBtn" title="Daily min / avg / max">DMM</button>
-      <button class="btn secondary" id="chartAlertBtn" title="Alert severity over time">AST</button>
-      <button class="btn secondary" id="chartWindRoseBtn" title="Wind direction rose">WDR</button>
-      <button class="btn secondary" id="chartHeatRateBtn" title="Heating rate per day">HRC</button>
-      <button class="btn secondary" id="chartTodBtn" title="Entries by time of day">TOD</button>
-      <button class="btn secondary" id="chartCatBtn" title="Entries by category">EBC</button>
+    <div style="display:flex; justify-content:center; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
+      <button class="btn secondary" id="chartTempBtn" title="Temperature over time" style="display:flex; flex-direction:column; align-items:center; gap:2px; padding:8px 12px; font-size:10px; min-width:52px;">
+        <span style="font-size:18px; font-family:'Playfair Display',serif; color:var(--brass); line-height:1;">☀</span>TOT
+      </button>
+      <button class="btn secondary" id="chartPressureBtn" title="Pressure over time" style="display:flex; flex-direction:column; align-items:center; gap:2px; padding:8px 12px; font-size:10px; min-width:52px;">
+        <span style="font-size:18px; font-family:'Playfair Display',serif; color:var(--brass); line-height:1;">⊕</span>POT
+      </button>
+      <button class="btn secondary" id="chartHumidityBtn" title="Humidity over time" style="display:flex; flex-direction:column; align-items:center; gap:2px; padding:8px 12px; font-size:10px; min-width:52px;">
+        <span style="font-size:18px; font-family:'Playfair Display',serif; color:var(--brass); line-height:1;">≋</span>HOT
+      </button>
+      <button class="btn secondary" id="chartHeatIdxBtn" title="Heat index over time" style="display:flex; flex-direction:column; align-items:center; gap:2px; padding:8px 12px; font-size:10px; min-width:52px;">
+        <span style="font-size:18px; font-family:'Playfair Display',serif; color:var(--brass); line-height:1;">✦</span>HIOT
+      </button>
+      <button class="btn secondary" id="chartHeatRateBtn" title="Heating rate per day" style="display:flex; flex-direction:column; align-items:center; gap:2px; padding:8px 12px; font-size:10px; min-width:52px;">
+        <span style="font-size:18px; font-family:'Playfair Display',serif; color:var(--brass); line-height:1;">▲</span>HRC
+      </button>
+    </div>
+    <div style="display:flex; justify-content:center; gap:6px; margin-bottom:14px;">
+      <button class="btn secondary" id="chartRange7" style="font-size:10.5px; padding:5px 14px;">7d</button>
+      <button class="btn secondary" id="chartRange30" style="font-size:10.5px; padding:5px 14px;">30d</button>
+      <button class="btn secondary" id="chartRangeAll" style="font-size:10.5px; padding:5px 14px;">All</button>
     </div>
     <div class="chart-wrap">
       <h3 class="chart-title" id="chartTitle">Temperature Over Time</h3>
-      <canvas id="trendChart" height="120"></canvas>
+      <canvas id="trendChart" height="220"></canvas>
     </div>
+    <h3 class="records-title" style="margin-top:24px;">Pattern Tiles</h3>
+    <div id="patternTiles" class="cards records-grid"></div>
   </section>
 
   <!-- MAP -->
@@ -1222,7 +1240,7 @@
 (function(){
   "use strict";
 
-  const APP_VERSION = "2.7.8";
+  const APP_VERSION = "2.8.2";
   const STORAGE_KEY = "weatherglass.entries.v1";
 
   function showToast(message, kind){
@@ -1493,7 +1511,7 @@
       btn.classList.add("active");
       document.getElementById("panel-"+btn.dataset.tab).classList.add("active");
       if(btn.dataset.tab === "map"){ setTimeout(()=>{ if(map) map.invalidateSize(); }, 50); }
-      if(btn.dataset.tab === "trends"){ populateTrendsLocationFilter(); renderRecords(); renderInsights(); renderPressureWatch(); renderChart(currentChartMode); }
+      if(btn.dataset.tab === "trends"){ populateTrendsLocationFilter(); renderRecords(); renderInsights(); renderPatternTiles(); renderPressureWatch(); renderChart(currentChartMode); }
       if(btn.dataset.tab === "log"){ renderOnThisDay(); }
       if(btn.dataset.tab === "sky"){ renderSkyTab(); }
     });
@@ -1553,6 +1571,15 @@
     const val = document.getElementById("trendsLocationFilter")?.value || "";
     if(!val) return entries;
     return entries.filter(e => e.location && e.location.name === val);
+  }
+
+  // Main chart data — applies both location filter AND time range
+  function trendsEntriesForRange(){
+    const base = trendsEntries();
+    if(!chartRangeDays) return base;
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - chartRangeDays);
+    return base.filter(e => new Date(e.timestamp) >= cutoff);
   }
 
   let savedTrendsLocation = "";
@@ -1691,6 +1718,75 @@
   const PRESSURE_RAPID_DROP_PER_HOUR = 0.06;
   const PRESSURE_RAPID_RISE_PER_HOUR = 0.06;
   const PRESSURE_WATCH_MAX_GAP_HOURS = 18;
+
+  // ---------- Pattern Tiles (DMM, AST, WDR, TOD, EBC) ----------
+  function renderPatternTiles(){
+    const el = document.getElementById("patternTiles");
+    if(!el) return;
+    const data = trendsEntries();
+    if(!data.length){
+      el.innerHTML = `<div class="empty-state">Log more entries to see pattern tiles.</div>`;
+      return;
+    }
+
+    // DMM — today's min/max temp
+    const todayStr = new Date().toLocaleDateString();
+    const todayTemps = data.filter(e=>isFinite(e.tempF) &&
+      new Date(e.timestamp).toLocaleDateString() === todayStr).map(e=>e.tempF);
+    const dmmHtml = todayTemps.length
+      ? `<div class="value" style="font-size:18px;">${Math.min(...todayTemps).toFixed(0)}° <span style="color:var(--ink-soft);">/</span> ${Math.max(...todayTemps).toFixed(0)}°F</div>
+         <div class="sub-value">Today's low / high</div>`
+      : `<div class="value" style="font-size:16px;">—</div><div class="sub-value">No readings today</div>`;
+
+    // AST — active alerts summary
+    const alertEntries = data.filter(e=>e.alertActive==="yes");
+    const severeCount = alertEntries.filter(e=>e.alertSeverity==="Severe"||e.alertSeverity==="Extreme").length;
+    const astHtml = alertEntries.length
+      ? `<div class="value" style="font-size:18px;">${alertEntries.length} <span style="font-size:13px;">alerts logged</span></div>
+         <div class="sub-value">${severeCount} Severe or Extreme</div>`
+      : `<div class="value" style="font-size:16px;">No alerts logged</div><div class="sub-value">Clear conditions</div>`;
+
+    // WDR — prevailing wind direction
+    const windEntries = data.filter(e=>isFinite(e.windDirDeg)&&isFinite(e.windMph)&&e.windMph>0);
+    const COMPASS = ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
+    let wdrHtml;
+    if(windEntries.length){
+      const buckets = new Array(16).fill(0);
+      windEntries.forEach(e=>{ buckets[Math.round(e.windDirDeg/22.5)%16] += e.windMph; });
+      const dominant = buckets.indexOf(Math.max(...buckets));
+      const avgWind = (windEntries.reduce((s,e)=>s+e.windMph,0)/windEntries.length).toFixed(1);
+      wdrHtml = `<div class="value" style="font-size:22px;">${COMPASS[dominant]}</div>
+        <div class="sub-value">Prevailing direction · avg ${avgWind} mph</div>`;
+    } else {
+      wdrHtml = `<div class="value" style="font-size:16px;">—</div><div class="sub-value">No wind data</div>`;
+    }
+
+    // TOD — most active logging time
+    const todCounts = {};
+    data.forEach(e=>{ const t=e.timeOfDayTag||"Unspecified"; todCounts[t]=(todCounts[t]||0)+1; });
+    const topTod = Object.entries(todCounts).sort((a,b)=>b[1]-a[1])[0];
+    const todHtml = topTod
+      ? `<div class="value" style="font-size:18px;">${escapeHtml(topTod[0])}</div>
+         <div class="sub-value">Most logged time · ${topTod[1]} entries</div>`
+      : `<div class="value" style="font-size:16px;">—</div>`;
+
+    // EBC — most logged category
+    const catCounts = {};
+    data.forEach(e=>{ catCounts[e.category]=(catCounts[e.category]||0)+1; });
+    const topCat = Object.entries(catCounts).sort((a,b)=>b[1]-a[1])[0];
+    const ebcHtml = topCat
+      ? `<div class="value" style="font-size:18px;">${escapeHtml(topCat[0])}</div>
+         <div class="sub-value">Top category · ${topCat[1]} entries</div>`
+      : `<div class="value" style="font-size:16px;">—</div>`;
+
+    el.innerHTML = [
+      { label:"Daily Min / Max", content:dmmHtml },
+      { label:"Alert Summary", content:astHtml },
+      { label:"Prevailing Wind", content:wdrHtml },
+      { label:"Peak Log Time", content:todHtml },
+      { label:"Top Category", content:ebcHtml },
+    ].map(t=>`<div class="card"><div class="label">${t.label}</div>${t.content}</div>`).join("");
+  }
 
   function renderPressureWatch(){
     const card = document.getElementById("pressureWatchCard");
@@ -3661,20 +3757,44 @@
   document.getElementById("chartPressureBtn").addEventListener("click", ()=>renderChart("pressure"));
   document.getElementById("chartHumidityBtn").addEventListener("click", ()=>renderChart("humidity"));
   document.getElementById("chartHeatIdxBtn").addEventListener("click", ()=>renderChart("heatidx"));
-  document.getElementById("chartDailyBtn").addEventListener("click", ()=>renderChart("daily"));
-  document.getElementById("chartAlertBtn").addEventListener("click", ()=>renderChart("alert"));
-  document.getElementById("chartWindRoseBtn").addEventListener("click", ()=>renderChart("windrose"));
   document.getElementById("chartHeatRateBtn").addEventListener("click", ()=>renderChart("heatrate"));
-  document.getElementById("chartTodBtn").addEventListener("click", ()=>renderChart("tod"));
-  document.getElementById("chartCatBtn").addEventListener("click", ()=>renderChart("cat"));
+
+  // Time range filter — how many days back to show in the main chart
+  let chartRangeDays = 7;
+  function setChartRange(days){
+    chartRangeDays = days;
+    ["chartRange7","chartRange30","chartRangeAll"].forEach(id=>{
+      document.getElementById(id).classList.remove("active");
+    });
+    const active = days===7?"chartRange7":days===30?"chartRange30":"chartRangeAll";
+    document.getElementById(active).classList.add("active");
+    renderChart(currentChartMode);
+  }
+  document.getElementById("chartRange7").addEventListener("click", ()=>setChartRange(7));
+  document.getElementById("chartRange30").addEventListener("click", ()=>setChartRange(30));
+  document.getElementById("chartRangeAll").addEventListener("click", ()=>setChartRange(null));
+  // Set 7d as default active
+  document.getElementById("chartRange7").classList.add("active");
 
   function renderChart(mode){
     currentChartMode = mode;
     const ctx = document.getElementById("trendChart");
     const titleEl = document.getElementById("chartTitle");
+
+    // Shared x-axis config: fewer labels and 45° rotation so they don't
+    // collide at larger dataset sizes
+    const xAxis = {
+      grid:{ display:false },
+      ticks:{
+        maxTicksLimit:5,
+        maxRotation:45,
+        minRotation:30,
+        font:{ size:9 }
+      }
+    };
     const titles = {
       temp:"Temperature Over Time", pressure:"Pressure Over Time",
-      humidity:"Humidity Over Time", heatidx:"Heat Index — Feels Like Over Time",
+      humidity:"Humidity Over Time", heatidx:"Heat Index Over Time (Feels Like)",
       daily:"Daily Min / Avg / Max Temperature", alert:"Alert Severity Over Time",
       windrose:"Wind Direction Rose", heatrate:"Heating Rate — Morning to Afternoon",
       tod:"Entries by Time of Day", cat:"Entries by Category"
@@ -3683,7 +3803,7 @@
     if(chartInstance) chartInstance.destroy();
 
     if(mode === "heatidx"){
-      const paired = trendsEntries().filter(e=>isFinite(e.tempF)&&isFinite(e.humidity))
+      const paired = trendsEntriesForRange().filter(e=>isFinite(e.tempF)&&isFinite(e.humidity))
         .slice().sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
       chartInstance = new Chart(ctx, {
         type:"line",
@@ -3695,7 +3815,7 @@
           ]
         },
         options:{responsive:true,interaction:{mode:"index"},plugins:{legend:{labels:{boxWidth:10,font:{size:10}}}},
-          scales:{x:{ticks:{maxTicksLimit:7},grid:{display:false}},y:{title:{display:true,text:"°F",font:{size:10}}}}}
+          scales:{x:xAxis,y:{title:{display:true,text:"°F",font:{size:10}}}}}
       });
     } else if(mode === "daily"){
       // Group entries by calendar date, compute min/avg/max temp per day
@@ -3720,7 +3840,7 @@
           ]
         },
         options:{responsive:true,plugins:{legend:{labels:{boxWidth:10,font:{size:10}}}},
-          scales:{x:{grid:{display:false}},y:{title:{display:true,text:"°F",font:{size:10}}}}}
+          scales:{x:xAxis,y:{title:{display:true,text:"°F",font:{size:10}}}}}
       });
     } else if(mode === "alert"){
       const SEVERITY_VAL = {"":0,"Minor":1,"Moderate":2,"Severe":3,"Extreme":4};
@@ -3755,11 +3875,11 @@
             const labels=["None","Minor","Moderate","Severe","Extreme"];
             return "Severity: "+(labels[ctx.raw]||"None");
           }}}},
-          scales:{x:{ticks:{maxTicksLimit:7},grid:{display:false}},
+          scales:{x:xAxis,
             y:{min:0,max:4,ticks:{stepSize:1,callback:(v)=>["None","Minor","Moderate","Severe","Extreme"][v]||""}}}}
       });
     } else if(mode === "temp"){
-      const withTemp = trendsEntries().filter(e=>isFinite(e.tempF)).slice().sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
+      const withTemp = trendsEntriesForRange().filter(e=>isFinite(e.tempF)).slice().sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
       chartInstance = new Chart(ctx, {
         type:"line",
         data:{
@@ -3777,7 +3897,7 @@
         options:{ responsive:true, plugins:{ legend:{ display:false } } }
       });
     } else if(mode === "pressure"){
-      const withPressure = trendsEntries().filter(e=>isFinite(e.pressureInHg)).slice().sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
+      const withPressure = trendsEntriesForRange().filter(e=>isFinite(e.pressureInHg)).slice().sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
       chartInstance = new Chart(ctx, {
         type:"line",
         data:{
@@ -3795,7 +3915,7 @@
         options:{ responsive:true, plugins:{ legend:{ display:false } } }
       });
     } else if(mode === "humidity"){
-      const withHumidity = trendsEntries().filter(e=>isFinite(e.humidity)).slice().sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
+      const withHumidity = trendsEntriesForRange().filter(e=>isFinite(e.humidity)).slice().sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
       chartInstance = new Chart(ctx, {
         type:"line",
         data:{
@@ -3858,7 +3978,7 @@
       // For each calendar day that has both a morning (before noon) and afternoon
       // (noon or after) reading, compute °F/hour rise between them
       const byDay = {};
-      trendsEntries().filter(e=>isFinite(e.tempF)).forEach(e=>{
+      trendsEntriesForRange().filter(e=>isFinite(e.tempF)).forEach(e=>{
         const dt = new Date(e.timestamp);
         const day = dt.toLocaleDateString(undefined,{month:"short",day:"numeric"});
         if(!byDay[day]) byDay[day] = { morning:[], afternoon:[] };
@@ -3900,7 +4020,7 @@
             tooltip:{callbacks:{label:(ctx)=>`${ctx.raw>0?"+":""}${ctx.raw}°F/hr`}}
           },
           scales:{
-            x:{grid:{display:false}},
+            x:xAxis,
             y:{title:{display:true,text:"°F / hour",font:{size:10}},
                ticks:{callback:v=>(v>0?"+":"")+v}}
           }
@@ -3934,7 +4054,7 @@
           responsive:true,
           plugins:{legend:{display:false}},
           scales:{
-            x:{grid:{display:false}},
+            x:xAxis,
             y:{ticks:{stepSize:1},title:{display:true,text:"Entries",font:{size:10}}}
           }
         }
@@ -4118,6 +4238,7 @@
     populateTrendsLocationFilter();
     renderRecords();
     renderInsights();
+    renderPatternTiles();
     renderPressureWatch();
     renderOnThisDay();
     renderTable();
