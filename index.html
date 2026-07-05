@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Weatherglass — personal weather station & log
-  Version: 2.8.2
+  Version: 2.8.3
 
   Single-file app: no build step, no backend. Data lives in the
   visitor's own browser via localStorage.
@@ -860,6 +860,12 @@
             <button type="button" class="btn secondary" id="fetchWeatherBtn" style="flex:1;">Use current weather</button>
             <button type="button" class="btn secondary" id="fetchHistoricalBtn" style="flex:1;" title="For entries you're backdating — pulls what conditions were at that time">Fill historical weather</button>
           </div>
+          <div id="historicalDateRow" style="display:none; margin-top:8px; display:none; align-items:center; gap:8px; flex-wrap:wrap;">
+            <label style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--ink-soft); white-space:nowrap;">Date to fetch:</label>
+            <input type="date" id="historicalDateInput" style="font-family:'IBM Plex Mono',monospace; font-size:13px; padding:6px 8px; border:1px solid var(--line); border-radius:4px; background:var(--glass); flex:1; min-width:140px;">
+            <button type="button" class="btn secondary" id="historicalDateGoBtn" style="white-space:nowrap;">Fetch</button>
+            <button type="button" id="historicalDateCancelBtn" style="background:none; border:none; cursor:pointer; color:var(--ink-soft); font-size:13px;">✕</button>
+          </div>
           <div id="weatherStatus" style="display:none; margin-top:6px; font-family:'IBM Plex Mono', monospace; font-size:11.5px; color:var(--ink-soft);"></div>
         </div>
         <div class="field wide" style="border:1px dashed var(--line); border-radius:6px; padding:14px;">
@@ -1166,6 +1172,11 @@
       </div>
     </div>
 
+    <div style="display:flex; justify-content:center; gap:8px; margin-bottom:14px;">
+      <button class="btn secondary active" id="galleryFilterSky" style="font-size:11px; padding:5px 14px;">Sky only</button>
+      <button class="btn secondary" id="galleryFilterAll" style="font-size:11px; padding:5px 14px;">All photos</button>
+    </div>
+
     <div id="cloudJournalGrid" class="cloud-grid"></div>
 
 
@@ -1240,7 +1251,7 @@
 (function(){
   "use strict";
 
-  const APP_VERSION = "2.8.2";
+  const APP_VERSION = "2.8.3";
   const STORAGE_KEY = "weatherglass.entries.v1";
 
   function showToast(message, kind){
@@ -1533,10 +1544,37 @@
     const temps = entries.filter(e=>isFinite(e.tempF)).map(e=>e.tempF);
     const avgTemp = temps.length ? (temps.reduce((a,b)=>a+b,0)/temps.length).toFixed(1) : "—";
 
+    // Logging streak — consecutive days with at least one entry ending today/yesterday
+    const loggedDays = new Set(entries.map(e=>
+      new Date(e.timestamp).toLocaleDateString("en-CA") // YYYY-MM-DD
+    ));
+    let streak = 0;
+    const today = new Date();
+    for(let i=0; i<365; i++){
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      const key = d.toLocaleDateString("en-CA");
+      if(loggedDays.has(key)) streak++;
+      else if(i > 0) break; // gap found — stop (allow today to be missing if yesterday breaks)
+    }
+    // If today has no entry yet, start from yesterday
+    const todayKey = today.toLocaleDateString("en-CA");
+    if(!loggedDays.has(todayKey)){
+      streak = 0;
+      for(let i=1; i<365; i++){
+        const d = new Date(today);
+        d.setDate(today.getDate() - i);
+        const key = d.toLocaleDateString("en-CA");
+        if(loggedDays.has(key)) streak++;
+        else break;
+      }
+    }
+
     const cards = [
       { label:"Total Entries", value: total },
       { label:"Severe Weather Logged", value: severe },
       { label:"Avg Temp (°F)", value: avgTemp },
+      { label:"Day Logging Streak", value: streak > 0 ? streak + (streak === 1 ? " day" : " days") : "—" },
     ];
     document.getElementById("overviewCards").innerHTML = cards.map(c=>`
       <div class="card">
@@ -1779,13 +1817,60 @@
          <div class="sub-value">Top category · ${topCat[1]} entries</div>`
       : `<div class="value" style="font-size:16px;">—</div>`;
 
-    el.innerHTML = [
-      { label:"Daily Min / Max", content:dmmHtml },
-      { label:"Alert Summary", content:astHtml },
-      { label:"Prevailing Wind", content:wdrHtml },
-      { label:"Peak Log Time", content:todHtml },
-      { label:"Top Category", content:ebcHtml },
-    ].map(t=>`<div class="card"><div class="label">${t.label}</div>${t.content}</div>`).join("");
+    const tiles = [
+      {
+        id:"tile-dmm", label:"Daily Min / Max", content:dmmHtml,
+        detail: todayTemps.length
+          ? `<div style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--ink-soft); margin-top:8px; border-top:1px solid var(--line); padding-top:8px;">Based on ${todayTemps.length} reading${todayTemps.length>1?"s":""} today. See full history in <strong>DMM</strong> chart → switch to 30d or All.</div>`
+          : ""
+      },
+      {
+        id:"tile-ast", label:"Alert Summary", content:astHtml,
+        detail: alertEntries.length
+          ? `<div style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--ink-soft); margin-top:8px; border-top:1px solid var(--line); padding-top:8px;">Most recent: ${escapeHtml(alertEntries.slice().sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp))[0]?.alertSummary||"—")}</div>`
+          : ""
+      },
+      {
+        id:"tile-wdr", label:"Prevailing Wind", content:wdrHtml,
+        detail: windEntries.length
+          ? `<div style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--ink-soft); margin-top:8px; border-top:1px solid var(--line); padding-top:8px;">From ${windEntries.length} wind readings. See direction breakdown in the <strong>WDR</strong> wind rose — scroll up and switch chart mode.</div>`
+          : ""
+      },
+      {
+        id:"tile-tod", label:"Peak Log Time", content:todHtml,
+        detail: Object.keys(todCounts).length > 1
+          ? `<div style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--ink-soft); margin-top:8px; border-top:1px solid var(--line); padding-top:8px;">${Object.entries(todCounts).sort((a,b)=>b[1]-a[1]).map(([t,c])=>`${escapeHtml(t)}: ${c}`).join(" · ")}</div>`
+          : ""
+      },
+      {
+        id:"tile-ebc", label:"Top Category", content:ebcHtml,
+        detail: Object.keys(catCounts).length > 1
+          ? `<div style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--ink-soft); margin-top:8px; border-top:1px solid var(--line); padding-top:8px;">${Object.entries(catCounts).sort((a,b)=>b[1]-a[1]).map(([c,n])=>`${escapeHtml(c)}: ${n}`).join(" · ")}</div>`
+          : ""
+      },
+    ];
+
+    el.innerHTML = tiles.map(t=>`
+      <div class="card" id="${t.id}" style="cursor:pointer; user-select:none;" title="Tap for details">
+        <div class="label" style="display:flex; justify-content:space-between; align-items:center;">
+          ${t.label} <span class="tile-chevron" style="font-size:10px; color:var(--ink-soft);">▸</span>
+        </div>
+        ${t.content}
+        <div class="tile-detail" style="display:none;">${t.detail}</div>
+      </div>
+    `).join("");
+
+    // Tap to expand/collapse detail
+    el.querySelectorAll(".card").forEach(card=>{
+      card.addEventListener("click", function(){
+        const detail = this.querySelector(".tile-detail");
+        const chevron = this.querySelector(".tile-chevron");
+        if(!detail || !detail.innerHTML.trim()) return;
+        const open = detail.style.display !== "none";
+        detail.style.display = open ? "none" : "block";
+        if(chevron) chevron.textContent = open ? "▸" : "▾";
+      });
+    });
   }
 
   function renderPressureWatch(){
@@ -1934,7 +2019,8 @@
       return { label:"Foul", cls:"foul", icon:"🌧", desc:"Rain or storms indicated" };
     if(genus === "Cirrus" || genus === "Cirrostratus" ||
        (genus === "Altocumulus" && species === "castellanus") ||
-       (genus === "Cumulus" && species === "congestus"))
+       (genus === "Cumulus" && species === "congestus") ||
+       (genus === "Cumulus" && species === "fractus"))
       return { label:"Changing", cls:"changing", icon:"🔄", desc:"Weather change likely" };
     if(genus === "Cirrocumulus" || (genus === "Cumulus" && (species === "humilis" || species === "mediocris")))
       return { label:"Fair", cls:"fair", icon:"☀️", desc:"Fair conditions" };
@@ -1975,16 +2061,31 @@
     renderSkyStats();
   }
 
+  let galleryShowAll = false;
+
+  document.getElementById("galleryFilterSky").addEventListener("click", ()=>{
+    galleryShowAll = false;
+    document.getElementById("galleryFilterSky").classList.add("active");
+    document.getElementById("galleryFilterAll").classList.remove("active");
+    renderCloudJournal();
+  });
+  document.getElementById("galleryFilterAll").addEventListener("click", ()=>{
+    galleryShowAll = true;
+    document.getElementById("galleryFilterAll").classList.add("active");
+    document.getElementById("galleryFilterSky").classList.remove("active");
+    renderCloudJournal();
+  });
+
   function renderCloudJournal(){
     const grid = document.getElementById("cloudJournalGrid");
     if(!grid) return;
     const skyEntries = entries
-      .filter(e=>e.category==="Sky")
+      .filter(e=> galleryShowAll ? !!e.photo : e.category==="Sky")
       .slice().sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp))
       .slice(0,60); // cap to avoid memory issues
 
     if(!skyEntries.length){
-      grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">No sky observations yet — set Category to "Sky" in the Record tab to start your cloud journal.</div>`;
+      grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">${galleryShowAll ? "No entries with photos yet." : "No sky observations yet — set Category to \"Sky\" in the Record tab."}</div>`;
       return;
     }
 
@@ -2367,7 +2468,53 @@
   }
 
   /* ---------- historical weather (for backdated entries) ---------- */
-  document.getElementById("fetchHistoricalBtn").addEventListener("click", async function(){
+  document.getElementById("fetchHistoricalBtn").addEventListener("click", function(){
+    const statusEl = document.getElementById("weatherStatus");
+    const latField = document.getElementById("f-lat");
+    const lngField = document.getElementById("f-lng");
+    const lat = parseFloat(latField.value);
+    const lng = parseFloat(lngField.value);
+
+    if(!isFinite(lat) || !isFinite(lng)){
+      statusEl.style.display = "block";
+      statusEl.textContent = "Enter a latitude and longitude first — historical weather needs a location.";
+      return;
+    }
+
+    // If we already know the date (editing or EXIF), fetch immediately
+    let knownDate = null;
+    if(editingId){
+      const existing = entries.find(e=>e.id===editingId);
+      knownDate = existing ? existing.timestamp.slice(0,10) : null;
+    }
+    if(!knownDate && exifCapturedDate){
+      knownDate = exifCapturedDate.toISOString().slice(0,10);
+    }
+    if(knownDate){
+      fetchHistoricalWeatherForDate(knownDate);
+      return;
+    }
+
+    // No known date — show the inline date picker
+    const dateRow = document.getElementById("historicalDateRow");
+    const dateInput = document.getElementById("historicalDateInput");
+    dateInput.value = new Date().toISOString().slice(0,10); // default to today
+    dateRow.style.display = "flex";
+    dateInput.focus();
+  });
+
+  document.getElementById("historicalDateGoBtn").addEventListener("click", ()=>{
+    const val = document.getElementById("historicalDateInput").value;
+    if(!val){ return; }
+    document.getElementById("historicalDateRow").style.display = "none";
+    fetchHistoricalWeatherForDate(val);
+  });
+
+  document.getElementById("historicalDateCancelBtn").addEventListener("click", ()=>{
+    document.getElementById("historicalDateRow").style.display = "none";
+  });
+
+  async function fetchHistoricalWeatherForDate(dateStr){
     const statusEl = document.getElementById("weatherStatus");
     statusEl.style.display = "block";
 
@@ -2377,38 +2524,11 @@
     const lat = parseFloat(latField.value);
     const lng = parseFloat(lngField.value);
 
-    if(!isFinite(lat) || !isFinite(lng)){
-      statusEl.textContent = "Enter a latitude and longitude first — historical weather needs a location.";
-      return;
-    }
-
-    // Use Time of Day to pick an approximate hour for the historical lookup
     const TOD_HOURS = {
       "Early Morning":5, "Morning":9, "Midday":12,
       "Afternoon":15, "Evening":19, "Night":21, "Late Night":23
     };
-    const todVal = todField.value;
-    const hour = TOD_HOURS[todVal] ?? 12;
-
-    // Date priority: 1) editing an existing entry, 2) EXIF date from attached photo, 3) manual prompt
-    let dateStr;
-    if(editingId){
-      const existing = entries.find(e=>e.id===editingId);
-      dateStr = existing ? existing.timestamp.slice(0,10) : null;
-    }
-    if(!dateStr && exifCapturedDate){
-      dateStr = exifCapturedDate.toISOString().slice(0,10);
-      statusEl.textContent = `Using photo date: ${dateStr}…`;
-    }
-    if(!dateStr){
-      // Prompt for a date since we have no timestamp yet
-      const input = prompt("Enter the date for historical weather (YYYY-MM-DD):");
-      if(!input || !/^\d{4}-\d{2}-\d{2}$/.test(input.trim())){
-        statusEl.textContent = "Date format should be YYYY-MM-DD (e.g. 2026-06-29).";
-        return;
-      }
-      dateStr = input.trim();
-    }
+    const hour = TOD_HOURS[todField.value] ?? 12;
 
     statusEl.textContent = `Fetching historical weather for ${dateStr}…`;
     try{
@@ -2444,7 +2564,7 @@
       console.warn("Historical weather fetch failed:", err.message||err);
       statusEl.textContent = "Couldn't fetch historical weather. Open-Meteo archive may not have data for that date/location.";
     }
-  });
+  }
 
   /* ---------- weather alerts (US National Weather Service) ---------- */
   const ALERT_SEVERITY_RANK = { "Unknown":0, "Minor":1, "Moderate":2, "Severe":3, "Extreme":4 };
@@ -3007,6 +3127,7 @@
     document.getElementById("photoMetaStatus").style.display = "none";
     document.getElementById("weatherStatus").style.display = "none";
     document.getElementById("alertStatus").style.display = "none";
+    document.getElementById("historicalDateRow").style.display = "none";
     document.getElementById("saveEntryBtn").textContent = "Save Reading";
     document.getElementById("editModeHeader").style.display = "none";
     document.getElementById("entrySectionTitle").textContent = "Record a Reading";
