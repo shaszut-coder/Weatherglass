@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Weatherglass — personal weather station & log
-  Version: 2.9.4
+  Version: 2.9.6
 
   Single-file app: no build step, no backend. Data lives in the
   visitor's own browser via localStorage.
@@ -794,6 +794,27 @@
           </select>
         </div>
         <div class="field">
+          <label for="f-site-type">Site Type (optional)</label>
+          <select id="f-site-type">
+            <option value="">— unspecified —</option>
+            <option>Residential</option>
+            <option>Backyard</option>
+            <option>Open Field</option>
+            <option>Woodland</option>
+            <option>Trail</option>
+            <option>Wetland / Marsh</option>
+            <option>Coastal / Beach</option>
+            <option>Lake / River</option>
+            <option>Urban</option>
+            <option>Vehicle / In Transit</option>
+            <option>Elevated / Lookout</option>
+          </select>
+        </div>
+        <div class="field wide">
+          <label for="f-obs-context">Observation Context (optional)</label>
+          <input id="f-obs-context" type="text" placeholder="e.g. Fixed home station, Storm watching, Beach walk">
+        </div>
+        <div class="field">
           <label for="f-lat">Latitude</label>
           <input id="f-lat" type="number" step="0.000001" placeholder="e.g. 30.479500">
         </div>
@@ -1137,9 +1158,24 @@
   <section class="panel" id="panel-trends">
     <h2 class="section-title">Trends</h2>
     <div style="margin-bottom:14px; display:flex; align-items:center; gap:10px;">
-      <label style="font-family:'IBM Plex Mono', monospace; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-soft); white-space:nowrap;">Filter by location</label>
+      <label style="font-family:'IBM Plex Mono', monospace; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-soft); white-space:nowrap;">Location</label>
       <select id="trendsLocationFilter" style="font-family:'Source Serif 4', serif; font-size:14px; padding:7px 10px; border:1px solid var(--line); border-radius:4px; background:var(--glass); flex:1;">
         <option value="">All locations</option>
+      </select>
+      <label style="font-family:'IBM Plex Mono', monospace; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-soft); white-space:nowrap;">Site</label>
+      <select id="trendsSiteTypeFilter" style="font-family:'Source Serif 4', serif; font-size:14px; padding:7px 10px; border:1px solid var(--line); border-radius:4px; background:var(--glass); flex:1;">
+        <option value="">All sites</option>
+        <option>Residential</option>
+        <option>Backyard</option>
+        <option>Open Field</option>
+        <option>Woodland</option>
+        <option>Trail</option>
+        <option>Wetland / Marsh</option>
+        <option>Coastal / Beach</option>
+        <option>Lake / River</option>
+        <option>Urban</option>
+        <option>Vehicle / In Transit</option>
+        <option>Elevated / Lookout</option>
       </select>
     </div>
     <div id="pressureWatchCard" style="border:1.5px solid var(--line); border-radius:6px; padding:14px 16px; margin-bottom:22px;">
@@ -1333,7 +1369,7 @@
 (function(){
   "use strict";
 
-  const APP_VERSION = "2.9.4";
+  const APP_VERSION = "2.9.6";
   const STORAGE_KEY = "weatherglass.entries.v1";
 
   function showToast(message, kind){
@@ -1688,9 +1724,13 @@
   // All Trends functions call trendsEntries() instead of `entries` directly
   // so the location filter applies consistently across every chart/card/stat
   function trendsEntries(){
-    const val = document.getElementById("trendsLocationFilter")?.value || "";
-    if(!val) return entries;
-    return entries.filter(e => e.location && e.location.name === val);
+    const locVal = document.getElementById("trendsLocationFilter")?.value || "";
+    const siteVal = document.getElementById("trendsSiteTypeFilter")?.value || "";
+    return entries.filter(e=>{
+      if(locVal && !(e.location && e.location.name === locVal)) return false;
+      if(siteVal && e.siteType !== siteVal) return false;
+      return true;
+    });
   }
 
   // Main chart data — applies both location filter AND time range
@@ -1723,6 +1763,14 @@
     savedTrendsLocation = document.getElementById("trendsLocationFilter").value;
     renderRecords();
     renderInsights();
+    renderPatternTiles();
+    renderPressureWatch();
+    renderChart(currentChartMode);
+  });
+  document.getElementById("trendsSiteTypeFilter").addEventListener("change", ()=>{
+    renderRecords();
+    renderInsights();
+    renderPatternTiles();
     renderPressureWatch();
     renderChart(currentChartMode);
   });
@@ -3132,12 +3180,14 @@
   document.getElementById("f-location").addEventListener("change", function(){
     if(_locationChangeProgrammatic) return;
     const customField = document.getElementById("f-location-custom");
+    const currentCustomVal = customField.value.trim();
     if(this.value === "Other"){
       customField.style.display = "block";
-      // Don't clear — preserve any geocoded name already there
+      // Never clear — user switched back to Other, keep whatever name is there
     } else {
+      // User picked a real preset — hide and clear custom field
       customField.style.display = "none";
-      customField.value = ""; // only clear when switching to a preset option
+      customField.value = "";
     }
   });
   function getLocationName(){
@@ -3264,6 +3314,8 @@
     document.getElementById("f-impression").value = entry.impression || "";
     document.getElementById("f-notes").value = entry.notes || "";
     document.getElementById("f-timeofday").value = entry.timeOfDayTag || "";
+    document.getElementById("f-site-type").value = entry.siteType || "";
+    document.getElementById("f-obs-context").value = entry.obsContext || "";
 
     pendingPhoto = entry.photo || null;
     if(pendingPhoto){
@@ -3271,6 +3323,18 @@
       document.getElementById("photoPreviewWrap").style.display = "block";
     } else {
       document.getElementById("photoPreviewWrap").style.display = "none";
+    }
+
+    // Force-apply location name as the very last step so nothing after
+    // setLocationName can override the custom field
+    const _locName = entry.location?.name || "";
+    const _locSel = document.getElementById("f-location");
+    const _locCustom = document.getElementById("f-location-custom");
+    const _hasPreset = Array.from(_locSel.options).some(o=>o.value !== "Other" && o.value === _locName);
+    if(!_hasPreset && _locName){
+      _locSel.value = "Other";
+      _locCustom.value = _locName;
+      _locCustom.style.display = "block";
     }
 
     document.getElementById("entrySectionTitle").textContent = "Edit Reading";
@@ -3286,8 +3350,12 @@
   function resetFormToCreateMode(){
     editingId = null;
     exifCapturedDate = null;
+    // Raise flag before reset so any change events fired during reset are suppressed
+    _locationChangeProgrammatic = true;
     document.getElementById("entryForm").reset();
+    _locationChangeProgrammatic = false;
     document.getElementById("f-location-custom").style.display = "none";
+    document.getElementById("f-location-custom").value = "";
     document.getElementById("f-equipment-custom").style.display = "none";
     toggleCloudClassificationBlock();
     pendingPhoto = null;
@@ -3364,6 +3432,8 @@
       equipment: getEquipmentValue(),
       impression: document.getElementById("f-impression").value,
       timeOfDayTag: document.getElementById("f-timeofday").value,
+      siteType: document.getElementById("f-site-type").value || null,
+      obsContext: document.getElementById("f-obs-context").value.trim() || null,
       notes: document.getElementById("f-notes").value.trim(),
       photo: pendingPhoto || null
     };
@@ -3584,6 +3654,8 @@
     if(e.equipment) meta.push(["Equipment", e.equipment]);
     if(e.impression) meta.push(["Felt like", e.impression]);
     if(e.timeOfDayTag) meta.push(["Time of day", e.timeOfDayTag]);
+    if(e.siteType) meta.push(["Site type", e.siteType]);
+    if(e.obsContext) meta.push(["Context", e.obsContext]);
     if(e.alertActive) meta.push(["Alert active", e.alertActive === "yes" ? "Yes" : "No"]);
     if(e.alertSeverity) meta.push(["Alert severity", e.alertSeverity]);
     if(e.alertSummary) meta.push(["Alert summary", e.alertSummary]);
@@ -3784,6 +3856,7 @@
     "alertActive", "alertSeverity", "alertSummary", "alertFullText",
     "tideState", "tideHeightFt", "tideNext",
     "moonPhase", "moonIllumination",
+    "siteType", "obsContext",
     "equipment", "impression", "timeOfDayTag", "notes", "hasPhoto"
   ];
   function csvEscape(value){
@@ -3828,6 +3901,8 @@
       tideNext: e.tideNext || "",
       moonPhase: e.moonPhase || "",
       moonIllumination: e.moonIllumination ?? "",
+      siteType: e.siteType || "",
+      obsContext: e.obsContext || "",
       equipment: e.equipment || "",
       impression: e.impression || "",
       timeOfDayTag: e.timeOfDayTag || "",
