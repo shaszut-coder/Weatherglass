@@ -6,7 +6,7 @@ photo — plus your own notes, a "personal impression" tag, and a
 "time of day" tag — all stored locally in your own browser. No
 account, no server, no backend.
 
-Current version: **2.6.0** — see `CHANGELOG.md` for details.
+Current version: **2.9.11** — see `CHANGELOG.md` for details.
 
 ## What this is
 
