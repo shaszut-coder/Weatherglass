@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Weatherglass — personal weather station & log
-  Version: 2.9.8
+  Version: 2.9.9
 
   Single-file app: no build step, no backend. Data lives in the
   visitor's own browser via localStorage.
@@ -1150,33 +1150,37 @@
   <!-- TRENDS -->
   <section class="panel" id="panel-trends">
     <h2 class="section-title">Trends</h2>
-    <div style="margin-bottom:14px; display:flex; align-items:center; gap:10px;">
-      <label style="font-family:'IBM Plex Mono', monospace; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-soft); white-space:nowrap;">Location</label>
-      <select id="trendsLocationFilter" style="font-family:'Source Serif 4', serif; font-size:14px; padding:7px 10px; border:1px solid var(--line); border-radius:4px; background:var(--glass); flex:1;">
-        <option value="">All locations</option>
-      </select>
-      <label style="font-family:'IBM Plex Mono', monospace; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-soft); white-space:nowrap;">Site</label>
-      <select id="trendsSiteTypeFilter" style="font-family:'Source Serif 4', serif; font-size:14px; padding:7px 10px; border:1px solid var(--line); border-radius:4px; background:var(--glass); flex:1;">
-        <option value="">All sites</option>
-        <option>Home / Residence</option>
-        <option>Backyard</option>
-        <option>Front Yard</option>
-        <option>Patio / Deck</option>
-        <option>Rooftop</option>
-        <option>Open Field</option>
-        <option>Woodland</option>
-        <option>Trail</option>
-        <option>Campsite</option>
-        <option>Wetland / Marsh</option>
-        <option>Coastal / Beach</option>
-        <option>Lake / River</option>
-        <option>Dock / Marina</option>
-        <option>Elevated / Lookout</option>
-        <option>Urban</option>
-        <option>Park</option>
-        <option>Vehicle / In Transit</option>
-        <option>Boat / Watercraft</option>
-      </select>
+    <div style="margin-bottom:14px; display:flex; flex-direction:column; gap:8px;">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <label style="font-family:'IBM Plex Mono', monospace; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-soft); white-space:nowrap; width:52px;">Location</label>
+        <select id="trendsLocationFilter" style="font-family:'Source Serif 4', serif; font-size:14px; padding:7px 10px; border:1px solid var(--line); border-radius:4px; background:var(--glass); flex:1;">
+          <option value="">All locations</option>
+        </select>
+      </div>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <label style="font-family:'IBM Plex Mono', monospace; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-soft); white-space:nowrap; width:52px;">Site</label>
+        <select id="trendsSiteTypeFilter" style="font-family:'Source Serif 4', serif; font-size:14px; padding:7px 10px; border:1px solid var(--line); border-radius:4px; background:var(--glass); flex:1;">
+          <option value="">All sites</option>
+          <option>Home / Residence</option>
+          <option>Backyard</option>
+          <option>Front Yard</option>
+          <option>Patio / Deck</option>
+          <option>Rooftop</option>
+          <option>Open Field</option>
+          <option>Woodland</option>
+          <option>Trail</option>
+          <option>Campsite</option>
+          <option>Wetland / Marsh</option>
+          <option>Coastal / Beach</option>
+          <option>Lake / River</option>
+          <option>Dock / Marina</option>
+          <option>Elevated / Lookout</option>
+          <option>Urban</option>
+          <option>Park</option>
+          <option>Vehicle / In Transit</option>
+          <option>Boat / Watercraft</option>
+        </select>
+      </div>
     </div>
     <div id="pressureWatchCard" style="border:1.5px solid var(--line); border-radius:6px; padding:14px 16px; margin-bottom:22px;">
       <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; text-transform:uppercase; letter-spacing:0.6px; color:var(--ink-soft); margin-bottom:10px;">Pressure Watch</div>
@@ -1369,7 +1373,7 @@
 (function(){
   "use strict";
 
-  const APP_VERSION = "2.9.8";
+  const APP_VERSION = "2.9.9";
   const STORAGE_KEY = "weatherglass.entries.v1";
 
   function showToast(message, kind){
