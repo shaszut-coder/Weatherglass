@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Weatherglass — personal weather station & log
-  Version: 2.9.11
+  Version: 2.9.12
 
   Single-file app: no build step, no backend. Data lives in the
   visitor's own browser via localStorage.
@@ -1132,6 +1132,13 @@
       <button type="button" class="btn secondary" id="geocodeExistingBtn">Name existing locations</button>
       <div id="geocodeStatus" style="display:none; margin-top:8px; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft);"></div>
     </div>
+    <div style="border:1px dashed var(--line); border-radius:6px; padding:12px 14px; margin-bottom:18px;">
+      <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:8px;">
+        Detects trips from your GPS data and generates a summary card for each one — dates, distance, temperature range, locations visited, notable events and alert count.
+      </div>
+      <button type="button" class="btn secondary" id="tripSummaryBtn">Generate Trip Summaries</button>
+      <div id="tripSummaryOutput" style="margin-top:14px;"></div>
+    </div>
 
     <h3 class="records-title">About</h3>
     <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); line-height:1.7;">
@@ -1151,6 +1158,12 @@
   <section class="panel" id="panel-trends">
     <h2 class="section-title">Trends</h2>
     <div style="margin-bottom:14px; display:flex; flex-direction:column; gap:8px;">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <label style="font-family:'IBM Plex Mono', monospace; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-soft); white-space:nowrap; width:52px;">Region</label>
+        <select id="trendsRegionFilter" style="font-family:'Source Serif 4', serif; font-size:14px; padding:7px 10px; border:1px solid var(--line); border-radius:4px; background:var(--glass); flex:1;">
+          <option value="">All regions</option>
+        </select>
+      </div>
       <div style="display:flex; align-items:center; gap:10px;">
         <label style="font-family:'IBM Plex Mono', monospace; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-soft); white-space:nowrap; width:52px;">Location</label>
         <select id="trendsLocationFilter" style="font-family:'Source Serif 4', serif; font-size:14px; padding:7px 10px; border:1px solid var(--line); border-radius:4px; background:var(--glass); flex:1;">
@@ -1310,6 +1323,15 @@
     </div>
     <div id="skyCloudAtlasContent"></div>
 
+    <!-- My Cloud Atlas — personal photos organized by genus -->
+    <div id="myCloudAtlasBlock" style="display:none; margin-top:24px;">
+      <h3 class="records-title">My Cloud Atlas</h3>
+      <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:14px;">
+        Your logged sky observations organized by cloud genus.
+      </div>
+      <div id="myCloudAtlasContent"></div>
+    </div>
+
     <!-- Section 4: Sky Stats -->
     <h3 class="records-title" style="margin-top:24px;">Sky Statistics</h3>
     <div id="skyStatsContent"></div>
@@ -1373,7 +1395,7 @@
 (function(){
   "use strict";
 
-  const APP_VERSION = "2.9.11";
+  const APP_VERSION = "2.9.12";
   const STORAGE_KEY = "weatherglass.entries.v1";
 
   function showToast(message, kind){
@@ -1644,7 +1666,7 @@
       btn.classList.add("active");
       document.getElementById("panel-"+btn.dataset.tab).classList.add("active");
       if(btn.dataset.tab === "map"){ setTimeout(()=>{ if(map) map.invalidateSize(); renderMapDateStrip(); renderMap(); }, 50); }
-      if(btn.dataset.tab === "trends"){ populateTrendsLocationFilter(); renderRecords(); renderInsights(); renderPatternTiles(); renderPressureWatch(); renderChart(currentChartMode); }
+      if(btn.dataset.tab === "trends"){ populateTrendsLocationFilter(); populateTrendsRegionFilter(); renderRecords(); renderInsights(); renderPatternTiles(); renderPressureWatch(); renderChart(currentChartMode); }
       if(btn.dataset.tab === "log"){ renderOnThisDay(); }
       if(btn.dataset.tab === "sky"){ renderSkyTab(); }
     });
@@ -1666,42 +1688,71 @@
     const temps = entries.filter(e=>isFinite(e.tempF)).map(e=>e.tempF);
     const avgTemp = temps.length ? (temps.reduce((a,b)=>a+b,0)/temps.length).toFixed(1) : "—";
 
-    // Logging streak — consecutive days with at least one entry ending today/yesterday
     const loggedDays = new Set(entries.map(e=>
-      new Date(e.timestamp).toLocaleDateString("en-CA") // YYYY-MM-DD
+      new Date(e.timestamp).toLocaleDateString("en-CA")
     ));
-    let streak = 0;
     const today = new Date();
-    for(let i=0; i<365; i++){
-      const d = new Date(today);
-      d.setDate(today.getDate() - i);
-      const key = d.toLocaleDateString("en-CA");
-      if(loggedDays.has(key)) streak++;
-      else if(i > 0) break; // gap found — stop (allow today to be missing if yesterday breaks)
-    }
-    // If today has no entry yet, start from yesterday
     const todayKey = today.toLocaleDateString("en-CA");
-    if(!loggedDays.has(todayKey)){
-      streak = 0;
+
+    // Current streak
+    let streak = 0;
+    if(loggedDays.has(todayKey)){
+      for(let i=0; i<365; i++){
+        const d = new Date(today); d.setDate(today.getDate()-i);
+        if(loggedDays.has(d.toLocaleDateString("en-CA"))) streak++;
+        else break;
+      }
+    } else {
       for(let i=1; i<365; i++){
-        const d = new Date(today);
-        d.setDate(today.getDate() - i);
-        const key = d.toLocaleDateString("en-CA");
-        if(loggedDays.has(key)) streak++;
+        const d = new Date(today); d.setDate(today.getDate()-i);
+        if(loggedDays.has(d.toLocaleDateString("en-CA"))) streak++;
         else break;
       }
     }
+
+    // Longest streak ever
+    const allDays = [...loggedDays].sort();
+    let longest = 0, cur = 0, prevDate = null;
+    allDays.forEach(day=>{
+      const d = new Date(day+"T12:00:00");
+      if(prevDate){
+        const diff = (d - prevDate) / 86400000;
+        cur = diff === 1 ? cur + 1 : 1;
+      } else { cur = 1; }
+      if(cur > longest) longest = cur;
+      prevDate = d;
+    });
+
+    // This week vs last week
+    const thisWeekStart = new Date(today); thisWeekStart.setDate(today.getDate()-6);
+    const lastWeekStart = new Date(today); lastWeekStart.setDate(today.getDate()-13);
+    const lastWeekEnd = new Date(today); lastWeekEnd.setDate(today.getDate()-7);
+    const thisWeek = entries.filter(e=>new Date(e.timestamp)>=thisWeekStart).length;
+    const lastWeek = entries.filter(e=>{
+      const d = new Date(e.timestamp);
+      return d >= lastWeekStart && d <= lastWeekEnd;
+    }).length;
+    const weekTrend = thisWeek > lastWeek ? "▲" : thisWeek < lastWeek ? "▼" : "—";
+
+    // Entries this month
+    const thisMonth = entries.filter(e=>{
+      const d = new Date(e.timestamp);
+      return d.getMonth()===today.getMonth() && d.getFullYear()===today.getFullYear();
+    }).length;
 
     const cards = [
       { label:"Total Entries", value: total },
       { label:"Severe Weather Logged", value: severe },
       { label:"Avg Temp (°F)", value: avgTemp },
-      { label:"Day Logging Streak", value: streak > 0 ? streak + (streak === 1 ? " day" : " days") : "—" },
+      { label:"Current Streak", value: streak > 0 ? streak + (streak===1?" day":" days") : "—", note: longest > streak ? `Longest: ${longest} days` : longest > 0 ? `Best: ${longest} days` : "" },
+      { label:"This Week", value: thisWeek, note: lastWeek > 0 ? `${weekTrend} vs ${lastWeek} last week` : "" },
+      { label:"This Month", value: thisMonth, note: new Date().toLocaleDateString(undefined,{month:"long"}) },
     ];
     document.getElementById("overviewCards").innerHTML = cards.map(c=>`
       <div class="card">
         <div class="label">${escapeHtml(c.label)}</div>
         <div class="value">${escapeHtml(String(c.value))}</div>
+        ${c.note ? `<div class="note">${escapeHtml(c.note)}</div>` : ""}
       </div>
     `).join("");
   }
@@ -1727,10 +1778,44 @@
   }
   // All Trends functions call trendsEntries() instead of `entries` directly
   // so the location filter applies consistently across every chart/card/stat
+  // Build geographic regions by clustering entries at ~0.5° resolution (~35 miles)
+  function buildRegions(){
+    const regions = {};
+    entries.filter(e=>e.location&&isFinite(e.location.lat)&&isFinite(e.location.lng)).forEach(e=>{
+      const key = `${(Math.round(e.location.lat*2)/2).toFixed(1)},${(Math.round(e.location.lng*2)/2).toFixed(1)}`;
+      if(!regions[key]) regions[key] = { key, entries:[], nameCounts:{} };
+      regions[key].entries.push(e);
+      const name = e.location.name;
+      if(name && name !== "Current location" && name !== "Unknown"){
+        regions[key].nameCounts[name] = (regions[key].nameCounts[name]||0)+1;
+      }
+    });
+    return Object.values(regions).map(r=>{
+      const topName = Object.entries(r.nameCounts).sort((a,b)=>b[1]-a[1])[0];
+      return { key:r.key, label:topName?topName[0]:`~${r.key}`, entries:r.entries };
+    }).filter(r=>r.entries.length>=2).sort((a,b)=>b.entries.length-a.entries.length);
+  }
+
+  function populateTrendsRegionFilter(){
+    const sel = document.getElementById("trendsRegionFilter");
+    if(!sel) return;
+    const current = sel.value;
+    const regions = buildRegions();
+    sel.innerHTML = `<option value="">All regions</option>` +
+      regions.map(r=>`<option value="${escapeHtml(r.key)}"${r.key===current?" selected":""}>${escapeHtml(r.label)} (${r.entries.length})</option>`).join("");
+  }
+
   function trendsEntries(){
     const locVal = document.getElementById("trendsLocationFilter")?.value || "";
     const siteVal = document.getElementById("trendsSiteTypeFilter")?.value || "";
-    return entries.filter(e=>{
+    const regionKey = document.getElementById("trendsRegionFilter")?.value || "";
+    let base = entries;
+    if(regionKey){
+      const regions = buildRegions();
+      const region = regions.find(r=>r.key===regionKey);
+      base = region ? region.entries : [];
+    }
+    return base.filter(e=>{
       if(locVal && !(e.location && e.location.name === locVal)) return false;
       if(siteVal && e.siteType !== siteVal) return false;
       return true;
@@ -1765,6 +1850,13 @@
 
   document.getElementById("trendsLocationFilter").addEventListener("change", ()=>{
     savedTrendsLocation = document.getElementById("trendsLocationFilter").value;
+    renderRecords();
+    renderInsights();
+    renderPatternTiles();
+    renderPressureWatch();
+    renderChart(currentChartMode);
+  });
+  document.getElementById("trendsRegionFilter").addEventListener("change", ()=>{
     renderRecords();
     renderInsights();
     renderPatternTiles();
@@ -2270,6 +2362,7 @@
   function renderSkyTab(){
     renderCloudJournal();
     renderSkyCloudAtlas();
+    renderMyCloudAtlas();
     renderSkyStats();
   }
 
@@ -2395,6 +2488,64 @@
         this.textContent = div.classList.contains("open") ? "▾ " + title : "▸ " + title;
       });
     });
+  }
+
+  function renderMyCloudAtlas(){
+    const block = document.getElementById("myCloudAtlasBlock");
+    const el = document.getElementById("myCloudAtlasContent");
+    if(!block || !el) return;
+
+    // Only entries with a cloud genus
+    const withGenus = entries.filter(e=>e.cloudGenus);
+    if(!withGenus.length){ block.style.display = "none"; return; }
+
+    // Group by genus
+    const byGenus = {};
+    withGenus.forEach(e=>{
+      if(!byGenus[e.cloudGenus]) byGenus[e.cloudGenus] = [];
+      byGenus[e.cloudGenus].push(e);
+    });
+
+    const genera = Object.keys(byGenus).sort();
+    const ff = g => getFairFoulSignal(g, null, []);
+
+    el.innerHTML = genera.map(genus=>{
+      const genusEntries = byGenus[genus].slice().sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp));
+      const withPhotos = genusEntries.filter(e=>e.photo);
+      const signal = ff(genus);
+      const badge = signal ? `<span class="stamp ${signal.cls}" style="font-size:9.5px;">${signal.icon} ${signal.label}</span>` : "";
+      const symbol = HOWARD_SYMBOLS[genus] || "";
+
+      const photosHtml = withPhotos.length
+        ? `<div class="cloud-grid" style="margin-top:8px;">${
+            withPhotos.slice(0,6).map(e=>`
+              <div class="cloud-card" data-open="${e.id}">
+                <img class="cloud-card-photo" src="${e.photo}" alt="" loading="lazy">
+                <div class="cloud-card-body">
+                  <div class="cloud-card-meta">${escapeHtml(formatTs(e.timestamp))}</div>
+                  ${e.cloudSpecies ? `<div class="cloud-card-meta" style="font-style:italic;">${escapeHtml(e.cloudSpecies)}</div>` : ""}
+                </div>
+              </div>`).join("")
+          }</div>`
+        : `<div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--ink-soft); margin-top:6px;">No photos logged for this genus yet.</div>`;
+
+      return `<div style="border-top:1px solid var(--line); padding-top:14px; margin-bottom:18px;">
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
+          <span style="font-family:'IBM Plex Mono',monospace; font-size:16px; color:var(--brass);">${escapeHtml(symbol)}</span>
+          <span style="font-family:'Playfair Display',serif; font-style:italic; font-weight:700; font-size:17px;">${escapeHtml(genus)}</span>
+          ${badge}
+          <span style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--ink-soft); margin-left:auto;">${genusEntries.length} obs · ${withPhotos.length} photos</span>
+        </div>
+        ${photosHtml}
+      </div>`;
+    }).join("");
+
+    // Wire photo card clicks
+    el.querySelectorAll("[data-open]").forEach(card=>{
+      card.addEventListener("click", ()=>openEntryDetail(card.dataset.open));
+    });
+
+    block.style.display = "block";
   }
 
   function renderSkyStats(){
@@ -4055,6 +4206,104 @@
     showToast(`Done — ${updated} locations named, ${failed} couldn't be resolved.`, "success");
   });
 
+  /* ---------- trip summary auto-generation ---------- */
+  document.getElementById("tripSummaryBtn").addEventListener("click", function(){
+    const output = document.getElementById("tripSummaryOutput");
+
+    // Get all GPS-tagged entries sorted chronologically
+    const geoEntries = entries
+      .filter(e=>e.location&&isFinite(e.location.lat)&&isFinite(e.location.lng))
+      .slice().sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
+
+    if(geoEntries.length < 5){
+      output.innerHTML = `<div class="empty-state">Not enough GPS-tagged entries to detect trips yet.</div>`;
+      return;
+    }
+
+    // Find home base — the geographic cluster with the most entries
+    const regions = buildRegions();
+    if(!regions.length){
+      output.innerHTML = `<div class="empty-state">Need at least 2 entries in the same area to detect trips.</div>`;
+      return;
+    }
+    const homeRegion = regions[0]; // most entries = home
+    const HOME_RADIUS_MILES = 50;
+
+    // Detect trips: sequences of entries >50 miles from home
+    function distFromHome(e){
+      return haversineMetres(
+        e.location.lat, e.location.lng,
+        parseFloat(homeRegion.key.split(",")[0]),
+        parseFloat(homeRegion.key.split(",")[1])
+      ) / 1609.34; // convert to miles
+    }
+
+    const trips = [];
+    let currentTrip = null;
+
+    geoEntries.forEach(e=>{
+      const dist = distFromHome(e);
+      if(dist > HOME_RADIUS_MILES){
+        if(!currentTrip) currentTrip = { entries:[], minDist:dist, maxDist:dist };
+        currentTrip.entries.push(e);
+        currentTrip.maxDist = Math.max(currentTrip.maxDist, dist);
+      } else {
+        if(currentTrip && currentTrip.entries.length >= 3){
+          trips.push(currentTrip);
+        }
+        currentTrip = null;
+      }
+    });
+    if(currentTrip && currentTrip.entries.length >= 3) trips.push(currentTrip);
+
+    if(!trips.length){
+      output.innerHTML = `<div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--ink-soft);">No trips detected — all your entries appear to be within ${HOME_RADIUS_MILES} miles of ${escapeHtml(homeRegion.label)}. Trips are detected when entries move more than ${HOME_RADIUS_MILES} miles from your home base.</div>`;
+      return;
+    }
+
+    output.innerHTML = trips.map((trip, i)=>{
+      const es = trip.entries;
+      const start = new Date(es[0].timestamp);
+      const end = new Date(es[es.length-1].timestamp);
+      const days = Math.max(1, Math.round((end-start)/86400000));
+      const temps = es.filter(e=>isFinite(e.tempF)).map(e=>e.tempF);
+      const tempRange = temps.length ? `${Math.min(...temps).toFixed(0)}–${Math.max(...temps).toFixed(0)}°F` : "—";
+      const avgTemp = temps.length ? (temps.reduce((a,b)=>a+b,0)/temps.length).toFixed(1)+"°F avg" : "";
+      const alerts = es.filter(e=>e.alertActive==="yes").length;
+      const severe = es.filter(e=>e.level==="Severe").length;
+      const storms = es.filter(e=>e.category==="Storm").length;
+      const skyObs = es.filter(e=>e.category==="Sky").length;
+
+      // Get unique place names
+      const places = [...new Set(es.map(e=>e.location.name).filter(n=>n&&n!=="Current location"&&n!=="Unknown"))].slice(0,5);
+
+      // Hi/lo humidity
+      const hums = es.filter(e=>isFinite(e.humidity)).map(e=>e.humidity);
+      const humRange = hums.length ? `${Math.min(...hums).toFixed(0)}–${Math.max(...hums).toFixed(0)}%` : "—";
+
+      return `<div style="background:var(--sky-card); border:1px solid var(--line); border-radius:8px; padding:14px 16px; margin-bottom:14px;">
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; text-transform:uppercase; letter-spacing:0.6px; color:var(--brass); margin-bottom:4px;">Trip ${i+1}</div>
+        <div style="font-family:'Playfair Display',serif; font-style:italic; font-weight:700; font-size:18px; color:var(--ink); margin-bottom:8px;">
+          ${start.toLocaleDateString(undefined,{month:"short",day:"numeric"})} – ${end.toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"})}
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:10px;">
+          <div class="card" style="padding:8px 12px;"><div class="label">Entries</div><div class="value" style="font-size:18px;">${es.length}</div></div>
+          <div class="card" style="padding:8px 12px;"><div class="label">Duration</div><div class="value" style="font-size:18px;">${days} day${days===1?"":"s"}</div></div>
+          <div class="card" style="padding:8px 12px;"><div class="label">Temperature</div><div class="value" style="font-size:16px;">${tempRange}</div><div class="note">${avgTemp}</div></div>
+          <div class="card" style="padding:8px 12px;"><div class="label">Humidity</div><div class="value" style="font-size:16px;">${humRange}</div></div>
+          <div class="card" style="padding:8px 12px;"><div class="label">Alerts</div><div class="value" style="font-size:18px;">${alerts}</div></div>
+          <div class="card" style="padding:8px 12px;"><div class="label">Max distance</div><div class="value" style="font-size:16px;">${trip.maxDist.toFixed(0)} mi</div></div>
+        </div>
+        ${places.length ? `<div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--ink-soft); margin-bottom:6px;">📍 ${escapeHtml(places.join(" → "))}</div>` : ""}
+        ${(severe||storms||skyObs) ? `<div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--ink-soft);">
+          ${severe?`⚡ ${severe} severe entr${severe===1?"y":"ies"}`:""} 
+          ${storms?`🌩 ${storms} storm event${storms===1?"":"s"}`:""} 
+          ${skyObs?`☁ ${skyObs} sky observation${skyObs===1?"":"s"}`:""}
+        </div>` : ""}
+      </div>`;
+    }).join("");
+  });
+
   /* ---------- delete all data ---------- */
   function resetDeleteAllUI(){
     document.getElementById("deleteAllDefault").style.display = "block";
@@ -4948,6 +5197,7 @@
   function renderAll(){
     renderCards();
     populateTrendsLocationFilter();
+    populateTrendsRegionFilter();
     renderRecords();
     renderInsights();
     renderPatternTiles();

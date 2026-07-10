@@ -1,118 +1,150 @@
 # Weatherglass
 
-A personal, browser-based weather journal. Log temperature,
-pressure, wind, humidity, precipitation, sky conditions, and a
-photo — plus your own notes, a "personal impression" tag, and a
-"time of day" tag — all stored locally in your own browser. No
-account, no server, no backend.
+A personal, privacy-first weather journal for the serious observer.
+Log conditions, clouds, storms, and sky photos — all stored locally
+in your browser. No account, no server, no backend, no ads.
 
-Current version: **2.9.11** — see `CHANGELOG.md` for details.
+Current version: **2.9.12** — see `CHANGELOG.md` for full history.
+
+---
 
 ## What this is
 
-A single static HTML file (`index.html`). There's no build step and
-no server-side code. All your data lives in your browser's
-`localStorage`, on your own device.
+A single static HTML file (`index.html`). No build step, no
+server-side code. All data lives in your browser's **IndexedDB**,
+on your own device.
 
-It uses a few external services, loaded directly in the browser:
-- **Chart.js** and **Leaflet** (via cdnjs.cloudflare.com) for charts
-  and the station map
-- **OpenStreetMap** tiles for the map background
-- **exif-js** (via cdnjs.cloudflare.com) to read photo metadata
-- **Open-Meteo** (api.open-meteo.com) for live weather — free, no API
-  key required
-- **National Weather Service** (api.weather.gov) for active weather
-  alerts — free, no API key required, **US locations only**
+Designed for enthusiasts who want a personal instrument station —
+not a weather app that shows you what a server thinks the weather
+is, but a log of what *you* actually observed.
 
-None of these require any account, key, or configuration on your
-part. They just need the visitor's browser to have internet access.
+---
 
-## Deploying to Netlify
+## Features
 
-### Option A — Drag and drop (fastest, no account setup beyond signing in)
+### Recording
+- **Quick Log (⚡)** — one tap captures location, current weather,
+  NWS alerts, moon phase, and time of day automatically
+- Full entry form: Entry Type, Category, Location name, Site Type,
+  Observation Context, Time of Day, Cloud Classification, Weather
+  Alerts, NOAA Tides (auto-shown for coastal site types), Air
+  Quality (UV Index + PM2.5), Historical weather fill, Instruments,
+  Personal Impression, Notes, Sky Photo
+- **EXIF date from photo** sets entry timestamp and pre-fills
+  historical weather automatically
+- **Reverse geocoding** — Quick Log entries are automatically named
+  by place ("Russellville, Arkansas") using OpenStreetMap
 
-1. Go to [app.netlify.com/drop](https://app.netlify.com/drop)
-2. Drag this whole folder (the one containing `index.html`,
-   `netlify.toml`, etc.) onto the page
-3. Netlify gives you a live URL immediately — done
+### Tabs
+| Tab | Contents |
+|---|---|
+| **Record** | Entry form + Quick Log |
+| **Journal** | Searchable entry list, On This Day strip, ⚙️ Settings |
+| **Trends** | Charts, Personal Records, Insights, Pressure Watch dial, Pattern Tiles |
+| **Map** | Station (clustered pins) or Route (temperature-coded path) with date filter strip |
+| **Gallery** | Photo grid, My Cloud Atlas by genus, Cloud Atlas reference (Howard + Goethe), Sky Stats |
 
-This creates a site you can keep using, but updates mean dragging the
-folder again each time.
+### Trends charts
+TOT · POT · HOT · HIOT · HRC · YOY · ATX — plus pattern tiles for
+Daily Min/Max (DMM) and Wind Rose (WDR) that tap to reveal the chart.
 
-### Option B — Git-based deploy (better for ongoing updates)
+Time range selector: **7d / 30d / All**
 
-1. Push this folder to a GitHub (or GitLab/Bitbucket) repository
-2. In Netlify: **Add new site → Import an existing project**
-3. Connect your repo
-4. Build settings:
-   - **Build command:** leave blank (none needed)
-   - **Publish directory:** `.` (the repo root, since `index.html` is
-     at the top level)
-5. Deploy
+Filter by: **Region** (geographic cluster) · **Location** (name) · **Site Type**
 
-After this, any time you push a change to the repo, Netlify
-redeploys automatically.
+### Cloud Atlas
+Based on *The Cloudspotter's Guide* by Gavin Pretor-Pinney,
+incorporating Luke Howard's original 1803 classification system
+(*On the Modification of Clouds*). Each genus shows:
+- Howard's original notation symbol (∞ ○ — etc.)
+- Fair/Foul/Changing/Unsettled weather signal
+- "What Howard said" — his original forecasting text (expandable)
+- Goethe's cloud verses as a coda (1817–1821, expandable)
 
-### Option C — Netlify CLI
+### Map — Route mode
+Plots entries chronologically as a temperature-coded path:
+blue (<65°F) → green → yellow → orange → red → dark red (95°F+).
+Date filter chips let you isolate a single day's travel.
 
-```bash
-npm install -g netlify-cli
-cd path/to/this-folder
-netlify deploy --prod
-```
+### Trip Summary
+Settings → Location Tools → **Generate Trip Summaries** detects
+trips from GPS data (entries >50 miles from home base) and produces
+a summary card per trip: dates, duration, temperature range, places
+visited, alerts, storm events.
 
-## A note on your data
+### Settings (⚙️ in Journal toolbar)
+- Export JSON (multi-file, includes photos)
+- Export CSV (with heat index, UV, PM2.5, tides, moon, alerts,
+  site type, observation context)
+- Import JSON
+- Reset Storage (auto-exports backup first)
+- Delete All Data (two-step confirmation + auto-export)
+- Name existing locations (batch reverse geocoding, ~1/sec)
+- Generate Trip Summaries
 
-Because everything is stored in `localStorage`, your log entries are
-tied to **the specific browser and device** you used them on — they
-will not appear if you open the site on a different phone, computer,
-or even a different browser on the same device. Use the **Export
-JSON** button in the Journal tab regularly if you want a backup, or
-want to move your data to a new device (via **Import JSON** there).
+---
+
+## External services used
+
+All free, no API key required, no account needed:
+
+| Service | Purpose |
+|---|---|
+| Open-Meteo | Current weather + air quality + historical archive |
+| NOAA / NWS | Active weather alerts (US only) |
+| NOAA Tides & Currents | Tide predictions (US coastal stations) |
+| Nominatim / OpenStreetMap | Reverse geocoding for place names |
+| Leaflet + OpenStreetMap | Interactive map |
+| Chart.js | Trend charts |
+| exif-js | Reading photo date/location metadata |
+
+---
+
+## Deployment
+
+Deployed as a Cloudflare Worker via Git integration.
+
+**To update:** push `index.html` to the `main` branch on GitHub.
+Cloudflare detects the push and redeploys automatically — no action
+needed in the Cloudflare dashboard.
+
+**Files in this repo:**
+- `index.html` — the entire app (only file that changes)
+- `wrangler.jsonc` — Cloudflare Workers config (rarely changes)
+- `netlify.toml` — Netlify fallback config
+- `CHANGELOG.md` — version history
+- `README.md` — this file
+
+---
+
+## Your data
+
+All entries are stored in **IndexedDB** on your device. They are
+**not** synced anywhere. They will not appear on a different browser
+or device.
+
+**Back up regularly** using Export JSON in Settings. The JSON file
+includes all entries and embedded photos. Import JSON restores
+everything on the same or a new device.
+
+The live **Storage indicator** in Settings shows how much space
+your entries are using and how much remains.
+
+---
 
 ## Cloud classification source
 
-The Genus / Species / Varieties options in the Sky & Cloud
-classification fields are based on the cloud classification table in
-*The Cloudspotter's Guide* by Gavin Pretor-Pinney, founder of the
-Cloud Appreciation Society.
+Genus / Species / Varieties options are based on the International
+Cloud Atlas classification as presented in *The Cloudspotter's Guide*
+by Gavin Pretor-Pinney (Cloud Appreciation Society), cross-referenced
+with Luke Howard's original 1803 essay *On the Modification of Clouds*.
 
-Photos are embedded directly inside each entry's data (compressed,
-not full resolution), so exporting/importing JSON brings photos
-along automatically — no separate step needed.
+---
 
-### Storage
+## Version numbering
 
-As of v2.0.0, entries are stored in **IndexedDB** rather than
-`localStorage`. The old `localStorage`-based version had a hard
-~5MB cap that real-world testing hit at roughly 900 entries (with
-most carrying a photo) — and worse, when a save exceeded that cap,
-it failed *silently*: the entry looked saved in the UI, but wasn't
-actually written to disk, so it would vanish on the next reload.
-IndexedDB's quota is dramatically higher (typically hundreds of MB
-or more, scaling with the device's free storage) and every
-save/delete/import now only updates the on-screen list *after*
-storage confirms the write succeeded — so a failed write can no
-longer silently diverge from what's actually persisted. If a write
-ever does fail (essentially only possible if local storage is
-nearly exhausted device-wide), a persistent warning banner appears
-explaining exactly what happened and that nothing existing was lost.
+The version lives in two places in `index.html` — keep them in sync:
+- The `Version:` comment at the very top of the file
+- The `APP_VERSION` constant near the top of the `<script>` block
 
-A live **Storage: X used of Y available** indicator is shown in the
-Journal tab (via the browser's `navigator.storage.estimate()` API),
-turning amber past 85% usage as an early heads-up to export a
-backup.
-
-Anyone upgrading from a pre-2.0.0 version will have their existing
-`localStorage` data automatically migrated into IndexedDB the first
-time the new version loads — the old data is left in place
-untouched as an extra safety net, just no longer used.
-
-## Bumping the version
-
-The version number lives in two places — keep them in sync:
-- `APP_VERSION` constant near the top of the `<script>` in
-  `index.html` (shown in the app's footer)
-- The version comment at the very top of `index.html`
-
-Add an entry to `CHANGELOG.md` for anything notable.
+Add a `CHANGELOG.md` entry for anything notable.
