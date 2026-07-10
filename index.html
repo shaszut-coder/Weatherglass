@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Weatherglass — personal weather station & log
-  Version: 2.9.1
+  Version: 2.9.2
 
   Single-file app: no build step, no backend. Data lives in the
   visitor's own browser via localStorage.
@@ -1110,6 +1110,15 @@
       </div>
     </div>
 
+    <h3 class="records-title">Location Tools</h3>
+    <div style="border:1px dashed var(--line); border-radius:6px; padding:12px 14px; margin-bottom:18px;">
+      <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:8px;">
+        Looks up place names for all entries still labeled "Current location" using their stored GPS coordinates. Takes about 2 minutes for large logs — Nominatim (OpenStreetMap) allows one request per second.
+      </div>
+      <button type="button" class="btn secondary" id="geocodeExistingBtn">Name existing locations</button>
+      <div id="geocodeStatus" style="display:none; margin-top:8px; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft);"></div>
+    </div>
+
     <h3 class="records-title">About</h3>
     <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); line-height:1.7;">
       Stored locally in this browser — nothing leaves your machine.<br>
@@ -1321,7 +1330,7 @@
 (function(){
   "use strict";
 
-  const APP_VERSION = "2.9.1";
+  const APP_VERSION = "2.9.2";
   const STORAGE_KEY = "weatherglass.entries.v1";
 
   function showToast(message, kind){
@@ -3907,6 +3916,83 @@
   // scope here. The practical guard instead: refuse upfront, before even
   // attempting it, rather than crash partway through.
   const IMPORT_HARD_LIMIT_MB = 50;
+
+  /* ---------- geocode existing "Current location" entries ---------- */
+  document.getElementById("geocodeExistingBtn").addEventListener("click", async function(){
+    const btn = this;
+    const statusEl = document.getElementById("geocodeStatus");
+
+    const toGeocode = entries.filter(e=>
+      e.location &&
+      (e.location.name === "Current location" || e.location.name === "Unknown") &&
+      isFinite(e.location.lat) &&
+      isFinite(e.location.lng)
+    );
+
+    if(!toGeocode.length){
+      showToast("No entries with unnamed locations found — all entries already have place names.", "success");
+      return;
+    }
+
+    btn.disabled = true;
+    statusEl.style.display = "block";
+    statusEl.textContent = `Found ${toGeocode.length} entries to name. Starting… (this takes ~${Math.ceil(toGeocode.length/30)} min)`;
+
+    let updated = 0, failed = 0;
+    const batchSize = 10; // save every 10 updates to avoid hammering storage
+
+    for(let i=0; i<toGeocode.length; i++){
+      const e = toGeocode[i];
+      statusEl.textContent = `Naming locations: ${i+1} of ${toGeocode.length}… (${updated} updated, ${failed} failed)`;
+
+      try{
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?lat=${e.location.lat}&lon=${e.location.lng}&format=json&zoom=10`,
+          { headers:{ "Accept-Language":"en", "User-Agent":"Weatherglass/2.9 personal-weather-app" } }
+        );
+        if(res.ok){
+          const data = await res.json();
+          const addr = data.address || {};
+          const city = addr.city || addr.town || addr.village || addr.hamlet || addr.suburb;
+          const state = addr.state;
+          const county = addr.county;
+          let name = "Current location";
+          if(city && state) name = `${city}, ${state}`;
+          else if(county && state) name = `${county}, ${state}`;
+          else if(data.display_name) name = data.display_name.split(",").slice(0,2).join(",").trim();
+
+          if(name !== "Current location"){
+            e.location = { ...e.location, name };
+            updated++;
+          }
+        } else {
+          failed++;
+        }
+      }catch(err){
+        failed++;
+      }
+
+      // Nominatim rate limit: 1 request/second
+      await new Promise(r=>setTimeout(r, 1100));
+
+      // Save in batches to avoid long gaps between writes
+      if((i+1) % batchSize === 0 || i === toGeocode.length-1){
+        try{
+          await idbPutEntries(toGeocode.slice(0, i+1));
+        }catch(err){
+          console.warn("Batch save failed:", err.message||err);
+        }
+      }
+    }
+
+    // Final full render with updated names
+    renderAll();
+    renderMapDateStrip();
+    refreshStorageIndicator();
+    btn.disabled = false;
+    statusEl.style.display = "none";
+    showToast(`Done — ${updated} locations named, ${failed} couldn't be resolved.`, "success");
+  });
 
   /* ---------- delete all data ---------- */
   function resetDeleteAllUI(){
