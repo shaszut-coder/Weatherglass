@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Weatherglass — personal weather station & log
-  Version: 2.9.6
+  Version: 2.9.8
 
   Single-file app: no build step, no backend. Data lives in the
   visitor's own browser via localStorage.
@@ -756,29 +756,9 @@
           <label for="f-title">Title</label>
           <input id="f-title" type="text" placeholder="e.g. Morning frost, or Squall line passing">
         </div>
-        <div class="field">
-          <label for="f-location">Location</label>
-          <select id="f-location">
-            <option>Home</option>
-            <option>Backyard</option>
-            <option>Front yard</option>
-            <option>Patio</option>
-            <option>Pool</option>
-            <option>Beach</option>
-            <option>Bay</option>
-            <option>Dock</option>
-            <option>Shoreline</option>
-            <option>Trailhead</option>
-            <option>Hiking trail</option>
-            <option>Car (in transit)</option>
-            <option>Boat</option>
-            <option>Park</option>
-            <option>Scenic overlook</option>
-            <option>Neighborhood</option>
-            <option>Home weather station</option>
-            <option value="Other">Other (type your own)</option>
-          </select>
-          <input id="f-location-custom" type="text" placeholder="Enter a custom location" style="display:none; margin-top:6px;">
+        <div class="field wide">
+          <label for="f-location-name">Location name</label>
+          <input id="f-location-name" type="text" placeholder="e.g. Russellville, Arkansas — filled automatically by Quick Log">
         </div>
         <div class="field">
           <label for="f-timeofday">Time of Day</label>
@@ -797,17 +777,30 @@
           <label for="f-site-type">Site Type (optional)</label>
           <select id="f-site-type">
             <option value="">— unspecified —</option>
-            <option>Residential</option>
-            <option>Backyard</option>
-            <option>Open Field</option>
-            <option>Woodland</option>
-            <option>Trail</option>
-            <option>Wetland / Marsh</option>
-            <option>Coastal / Beach</option>
-            <option>Lake / River</option>
-            <option>Urban</option>
-            <option>Vehicle / In Transit</option>
-            <option>Elevated / Lookout</option>
+            <optgroup label="Residential">
+              <option>Home / Residence</option>
+              <option>Backyard</option>
+              <option>Front Yard</option>
+              <option>Patio / Deck</option>
+              <option>Rooftop</option>
+            </optgroup>
+            <optgroup label="Natural">
+              <option>Open Field</option>
+              <option>Woodland</option>
+              <option>Trail</option>
+              <option>Campsite</option>
+              <option>Wetland / Marsh</option>
+              <option>Coastal / Beach</option>
+              <option>Lake / River</option>
+              <option>Dock / Marina</option>
+              <option>Elevated / Lookout</option>
+            </optgroup>
+            <optgroup label="Other">
+              <option>Urban</option>
+              <option>Park</option>
+              <option>Vehicle / In Transit</option>
+              <option>Boat / Watercraft</option>
+            </optgroup>
           </select>
         </div>
         <div class="field wide">
@@ -1165,17 +1158,24 @@
       <label style="font-family:'IBM Plex Mono', monospace; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-soft); white-space:nowrap;">Site</label>
       <select id="trendsSiteTypeFilter" style="font-family:'Source Serif 4', serif; font-size:14px; padding:7px 10px; border:1px solid var(--line); border-radius:4px; background:var(--glass); flex:1;">
         <option value="">All sites</option>
-        <option>Residential</option>
+        <option>Home / Residence</option>
         <option>Backyard</option>
+        <option>Front Yard</option>
+        <option>Patio / Deck</option>
+        <option>Rooftop</option>
         <option>Open Field</option>
         <option>Woodland</option>
         <option>Trail</option>
+        <option>Campsite</option>
         <option>Wetland / Marsh</option>
         <option>Coastal / Beach</option>
         <option>Lake / River</option>
-        <option>Urban</option>
-        <option>Vehicle / In Transit</option>
+        <option>Dock / Marina</option>
         <option>Elevated / Lookout</option>
+        <option>Urban</option>
+        <option>Park</option>
+        <option>Vehicle / In Transit</option>
+        <option>Boat / Watercraft</option>
       </select>
     </div>
     <div id="pressureWatchCard" style="border:1.5px solid var(--line); border-radius:6px; padding:14px 16px; margin-bottom:22px;">
@@ -1369,7 +1369,7 @@
 (function(){
   "use strict";
 
-  const APP_VERSION = "2.9.6";
+  const APP_VERSION = "2.9.8";
   const STORAGE_KEY = "weatherglass.entries.v1";
 
   function showToast(message, kind){
@@ -3013,17 +3013,17 @@
   });
 
   /* ---------- NOAA tides ---------- */
-  const COASTAL_LOCATIONS = new Set(["Beach","Bay","Dock","Shoreline","Boat","Lake shore","Coastal lookout"]);
+  const COASTAL_SITE_TYPES = new Set(["Coastal / Beach","Dock / Marina","Boat / Watercraft","Lake / River"]);
 
   function isCoastalLocation(){
-    const sel = document.getElementById("f-location");
-    return sel && COASTAL_LOCATIONS.has(sel.value);
+    const siteType = document.getElementById("f-site-type");
+    return siteType && COASTAL_SITE_TYPES.has(siteType.value);
   }
   function toggleTidesBlock(){
     const block = document.getElementById("tidesBlock");
     if(block) block.style.display = isCoastalLocation() ? "block" : "none";
   }
-  document.getElementById("f-location").addEventListener("change", toggleTidesBlock);
+  document.getElementById("f-site-type").addEventListener("change", toggleTidesBlock);
 
   document.getElementById("fetchTidesBtn").addEventListener("click", async function(){
     const statusEl = document.getElementById("tidesStatus");
@@ -3176,46 +3176,11 @@
   });
 
   /* ---------- location dropdown ---------- */
-  let _locationChangeProgrammatic = false;
-  document.getElementById("f-location").addEventListener("change", function(){
-    if(_locationChangeProgrammatic) return;
-    const customField = document.getElementById("f-location-custom");
-    const currentCustomVal = customField.value.trim();
-    if(this.value === "Other"){
-      customField.style.display = "block";
-      // Never clear — user switched back to Other, keep whatever name is there
-    } else {
-      // User picked a real preset — hide and clear custom field
-      customField.style.display = "none";
-      customField.value = "";
-    }
-  });
   function getLocationName(){
-    const sel = document.getElementById("f-location");
-    if(sel.value === "Other"){
-      return document.getElementById("f-location-custom").value.trim();
-    }
-    return sel.value;
+    return document.getElementById("f-location-name").value.trim();
   }
   function setLocationName(name){
-    const sel = document.getElementById("f-location");
-    const customField = document.getElementById("f-location-custom");
-    const match = Array.from(sel.options).some(o => o.value !== "Other" && o.value === name);
-    _locationChangeProgrammatic = true;
-    if(match){
-      sel.value = name;
-      customField.style.display = "none";
-      customField.value = "";
-    } else if(name){
-      customField.value = name;
-      customField.style.display = "block";
-      sel.value = "Other";
-    } else {
-      sel.value = "Home";
-      customField.style.display = "none";
-      customField.value = "";
-    }
-    _locationChangeProgrammatic = false;
+    document.getElementById("f-location-name").value = name || "";
   }
 
   /* ---------- equipment dropdown ---------- */
@@ -3325,18 +3290,6 @@
       document.getElementById("photoPreviewWrap").style.display = "none";
     }
 
-    // Force-apply location name as the very last step so nothing after
-    // setLocationName can override the custom field
-    const _locName = entry.location?.name || "";
-    const _locSel = document.getElementById("f-location");
-    const _locCustom = document.getElementById("f-location-custom");
-    const _hasPreset = Array.from(_locSel.options).some(o=>o.value !== "Other" && o.value === _locName);
-    if(!_hasPreset && _locName){
-      _locSel.value = "Other";
-      _locCustom.value = _locName;
-      _locCustom.style.display = "block";
-    }
-
     document.getElementById("entrySectionTitle").textContent = "Edit Reading";
     document.getElementById("saveEntryBtn").textContent = "Update Reading";
     document.getElementById("editBannerText").textContent = formatTs(entry.timestamp) + " · " + escapeHtml(entry.title);
@@ -3344,18 +3297,16 @@
     document.getElementById("quickLogBtn").parentElement.parentElement.style.display = "none";
 
     switchToTab("entry");
+    // Set location name last — after switchToTab — so panel visibility
+    // changes can't interfere with the field value
+    document.getElementById("f-location-name").value = entry.location?.name || "";
     document.getElementById("f-title").focus();
   }
 
   function resetFormToCreateMode(){
     editingId = null;
     exifCapturedDate = null;
-    // Raise flag before reset so any change events fired during reset are suppressed
-    _locationChangeProgrammatic = true;
     document.getElementById("entryForm").reset();
-    _locationChangeProgrammatic = false;
-    document.getElementById("f-location-custom").style.display = "none";
-    document.getElementById("f-location-custom").value = "";
     document.getElementById("f-equipment-custom").style.display = "none";
     toggleCloudClassificationBlock();
     pendingPhoto = null;
