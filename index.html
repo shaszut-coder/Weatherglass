@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Weatherglass — personal weather station & log
-  Version: 2.9.9
+  Version: 2.9.11
 
   Single-file app: no build step, no backend. Data lives in the
   visitor's own browser via localStorage.
@@ -809,11 +809,11 @@
         </div>
         <div class="field">
           <label for="f-lat">Latitude</label>
-          <input id="f-lat" type="number" step="0.000001" placeholder="e.g. 30.479500">
+          <input id="f-lat" type="number" step="any" placeholder="e.g. 30.479500">
         </div>
         <div class="field">
           <label for="f-lng">Longitude</label>
-          <input id="f-lng" type="number" step="0.000001" placeholder="e.g. -86.157400">
+          <input id="f-lng" type="number" step="any" placeholder="e.g. -86.157400">
         </div>
         <div class="field">
           <label for="f-temp">Temp (°F)</label>
@@ -1373,7 +1373,7 @@
 (function(){
   "use strict";
 
-  const APP_VERSION = "2.9.9";
+  const APP_VERSION = "2.9.11";
   const STORAGE_KEY = "weatherglass.entries.v1";
 
   function showToast(message, kind){
@@ -1954,30 +1954,35 @@
     const tiles = [
       {
         id:"tile-dmm", label:"Daily Min / Max", content:dmmHtml,
+        chart:"daily",
         detail: todayTemps.length
-          ? `<div style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--ink-soft); margin-top:8px; border-top:1px solid var(--line); padding-top:8px;">Based on ${todayTemps.length} reading${todayTemps.length>1?"s":""} today. See full history in <strong>DMM</strong> chart → switch to 30d or All.</div>`
+          ? `<div style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--ink-soft); margin-top:8px; border-top:1px solid var(--line); padding-top:8px;">Based on ${todayTemps.length} reading${todayTemps.length>1?"s":""} today. Tap tile to see full daily history below ↑</div>`
           : ""
       },
       {
         id:"tile-ast", label:"Alert Summary", content:astHtml,
+        chart:null,
         detail: alertEntries.length
           ? `<div style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--ink-soft); margin-top:8px; border-top:1px solid var(--line); padding-top:8px;">Most recent: ${escapeHtml(alertEntries.slice().sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp))[0]?.alertSummary||"—")}</div>`
           : ""
       },
       {
         id:"tile-wdr", label:"Prevailing Wind", content:wdrHtml,
+        chart:"windrose",
         detail: windEntries.length
-          ? `<div style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--ink-soft); margin-top:8px; border-top:1px solid var(--line); padding-top:8px;">From ${windEntries.length} wind readings. See direction breakdown in the <strong>WDR</strong> wind rose — scroll up and switch chart mode.</div>`
+          ? `<div style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--ink-soft); margin-top:8px; border-top:1px solid var(--line); padding-top:8px;">From ${windEntries.length} wind readings. Tap tile to see wind rose chart below ↑</div>`
           : ""
       },
       {
         id:"tile-tod", label:"Peak Log Time", content:todHtml,
+        chart:null,
         detail: Object.keys(todCounts).length > 1
           ? `<div style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--ink-soft); margin-top:8px; border-top:1px solid var(--line); padding-top:8px;">${Object.entries(todCounts).sort((a,b)=>b[1]-a[1]).map(([t,c])=>`${escapeHtml(t)}: ${c}`).join(" · ")}</div>`
           : ""
       },
       {
         id:"tile-ebc", label:"Top Category", content:ebcHtml,
+        chart:null,
         detail: Object.keys(catCounts).length > 1
           ? `<div style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--ink-soft); margin-top:8px; border-top:1px solid var(--line); padding-top:8px;">${Object.entries(catCounts).sort((a,b)=>b[1]-a[1]).map(([c,n])=>`${escapeHtml(c)}: ${n}`).join(" · ")}</div>`
           : ""
@@ -1985,24 +1990,43 @@
     ];
 
     el.innerHTML = tiles.map(t=>`
-      <div class="card" id="${t.id}" style="cursor:pointer; user-select:none;" title="Tap for details">
+      <div class="card" id="${t.id}" style="cursor:pointer; user-select:none;
+           ${t.chart ? 'border-color:var(--brass); border-width:1.5px;' : ''}">
         <div class="label" style="display:flex; justify-content:space-between; align-items:center;">
-          ${t.label} <span class="tile-chevron" style="font-size:10px; color:var(--ink-soft);">▸</span>
+          ${t.label}
+          <span class="tile-chevron" style="font-size:11px; color:var(--brass);">
+            ${t.chart ? "📊" : "▸"}
+          </span>
         </div>
         ${t.content}
-        <div class="tile-detail" style="display:none;">${t.detail}</div>
+        ${t.chart ? `<div style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; color:var(--brass); margin-top:6px; text-align:right;">tap to view chart ↑</div>` : ""}
+        <div class="tile-detail" style="display:none;">${t.detail||""}</div>
       </div>
     `).join("");
 
-    // Tap to expand/collapse detail
-    el.querySelectorAll(".card").forEach(card=>{
+    // Tap: chart tiles render their chart above; info tiles expand detail
+    tiles.forEach(t=>{
+      const card = document.getElementById(t.id);
+      if(!card) return;
       card.addEventListener("click", function(){
-        const detail = this.querySelector(".tile-detail");
-        const chevron = this.querySelector(".tile-chevron");
-        if(!detail || !detail.innerHTML.trim()) return;
-        const open = detail.style.display !== "none";
-        detail.style.display = open ? "none" : "block";
-        if(chevron) chevron.textContent = open ? "▸" : "▾";
+        if(t.chart){
+          renderChart(t.chart);
+          // Highlight this tile as active, unhighlight others
+          tiles.forEach(other=>{
+            const c = document.getElementById(other.id);
+            if(c) c.style.background = other.id === t.id ? "rgba(138,106,61,0.10)" : "";
+          });
+          // Scroll chart into view
+          const chartWrap = document.querySelector(".chart-wrap");
+          if(chartWrap) setTimeout(()=>chartWrap.scrollIntoView({ behavior:"smooth", block:"start" }), 50);
+        } else {
+          const detail = this.querySelector(".tile-detail");
+          const chevron = this.querySelector(".tile-chevron");
+          if(!detail || !detail.innerHTML.trim()) return;
+          const open = detail.style.display !== "none";
+          detail.style.display = open ? "none" : "block";
+          if(chevron) chevron.textContent = open ? "▸" : "▾";
+        }
       });
     });
   }
