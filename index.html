@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Weatherglass — personal weather station & log
-  Version: 2.9.2
+  Version: 2.9.3
 
   Single-file app: no build step, no backend. Data lives in the
   visitor's own browser via localStorage.
@@ -1208,6 +1208,9 @@
       <button class="btn secondary" id="chartYoyBtn" title="Year-over-year temperature comparison" style="display:flex; flex-direction:column; align-items:center; gap:2px; padding:8px 12px; font-size:10px; min-width:52px;">
         <span style="font-size:18px; font-family:'Playfair Display',serif; color:var(--brass); line-height:1;">⟳</span>YOY
       </button>
+      <button class="btn secondary" id="chartTransectBtn" title="Atmospheric transect — readings plotted by distance traveled" style="display:flex; flex-direction:column; align-items:center; gap:2px; padding:8px 12px; font-size:10px; min-width:52px;">
+        <span style="font-size:18px; font-family:'Playfair Display',serif; color:var(--brass); line-height:1;">↔</span>ATX
+      </button>
     </div>
     <div style="display:flex; justify-content:center; gap:6px; margin-bottom:14px;">
       <button class="btn secondary" id="chartRange7" style="font-size:10.5px; padding:5px 14px;">7d</button>
@@ -1330,7 +1333,7 @@
 (function(){
   "use strict";
 
-  const APP_VERSION = "2.9.2";
+  const APP_VERSION = "2.9.3";
   const STORAGE_KEY = "weatherglass.entries.v1";
 
   function showToast(message, kind){
@@ -3129,10 +3132,10 @@
     const customField = document.getElementById("f-location-custom");
     if(this.value === "Other"){
       customField.style.display = "block";
-      customField.focus();
+      // Don't clear — preserve any geocoded name already there
     } else {
       customField.style.display = "none";
-      customField.value = "";
+      customField.value = ""; // only clear when switching to a preset option
     }
   });
   function getLocationName(){
@@ -4118,6 +4121,7 @@
   document.getElementById("chartHeatIdxBtn").addEventListener("click", ()=>renderChart("heatidx"));
   document.getElementById("chartHeatRateBtn").addEventListener("click", ()=>renderChart("heatrate"));
   document.getElementById("chartYoyBtn").addEventListener("click", ()=>renderChart("yoy"));
+  document.getElementById("chartTransectBtn").addEventListener("click", ()=>renderChart("transect"));
 
   // Time range filter — how many days back to show in the main chart
   let chartRangeDays = 7;
@@ -4156,7 +4160,7 @@
       temp:"Temperature Over Time", pressure:"Pressure Over Time",
       humidity:"Humidity Over Time", heatidx:"Heat Index Over Time (Feels Like)",
       daily:"Daily Min / Avg / Max Temperature", alert:"Alert Severity Over Time",
-      windrose:"Wind Direction Rose", heatrate:"Heating Rate — Morning to Afternoon", yoy:"Year-over-Year Temperature",
+      windrose:"Wind Direction Rose", heatrate:"Heating Rate — Morning to Afternoon", yoy:"Year-over-Year Temperature", transect:"Atmospheric Transect — Temperature & Humidity by Distance",
       tod:"Entries by Time of Day", cat:"Entries by Category"
     };
     if(titleEl) titleEl.textContent = titles[mode] || "";
@@ -4477,6 +4481,86 @@
           scales:{
             x:xAxis,
             y:{title:{display:true,text:"°F",font:{size:10}}}
+          }
+        }
+      });
+
+    } else if(mode === "transect"){
+      // Haversine distance between two lat/lng points in miles
+      function transectMiles(lat1,lng1,lat2,lng2){
+        const R = 3958.8;
+        const dLat=(lat2-lat1)*Math.PI/180;
+        const dLng=(lng2-lng1)*Math.PI/180;
+        const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+        return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+      }
+
+      // Only entries with GPS coords AND at least temp or humidity
+      const geoEntries = trendsEntriesForRange()
+        .filter(e=>e.location&&isFinite(e.location.lat)&&isFinite(e.location.lng)&&
+                   (isFinite(e.tempF)||isFinite(e.humidity)))
+        .slice().sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
+
+      if(geoEntries.length < 2){
+        if(titleEl) titleEl.textContent = "Atmospheric Transect — need GPS-tagged entries with temp or humidity data";
+        return;
+      }
+
+      // Calculate cumulative distance from first entry
+      const origin = geoEntries[0];
+      const points = geoEntries.map(e=>({
+        miles: parseFloat(transectMiles(
+          origin.location.lat, origin.location.lng,
+          e.location.lat, e.location.lng
+        ).toFixed(1)),
+        tempF: isFinite(e.tempF) ? e.tempF : null,
+        humidity: isFinite(e.humidity) ? e.humidity : null,
+        label: `${e.location.name||"?"} · ${new Date(e.timestamp).toLocaleDateString(undefined,{month:"short",day:"numeric"})}`
+      }));
+
+      const totalMiles = Math.max(...points.map(p=>p.miles));
+      if(totalMiles < 5){
+        if(titleEl) titleEl.textContent = "Atmospheric Transect — entries are too close together (< 5 miles apart). Try the All time range and make sure you have travel data.";
+        return;
+      }
+
+      chartInstance = new Chart(ctx, {
+        data:{
+          labels: points.map(p=>p.miles + " mi"),
+          datasets:[
+            {
+              type:"line", label:"Temp (°F)",
+              data:points.map(p=>p.tempF),
+              borderColor:"#C0392B", backgroundColor:"rgba(192,57,43,0.08)",
+              tension:0.3, fill:true, pointRadius:3, yAxisID:"y",
+              spanGaps:true
+            },
+            {
+              type:"line", label:"Humidity (%)",
+              data:points.map(p=>p.humidity),
+              borderColor:"#3E6079", backgroundColor:"rgba(62,96,121,0.08)",
+              tension:0.3, fill:true, pointRadius:3, yAxisID:"y2",
+              spanGaps:true
+            }
+          ]
+        },
+        options:{
+          responsive:true,
+          interaction:{mode:"index"},
+          plugins:{
+            legend:{labels:{boxWidth:10,font:{size:10}}},
+            tooltip:{callbacks:{
+              title:(items)=> points[items[0].dataIndex]?.label || items[0].label
+            }}
+          },
+          scales:{
+            x:{
+              ...xAxis,
+              title:{display:true, text:`Distance from origin (miles · total ${totalMiles} mi)`, font:{size:9}}
+            },
+            y:{position:"left", title:{display:true,text:"Temp °F",font:{size:10}}},
+            y2:{position:"right", title:{display:true,text:"Humidity %",font:{size:10}},
+                min:0, max:105, grid:{display:false}}
           }
         }
       });
