@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Weatherglass — personal weather station & log
-  Version: 2.8.5
+  Version: 2.9.0
 
   Single-file app: no build step, no backend. Data lives in the
   visitor's own browser via localStorage.
@@ -1193,6 +1193,10 @@
   <!-- MAP -->
   <section class="panel" id="panel-map">
     <h2 class="section-title">Station Map</h2>
+    <div style="display:flex; gap:8px; margin-bottom:12px;">
+      <button class="btn secondary active" id="mapModeStation" style="font-size:11px; padding:5px 14px;">📍 Station</button>
+      <button class="btn secondary" id="mapModeRoute" style="font-size:11px; padding:5px 14px;">🛣 Route</button>
+    </div>
     <div id="mapStatsBar" style="display:flex; gap:12px; margin-bottom:14px; flex-wrap:wrap;"></div>
     <div id="map"></div>
     <p class="sub" style="margin-top:10px; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft);">
@@ -1293,7 +1297,7 @@
 (function(){
   "use strict";
 
-  const APP_VERSION = "2.8.5";
+  const APP_VERSION = "2.9.0";
   const STORAGE_KEY = "weatherglass.entries.v1";
 
   function showToast(message, kind){
@@ -2845,6 +2849,34 @@
       }
     }
 
+    // Reverse geocode coordinates into a meaningful place name
+    // Uses Nominatim/OpenStreetMap — free, no API key, respects usage policy
+    let locationName = "Current location";
+    if(lat != null && lng != null){
+      statusEl.textContent = "Finding location name…";
+      try{
+        const geoRes = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=10`,
+          { headers:{ "Accept-Language":"en", "User-Agent":"Weatherglass/2.8 personal-weather-app" } }
+        );
+        if(geoRes.ok){
+          const geoData = await geoRes.json();
+          const addr = geoData.address || {};
+          // Build a readable name: city/town + state, or road + city, or county + state
+          const city = addr.city || addr.town || addr.village || addr.hamlet || addr.suburb;
+          const state = addr.state;
+          const county = addr.county;
+          const road = addr.road;
+          if(city && state) locationName = `${city}, ${state}`;
+          else if(road && city) locationName = `${road}, ${city}`;
+          else if(county && state) locationName = `${county}, ${state}`;
+          else if(geoData.display_name) locationName = geoData.display_name.split(",").slice(0,2).join(",").trim();
+        }
+      }catch(e){
+        // Geocoding failed — fall back to "Current location"
+      }
+    }
+
     statusEl.textContent = "Saving…";
     const now = new Date();
     const moon = getMoonPhase(now);
@@ -2855,7 +2887,7 @@
       category: "Temperature",
       title: "Quick log — " + now.toLocaleString(undefined, { month:"short", day:"numeric", hour:"2-digit", minute:"2-digit" }),
       location: {
-        name: lat != null ? "Current location" : "Unknown",
+        name: locationName,
         lat: lat,
         lng: lng
       },
@@ -4361,6 +4393,9 @@
   let map = null;
   let markersLayer = null;
   let mapAvailable = false;
+  let mapMode = "station"; // "station" or "route"
+
+  // Map mode toggle buttons wired after map init
   let fieldPinIcon = null;
   function initMap(){
     try{
@@ -4438,11 +4473,112 @@
     });
   }
 
+  // Temperature-to-color helper for route line segments
+  function tempToColor(tempF){
+    if(!isFinite(tempF)) return "#5C8AA3";
+    if(tempF >= 95) return "#8B1A1A";
+    if(tempF >= 90) return "#C0392B";
+    if(tempF >= 85) return "#E67E22";
+    if(tempF >= 80) return "#F1C40F";
+    if(tempF >= 75) return "#27AE60";
+    if(tempF >= 65) return "#2980B9";
+    return "#5C8AA3";
+  }
+
+  function renderRouteMap(allPts){
+    // Sort chronologically for route
+    const chronoPts = allPts.slice().sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
+    if(!chronoPts.length){
+      const statsBar = document.getElementById("mapStatsBar");
+      if(statsBar) statsBar.innerHTML = `<div class="empty-state">No mapped entries yet.</div>`;
+      return;
+    }
+
+    // Draw colored line segments between consecutive points
+    for(let i=0; i<chronoPts.length-1; i++){
+      const a = chronoPts[i], b = chronoPts[i+1];
+      const color = tempToColor(isFinite(a.tempF) ? a.tempF : null);
+      const line = L.polyline(
+        [[a.location.lat, a.location.lng],[b.location.lat, b.location.lng]],
+        { color, weight:3, opacity:0.8 }
+      );
+      line.addTo(markersLayer);
+    }
+
+    // Small circle markers at each point — colored by temp, popup on tap
+    chronoPts.forEach((e,i)=>{
+      const color = tempToColor(isFinite(e.tempF) ? e.tempF : null);
+      const circle = L.circleMarker([e.location.lat, e.location.lng], {
+        radius: 5,
+        fillColor: color,
+        color: "#2C3A47",
+        weight: 1,
+        fillOpacity: 0.9
+      });
+      const tempStr = isFinite(e.tempF) ? `${e.tempF}°F` : "—";
+      const humStr = isFinite(e.humidity) ? ` / ${e.humidity}%` : "";
+      circle.bindPopup(
+        `<strong>${escapeHtml(e.title)}</strong><br>` +
+        `${escapeHtml(formatTs(e.timestamp))}<br>` +
+        `${tempStr}${humStr}<br>` +
+        `${escapeHtml(e.location.name||"")}`
+      );
+      circle.addTo(markersLayer);
+    });
+
+    // Fit bounds to all points
+    const bounds = L.latLngBounds(chronoPts.map(e=>[e.location.lat, e.location.lng]));
+    map.fitBounds(bounds, { padding:[30,30], maxZoom:12 });
+
+    // Stats bar — route summary
+    const statsBar = document.getElementById("mapStatsBar");
+    if(statsBar){
+      const temps = chronoPts.filter(e=>isFinite(e.tempF)).map(e=>e.tempF);
+      const tempRange = temps.length
+        ? `${Math.min(...temps).toFixed(0)}°F → ${Math.max(...temps).toFixed(0)}°F`
+        : "—";
+      // Temperature legend
+      const legendItems = [
+        {color:"#2980B9",label:"<65°F"},
+        {color:"#27AE60",label:"65–74°F"},
+        {color:"#F1C40F",label:"75–79°F"},
+        {color:"#E67E22",label:"80–84°F"},
+        {color:"#C0392B",label:"85–94°F"},
+        {color:"#8B1A1A",label:"95°F+"},
+      ];
+      statsBar.innerHTML = `
+        <div class="card" style="flex:1; min-width:120px; padding:10px 14px;">
+          <div class="label">Route Points</div>
+          <div class="value" style="font-size:20px;">${chronoPts.length}</div>
+        </div>
+        <div class="card" style="flex:1; min-width:140px; padding:10px 14px;">
+          <div class="label">Temp Range Along Route</div>
+          <div class="value" style="font-size:16px;">${tempRange}</div>
+        </div>
+        <div style="flex:2; min-width:200px; background:var(--sky-card); border:1px solid var(--line); border-radius:8px; padding:10px 14px;">
+          <div class="label" style="margin-bottom:6px;">Temperature key</div>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            ${legendItems.map(l=>`
+              <div style="display:flex; align-items:center; gap:4px; font-family:monospace; font-size:10px; color:var(--ink-soft);">
+                <div style="width:12px; height:12px; border-radius:50%; background:${l.color}; flex-shrink:0;"></div>
+                ${l.label}
+              </div>`).join("")}
+          </div>
+        </div>`;
+    }
+  }
+
   function renderMap(){
     if(!mapAvailable || !map) return;
     try{
       markersLayer.clearLayers();
       const allPts = entries.filter(e=>e.location && isFinite(e.location.lat) && isFinite(e.location.lng));
+
+      if(mapMode === "route"){
+        renderRouteMap(allPts);
+        return;
+      }
+
       const sorted = allPts.slice().sort((a,b)=> new Date(b.timestamp) - new Date(a.timestamp));
       const limited = sorted.slice(0, MAP_MARKER_LIMIT);
 
@@ -4527,6 +4663,19 @@
 
   document.getElementById("versionTag").textContent = "Weatherglass v" + APP_VERSION;
   initMap();
+
+  document.getElementById("mapModeStation").addEventListener("click", ()=>{
+    mapMode = "station";
+    document.getElementById("mapModeStation").classList.add("active");
+    document.getElementById("mapModeRoute").classList.remove("active");
+    renderMap();
+  });
+  document.getElementById("mapModeRoute").addEventListener("click", ()=>{
+    mapMode = "route";
+    document.getElementById("mapModeRoute").classList.add("active");
+    document.getElementById("mapModeStation").classList.remove("active");
+    renderMap();
+  });
   (async function init(){
     try{
       entries = await loadEntries();
