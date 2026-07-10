@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Weatherglass — personal weather station & log
-  Version: 2.9.0
+  Version: 2.9.1
 
   Single-file app: no build step, no backend. Data lives in the
   visitor's own browser via localStorage.
@@ -504,6 +504,29 @@
   .log-row-chevron{ color:var(--ink-soft); font-size:18px; flex-shrink:0; }
 
   .otd-row{
+  /* hide scrollbar on webkit for date strip */
+  #mapDateStrip::-webkit-scrollbar{ display:none; }
+  .map-date-chip{
+    flex-shrink:0;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10px;
+    padding:5px 10px;
+    border-radius:20px;
+    border:1.5px solid var(--line);
+    background:var(--glass);
+    color:var(--ink-soft);
+    cursor:pointer;
+    white-space:nowrap;
+    transition:background 0.1s, color 0.1s;
+  }
+  .map-date-chip:hover{ background:var(--sky); color:var(--ink); }
+  .map-date-chip.active{
+    background:var(--steel);
+    border-color:var(--steel);
+    color:#F1F6F9;
+    font-weight:600;
+  }
+  .map-date-chip.all{ font-weight:600; }
     display:flex; align-items:center; gap:10px;
     padding:9px 10px;
     border-radius:6px;
@@ -1193,10 +1216,11 @@
   <!-- MAP -->
   <section class="panel" id="panel-map">
     <h2 class="section-title">Station Map</h2>
-    <div style="display:flex; gap:8px; margin-bottom:12px;">
+    <div style="display:flex; gap:8px; margin-bottom:10px;">
       <button class="btn secondary active" id="mapModeStation" style="font-size:11px; padding:5px 14px;">📍 Station</button>
       <button class="btn secondary" id="mapModeRoute" style="font-size:11px; padding:5px 14px;">🛣 Route</button>
     </div>
+    <div id="mapDateStrip" style="display:flex; gap:6px; overflow-x:auto; padding-bottom:8px; margin-bottom:10px; -webkit-overflow-scrolling:touch; scrollbar-width:none;"></div>
     <div id="mapStatsBar" style="display:flex; gap:12px; margin-bottom:14px; flex-wrap:wrap;"></div>
     <div id="map"></div>
     <p class="sub" style="margin-top:10px; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft);">
@@ -1297,7 +1321,7 @@
 (function(){
   "use strict";
 
-  const APP_VERSION = "2.9.0";
+  const APP_VERSION = "2.9.1";
   const STORAGE_KEY = "weatherglass.entries.v1";
 
   function showToast(message, kind){
@@ -1567,7 +1591,7 @@
       document.querySelectorAll(".panel").forEach(p=>p.classList.remove("active"));
       btn.classList.add("active");
       document.getElementById("panel-"+btn.dataset.tab).classList.add("active");
-      if(btn.dataset.tab === "map"){ setTimeout(()=>{ if(map) map.invalidateSize(); }, 50); }
+      if(btn.dataset.tab === "map"){ setTimeout(()=>{ if(map) map.invalidateSize(); renderMapDateStrip(); renderMap(); }, 50); }
       if(btn.dataset.tab === "trends"){ populateTrendsLocationFilter(); renderRecords(); renderInsights(); renderPatternTiles(); renderPressureWatch(); renderChart(currentChartMode); }
       if(btn.dataset.tab === "log"){ renderOnThisDay(); }
       if(btn.dataset.tab === "sky"){ renderSkyTab(); }
@@ -4394,6 +4418,46 @@
   let markersLayer = null;
   let mapAvailable = false;
   let mapMode = "station"; // "station" or "route"
+  let mapSelectedDate = null; // null = All, or "YYYY-MM-DD" string
+
+  function renderMapDateStrip(){
+    const strip = document.getElementById("mapDateStrip");
+    if(!strip) return;
+    const allPts = entries.filter(e=>e.location && isFinite(e.location.lat) && isFinite(e.location.lng));
+    // Get unique dates that have GPS entries, sorted chronologically
+    const dates = [...new Set(
+      allPts.map(e=>new Date(e.timestamp).toLocaleDateString("en-CA")) // YYYY-MM-DD
+    )].sort();
+
+    if(dates.length <= 1){
+      strip.innerHTML = "";
+      return; // not useful with only one date
+    }
+
+    strip.innerHTML = `<button class="map-date-chip all${!mapSelectedDate?" active":""}" data-date="">All</button>` +
+      dates.map(d=>{
+        const display = new Date(d+"T12:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric"});
+        const count = allPts.filter(e=>new Date(e.timestamp).toLocaleDateString("en-CA")===d).length;
+        const active = mapSelectedDate===d?" active":"";
+        return `<button class="map-date-chip${active}" data-date="${d}" title="${count} entries">${display}</button>`;
+      }).join("");
+
+    strip.querySelectorAll(".map-date-chip").forEach(chip=>{
+      chip.addEventListener("click", ()=>{
+        mapSelectedDate = chip.dataset.date || null;
+        strip.querySelectorAll(".map-date-chip").forEach(c=>c.classList.remove("active"));
+        chip.classList.add("active");
+        renderMap();
+      });
+    });
+  }
+
+  // Helper — returns entries filtered by both mode and selected date
+  function mapEntries(){
+    const allPts = entries.filter(e=>e.location && isFinite(e.location.lat) && isFinite(e.location.lng));
+    if(!mapSelectedDate) return allPts;
+    return allPts.filter(e=>new Date(e.timestamp).toLocaleDateString("en-CA")===mapSelectedDate);
+  }
 
   // Map mode toggle buttons wired after map init
   let fieldPinIcon = null;
@@ -4572,7 +4636,7 @@
     if(!mapAvailable || !map) return;
     try{
       markersLayer.clearLayers();
-      const allPts = entries.filter(e=>e.location && isFinite(e.location.lat) && isFinite(e.location.lng));
+      const allPts = mapEntries();
 
       if(mapMode === "route"){
         renderRouteMap(allPts);
@@ -4582,6 +4646,11 @@
       const sorted = allPts.slice().sort((a,b)=> new Date(b.timestamp) - new Date(a.timestamp));
       const limited = sorted.slice(0, MAP_MARKER_LIMIT);
 
+      if(!limited.length){
+        const statsBar = document.getElementById("mapStatsBar");
+        if(statsBar) statsBar.innerHTML = `<div class="empty-state">No mapped entries for this date.</div>`;
+        return;
+      }
       const clusters = clusterEntries(limited);
 
       clusters.forEach(c=>{
@@ -4657,6 +4726,7 @@
     renderPressureWatch();
     renderOnThisDay();
     renderTable();
+    renderMapDateStrip();
     renderMap();
     renderSkyTab();
   }
