@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Weatherglass — personal weather station & log
-  Version: 2.9.12
+  Version: 2.9.14
 
   Single-file app: no build step, no backend. Data lives in the
   visitor's own browser via localStorage.
@@ -697,7 +697,7 @@
     </div>
   </header>
 
-  <div class="cards" id="overviewCards"></div>
+  <div class="cards" id="overviewCards" style="grid-template-columns:1fr 1fr;"></div>
 
   <div id="storageWarningBanner" style="display:none; align-items:flex-start; gap:10px; border:1.5px solid var(--brass); border-radius:6px; padding:12px 14px; margin-bottom:18px; background:rgba(138,106,61,0.08); font-family:'IBM Plex Mono', monospace; font-size:12.5px; color:var(--ink);">
     <span id="storageWarningText" style="flex:1;"></span>
@@ -1157,7 +1157,9 @@
   <!-- TRENDS -->
   <section class="panel" id="panel-trends">
     <h2 class="section-title">Trends</h2>
-    <div style="margin-bottom:14px; display:flex; flex-direction:column; gap:8px;">
+
+    <!-- 1. Filters — control everything below -->
+    <div style="margin-bottom:18px; display:flex; flex-direction:column; gap:8px;">
       <div style="display:flex; align-items:center; gap:10px;">
         <label style="font-family:'IBM Plex Mono', monospace; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-soft); white-space:nowrap; width:52px;">Region</label>
         <select id="trendsRegionFilter" style="font-family:'Source Serif 4', serif; font-size:14px; padding:7px 10px; border:1px solid var(--line); border-radius:4px; background:var(--glass); flex:1;">
@@ -1195,53 +1197,34 @@
         </select>
       </div>
     </div>
+
+    <!-- 2. Pressure Watch — most current instrument reading -->
     <div id="pressureWatchCard" style="border:1.5px solid var(--line); border-radius:6px; padding:14px 16px; margin-bottom:22px;">
       <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; text-transform:uppercase; letter-spacing:0.6px; color:var(--ink-soft); margin-bottom:10px;">Pressure Watch</div>
-
-      <!-- Barometer dial — cx=130, cy=120, r=90. Angles measured from top (0°=up), -90°=left, +90°=right -->
-      <!-- Zone boundaries: -90° Stormy | -54° Rain | -18° Change | +18° Fair | +54° Dry | +90° -->
-      <!-- Arc coords at r=90: -90°→(40,120)  -54°→(57.2,67.1)  -18°→(102.2,34.4)  0°→(130,30)  +18°→(157.8,34.4)  +54°→(202.8,67.1)  +90°→(220,120) -->
       <svg id="barometerDial" viewBox="0 0 260 148" style="width:100%; max-width:280px; display:block; margin:0 auto 12px;" aria-label="Barometer dial">
-
-        <!-- Dial face subtle background -->
         <path d="M 40 120 A 90 90 0 0 1 220 120" fill="none" stroke="#E6EDF2" stroke-width="22" stroke-linecap="round"/>
-
-        <!-- Colored zones — five equal 36° sectors -->
         <path d="M 40 120    A 90 90 0 0 1 57.2 67.1"   fill="none" stroke="#8B3A3A" stroke-width="16" stroke-linecap="butt" opacity="0.6"/>
         <path d="M 57.2 67.1 A 90 90 0 0 1 102.2 34.4"  fill="none" stroke="#3E6079" stroke-width="16" stroke-linecap="butt" opacity="0.6"/>
         <path d="M 102.2 34.4 A 90 90 0 0 1 157.8 34.4" fill="none" stroke="#8A6A3D" stroke-width="16" stroke-linecap="butt" opacity="0.6"/>
         <path d="M 157.8 34.4 A 90 90 0 0 1 202.8 67.1"  fill="none" stroke="#46606E" stroke-width="16" stroke-linecap="butt" opacity="0.6"/>
         <path d="M 202.8 67.1 A 90 90 0 0 1 220 120"    fill="none" stroke="#2E7D32" stroke-width="16" stroke-linecap="butt" opacity="0.6"/>
-
-        <!-- Tick marks (9 ticks, every 22.5° from -90° to +90°) -->
         <g id="dialTicks" stroke="#5C6E7C" stroke-width="1.5"></g>
-
-        <!-- Previous reading needle (ghost) -->
         <line id="dialNeedlePrev" x1="130" y1="120" x2="130" y2="36" stroke="#C2D2DC" stroke-width="2" stroke-linecap="round" transform="rotate(0,130,120)"/>
-        <!-- Current reading needle — brass, tapered with polygon -->
         <polygon id="dialNeedle" points="130,36 127,120 133,120" fill="#8A6A3D" transform="rotate(0,130,120)"/>
-
-        <!-- Center pivot -->
         <circle cx="130" cy="120" r="6" fill="#2C3A47"/>
         <circle cx="130" cy="120" r="3" fill="#8A6A3D"/>
-
-        <!-- Pressure readout centered below center -->
         <text id="dialPressureText" x="130" y="113" font-family="IBM Plex Mono, monospace" font-size="9.5" fill="#2C3A47" text-anchor="middle" font-weight="600"></text>
-
-        <!-- Zone labels — all horizontal, placed radially outside arc at r=108 -->
         <text x="22"  y="124" font-family="IBM Plex Mono, monospace" font-size="8" fill="#8B3A3A" text-anchor="middle" font-weight="600">STORMY</text>
         <text x="44"  y="58"  font-family="IBM Plex Mono, monospace" font-size="8" fill="#3E6079" text-anchor="middle" font-weight="600">RAIN</text>
         <text x="130" y="16"  font-family="IBM Plex Mono, monospace" font-size="8" fill="#8A6A3D" text-anchor="middle" font-weight="600">CHANGE</text>
         <text x="216" y="58"  font-family="IBM Plex Mono, monospace" font-size="8" fill="#46606E" text-anchor="middle" font-weight="600">FAIR</text>
         <text x="238" y="124" font-family="IBM Plex Mono, monospace" font-size="8" fill="#2E7D32" text-anchor="middle" font-weight="600">DRY</text>
       </svg>
-
       <div id="pressureWatchText" style="font-family:'Source Serif 4', serif; font-size:14px; color:var(--ink); line-height:1.5;"></div>
     </div>
-    <h3 class="records-title">Personal Records</h3>
-    <div class="cards records-grid" id="recordsCards"></div>
-    <h3 class="records-title">Insights</h3>
-    <div class="cards records-grid" id="insightCards" style="margin-bottom:22px;"></div>
+
+    <!-- 3. Charts — interactive exploration -->
+    <h3 class="records-title">Charts</h3>
     <div style="display:flex; justify-content:center; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
       <button class="btn secondary" id="chartTempBtn" title="Temperature over time" style="display:flex; flex-direction:column; align-items:center; gap:2px; padding:8px 12px; font-size:10px; min-width:52px;">
         <span style="font-size:18px; font-family:'Playfair Display',serif; color:var(--brass); line-height:1;">☀</span>TOT
@@ -1274,8 +1257,19 @@
       <h3 class="chart-title" id="chartTitle">Temperature Over Time</h3>
       <canvas id="trendChart" height="220"></canvas>
     </div>
-    <h3 class="records-title" style="margin-top:24px;">Pattern Tiles</h3>
+
+    <!-- 4. Snapshot tiles — tap to view related chart above -->
+    <h3 class="records-title" style="margin-top:24px;">Snapshots</h3>
     <div id="patternTiles" class="cards records-grid"></div>
+
+    <!-- 5. Personal Records — historical bests -->
+    <h3 class="records-title" style="margin-top:24px;">Personal Records</h3>
+    <div class="cards records-grid" id="recordsCards"></div>
+
+    <!-- 6. Insights — derived analysis -->
+    <h3 class="records-title" style="margin-top:24px;">Insights</h3>
+    <div class="cards records-grid" id="insightCards"></div>
+
   </section>
 
   <!-- MAP -->
@@ -1395,7 +1389,7 @@
 (function(){
   "use strict";
 
-  const APP_VERSION = "2.9.12";
+  const APP_VERSION = "2.9.14";
   const STORAGE_KEY = "weatherglass.entries.v1";
 
   function showToast(message, kind){
@@ -1741,20 +1735,56 @@
     }).length;
 
     const cards = [
-      { label:"Total Entries", value: total },
-      { label:"Severe Weather Logged", value: severe },
-      { label:"Avg Temp (°F)", value: avgTemp },
-      { label:"Current Streak", value: streak > 0 ? streak + (streak===1?" day":" days") : "—", note: longest > streak ? `Longest: ${longest} days` : longest > 0 ? `Best: ${longest} days` : "" },
-      { label:"This Week", value: thisWeek, note: lastWeek > 0 ? `${weekTrend} vs ${lastWeek} last week` : "" },
-      { label:"This Month", value: thisMonth, note: new Date().toLocaleDateString(undefined,{month:"long"}) },
+      // — Activity group —
+      {
+        label:"Total Observations",
+        value: total,
+        note: `since ${entries.length ? new Date(entries.slice().sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp))[0].timestamp).toLocaleDateString(undefined,{month:"short",year:"numeric"}) : "—"}`
+      },
+      {
+        label:"This Month",
+        value: thisMonth,
+        note: today.toLocaleDateString(undefined,{month:"long",year:"numeric"})
+      },
+      {
+        label:"This Week",
+        value: thisWeek,
+        note: lastWeek > 0 ? `${weekTrend} ${Math.abs(thisWeek-lastWeek)} vs last week` : "first week of logging"
+      },
+      {
+        label:"Logging Streak",
+        value: streak > 0 ? streak + (streak===1?" day":" days") : "—",
+        note: longest > streak ? `🏆 Best: ${longest} days` : longest > 0 ? `🏆 Best: ${longest} days` : "log daily to build a streak"
+      },
+      // — Conditions group —
+      {
+        label:"Avg Temperature",
+        value: avgTemp !== "—" ? avgTemp + "°F" : "—",
+        note: "across all entries"
+      },
+      {
+        label:"Severe Events",
+        value: severe,
+        note: severe > 0 ? `${((severe/total)*100).toFixed(0)}% of entries` : "none logged yet"
+      },
     ];
-    document.getElementById("overviewCards").innerHTML = cards.map(c=>`
-      <div class="card">
-        <div class="label">${escapeHtml(c.label)}</div>
-        <div class="value">${escapeHtml(String(c.value))}</div>
-        ${c.note ? `<div class="note">${escapeHtml(c.note)}</div>` : ""}
-      </div>
-    `).join("");
+    document.getElementById("overviewCards").innerHTML =
+      `<div style="grid-column:1/-1; font-family:'IBM Plex Mono',monospace; font-size:10px; text-transform:uppercase; letter-spacing:0.6px; color:var(--ink-soft); padding:2px 0 4px; border-bottom:1px solid var(--line);">Activity</div>` +
+      cards.slice(0,4).map(c=>`
+        <div class="card">
+          <div class="label">${escapeHtml(c.label)}</div>
+          <div class="value">${escapeHtml(String(c.value))}</div>
+          ${c.note ? `<div class="note">${escapeHtml(c.note)}</div>` : ""}
+        </div>
+      `).join("") +
+      `<div style="grid-column:1/-1; font-family:'IBM Plex Mono',monospace; font-size:10px; text-transform:uppercase; letter-spacing:0.6px; color:var(--ink-soft); padding:6px 0 4px; border-bottom:1px solid var(--line);">Conditions</div>` +
+      cards.slice(4).map(c=>`
+        <div class="card">
+          <div class="label">${escapeHtml(c.label)}</div>
+          <div class="value">${escapeHtml(String(c.value))}</div>
+          ${c.note ? `<div class="note">${escapeHtml(c.note)}</div>` : ""}
+        </div>
+      `).join("");
   }
 
   /* ---------- personal records ---------- */
