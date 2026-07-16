@@ -2,6 +2,24 @@
 
 All notable changes to Weatherglass are documented here, newest first.
 
+## v3.3.0
+
+**New chart tiles: UV Index and PM2.5 Over Time** — two new buttons in Trends → Charts, alongside the existing TOT/POT/HOT/HIOT/HRC/YOY/ATX set: **UVOT** (UV Index Over Time) and **PMOT** (PM2.5 Over Time). Same simple line-chart treatment as Temperature/Pressure/Humidity Over Time, pulling from whichever entries in the selected date range have UV/PM2.5 data (including anything filled in by the v3.2.0 backfill tool). Shows a clear "no data yet" message rather than an empty chart if nothing's logged.
+
+**1-day analysis window** — Trends → Charts now has a **1d** option alongside the existing 7d/30d/All range buttons, for zooming into just the current day's readings.
+
+## v3.2.1
+
+Renamed the "Backfill air quality" button to **"Backfill UV & PM2.5"** for clarity — no functional change.
+
+## v3.2.0
+
+**Backfill air quality for existing entries** — new tool in Settings → Location Tools ("Backfill air quality"). Fills UV Index and PM2.5 for entries that don't have them yet, using Open-Meteo's historical air-quality data matched to each entry's exact date, hour, and location — same source and same accuracy model as live captures, just fetched for the entry's actual timestamp instead of "now."
+- Only ever fills empty fields; anything entered by hand (or already backfilled) is never overwritten.
+- Matches each entry to its precise UTC hour in the historical dataset rather than approximating — more precise than the existing single-entry historical backfill (which buckets by a rough time-of-day tag), since bulk entries already have exact timestamps to match against.
+- Processed in small batches with a short delay between requests and periodic saves, same pattern as the existing "Name existing locations" tool.
+- Caveat carried over from when we discussed this: air quality models are coarser/more regional than temperature or pressure models, so treat filled-in values as regional estimates, not hyperlocal readings — noted directly in the tool's description in-app.
+
 ## v3.1.0
 
 **Speaker Mode: analysis tiles added to the slide deck**

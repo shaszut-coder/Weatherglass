@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Weatherglass — personal weather station & log
-  Version: 3.1.0
+  Version: 3.3.0
 
   Single-file app: no build step, no backend. Data lives in the
   visitor's own browser via localStorage.
@@ -1142,6 +1142,13 @@
     </div>
     <div style="border:1px dashed var(--line); border-radius:6px; padding:12px 14px; margin-bottom:18px;">
       <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:8px;">
+        Fills in UV Index and PM2.5 for existing entries that don't have them yet, using Open-Meteo's historical air quality data matched to each entry's exact date, time, and location — the same source your live readings already use. Only ever fills empty fields; anything you've entered by hand is left alone. Air quality models are coarser than temperature/pressure models, so treat these as regional estimates rather than hyperlocal readings.
+      </div>
+      <button type="button" class="btn secondary" id="backfillAqBtn">Backfill UV &amp; PM2.5</button>
+      <div id="backfillAqStatus" style="display:none; margin-top:8px; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft);"></div>
+    </div>
+    <div style="border:1px dashed var(--line); border-radius:6px; padding:12px 14px; margin-bottom:18px;">
+      <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:8px;">
         Detects trips from your GPS data and generates a summary card for each one — dates, distance, temperature range, locations visited, notable events and alert count.
       </div>
       <button type="button" class="btn secondary" id="tripSummaryBtn">Generate Trip Summaries</button>
@@ -1272,8 +1279,15 @@
       <button class="btn secondary" id="chartTransectBtn" title="Atmospheric transect — readings plotted by distance traveled" style="display:flex; flex-direction:column; align-items:center; gap:2px; padding:8px 12px; font-size:10px; min-width:52px;">
         <span style="font-size:18px; font-family:'Playfair Display',serif; color:var(--brass); line-height:1;">↔</span>ATX
       </button>
+      <button class="btn secondary" id="chartUvBtn" title="UV index over time" style="display:flex; flex-direction:column; align-items:center; gap:2px; padding:8px 12px; font-size:10px; min-width:52px;">
+        <span style="font-size:18px; font-family:'Playfair Display',serif; color:var(--brass); line-height:1;">◉</span>UVOT
+      </button>
+      <button class="btn secondary" id="chartPm25Btn" title="PM2.5 over time" style="display:flex; flex-direction:column; align-items:center; gap:2px; padding:8px 12px; font-size:10px; min-width:52px;">
+        <span style="font-size:18px; font-family:'Playfair Display',serif; color:var(--brass); line-height:1;">❖</span>PMOT
+      </button>
     </div>
     <div style="display:flex; justify-content:center; gap:6px; margin-bottom:14px;">
+      <button class="btn secondary" id="chartRange1" style="font-size:10.5px; padding:5px 14px;">1d</button>
       <button class="btn secondary" id="chartRange7" style="font-size:10.5px; padding:5px 14px;">7d</button>
       <button class="btn secondary" id="chartRange30" style="font-size:10.5px; padding:5px 14px;">30d</button>
       <button class="btn secondary" id="chartRangeAll" style="font-size:10.5px; padding:5px 14px;">All</button>
@@ -1427,7 +1441,7 @@
 (function(){
   "use strict";
 
-  const APP_VERSION = "3.1.0";
+  const APP_VERSION = "3.3.0";
   const STORAGE_KEY = "weatherglass.entries.v1";
 
   function showToast(message, kind){
@@ -4583,6 +4597,81 @@
     showToast(`Done — ${updated} locations named, ${failed} couldn't be resolved.`, "success");
   });
 
+  /* ---------- backfill historical air quality (UV + PM2.5) for existing entries ---------- */
+  document.getElementById("backfillAqBtn").addEventListener("click", async function(){
+    const btn = this;
+    const statusEl = document.getElementById("backfillAqStatus");
+
+    const toFill = entries.filter(e=>
+      e.uvIndex == null && e.pm25 == null &&
+      e.location && isFinite(e.location.lat) && isFinite(e.location.lng) &&
+      e.timestamp
+    );
+
+    if(!toFill.length){
+      showToast("No entries need air quality data — everything's already filled or missing location.", "success");
+      return;
+    }
+
+    btn.disabled = true;
+    statusEl.style.display = "block";
+    statusEl.textContent = `Found ${toFill.length} entries to fill. Starting…`;
+
+    let updated = 0, failed = 0;
+    const batchSize = 10; // save every 10 updates to avoid hammering storage
+
+    for(let i=0; i<toFill.length; i++){
+      const e = toFill[i];
+      statusEl.textContent = `Backfilling air quality: ${i+1} of ${toFill.length}… (${updated} updated, ${failed} unavailable)`;
+
+      try{
+        const d = new Date(e.timestamp);
+        const dateStr = d.toISOString().slice(0,10);
+        const targetHourStr = d.toISOString().slice(0,13) + ":00";
+        const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${e.location.lat}&longitude=${e.location.lng}&start_date=${dateStr}&end_date=${dateStr}&hourly=pm2_5,uv_index`;
+        const res = await fetch(url);
+        if(res.ok){
+          const data = await res.json();
+          const hourly = data.hourly;
+          if(hourly && hourly.time && hourly.time.length){
+            let idx = hourly.time.indexOf(targetHourStr);
+            if(idx === -1) idx = Math.min(Math.max(d.getUTCHours(),0), hourly.time.length-1);
+            const uv = hourly.uv_index?.[idx];
+            const pm = hourly.pm2_5?.[idx];
+            let gotSomething = false;
+            if(uv != null){ e.uvIndex = Math.round(uv*10)/10; gotSomething = true; }
+            if(pm != null){ e.pm25 = Math.round(pm*10)/10; gotSomething = true; }
+            if(gotSomething) updated++; else failed++;
+          } else {
+            failed++;
+          }
+        } else {
+          failed++;
+        }
+      }catch(err){
+        failed++;
+      }
+
+      // Be polite to the API even though it doesn't publish a hard rate limit
+      await new Promise(r=>setTimeout(r, 250));
+
+      // Save in batches to avoid long gaps between writes
+      if((i+1) % batchSize === 0 || i === toFill.length-1){
+        try{
+          await idbPutEntries(toFill.slice(0, i+1));
+        }catch(err){
+          console.warn("Batch save failed:", err.message||err);
+        }
+      }
+    }
+
+    renderAll();
+    refreshStorageIndicator();
+    btn.disabled = false;
+    statusEl.style.display = "none";
+    showToast(`Done — ${updated} entries filled, ${failed} had no historical air quality data available.`, "success");
+  });
+
   /* ---------- trip summary auto-generation ---------- */
   document.getElementById("tripSummaryBtn").addEventListener("click", function(){
     const output = document.getElementById("tripSummaryOutput");
@@ -4825,18 +4914,21 @@
   document.getElementById("chartHeatRateBtn").addEventListener("click", ()=>renderChart("heatrate"));
   document.getElementById("chartYoyBtn").addEventListener("click", ()=>renderChart("yoy"));
   document.getElementById("chartTransectBtn").addEventListener("click", ()=>renderChart("transect"));
+  document.getElementById("chartUvBtn").addEventListener("click", ()=>renderChart("uv"));
+  document.getElementById("chartPm25Btn").addEventListener("click", ()=>renderChart("pm25"));
 
   // Time range filter — how many days back to show in the main chart
   let chartRangeDays = 7;
   function setChartRange(days){
     chartRangeDays = days;
-    ["chartRange7","chartRange30","chartRangeAll"].forEach(id=>{
+    ["chartRange1","chartRange7","chartRange30","chartRangeAll"].forEach(id=>{
       document.getElementById(id).classList.remove("active");
     });
-    const active = days===7?"chartRange7":days===30?"chartRange30":"chartRangeAll";
+    const active = days===1?"chartRange1":days===7?"chartRange7":days===30?"chartRange30":"chartRangeAll";
     document.getElementById(active).classList.add("active");
     renderChart(currentChartMode);
   }
+  document.getElementById("chartRange1").addEventListener("click", ()=>setChartRange(1));
   document.getElementById("chartRange7").addEventListener("click", ()=>setChartRange(7));
   document.getElementById("chartRange30").addEventListener("click", ()=>setChartRange(30));
   document.getElementById("chartRangeAll").addEventListener("click", ()=>setChartRange(null));
@@ -4864,7 +4956,8 @@
       humidity:"Humidity Over Time", heatidx:"Heat Index Over Time (Feels Like)",
       daily:"Daily Min / Avg / Max Temperature", alert:"Alert Severity Over Time",
       windrose:"Wind Direction Rose", heatrate:"Heating Rate — Morning to Afternoon", yoy:"Year-over-Year Temperature", transect:"Atmospheric Transect — Temperature & Humidity by Distance",
-      tod:"Entries by Time of Day", cat:"Entries by Category"
+      tod:"Entries by Time of Day", cat:"Entries by Category",
+      uv:"UV Index Over Time", pm25:"PM2.5 Over Time"
     };
     if(titleEl) titleEl.textContent = titles[mode] || "";
     if(chartInstance) chartInstance.destroy();
@@ -4998,6 +5091,52 @@
           }]
         },
         options:{ responsive:true, plugins:{ legend:{ display:false } } }
+      });
+    } else if(mode === "uv"){
+      const withUv = trendsEntriesForRange().filter(e=>isFinite(e.uvIndex)).slice().sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
+      if(!withUv.length){
+        if(titleEl) titleEl.textContent = "UV Index Over Time — no UV data yet";
+        return;
+      }
+      chartInstance = new Chart(ctx, {
+        type:"line",
+        data:{
+          labels: withUv.map(e=>formatTs(e.timestamp)),
+          datasets:[{
+            label:"UV Index",
+            data: withUv.map(e=>e.uvIndex),
+            borderColor:"#C4713D",
+            backgroundColor:"rgba(196,113,61,0.15)",
+            tension:0.25,
+            fill:true,
+            pointRadius:3
+          }]
+        },
+        options:{ responsive:true, plugins:{ legend:{ display:false } },
+          scales:{ y:{ title:{ display:true, text:"UV Index", font:{ size:10 } } } } }
+      });
+    } else if(mode === "pm25"){
+      const withPm25 = trendsEntriesForRange().filter(e=>isFinite(e.pm25)).slice().sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
+      if(!withPm25.length){
+        if(titleEl) titleEl.textContent = "PM2.5 Over Time — no air quality data yet";
+        return;
+      }
+      chartInstance = new Chart(ctx, {
+        type:"line",
+        data:{
+          labels: withPm25.map(e=>formatTs(e.timestamp)),
+          datasets:[{
+            label:"PM2.5 (µg/m³)",
+            data: withPm25.map(e=>e.pm25),
+            borderColor:"#6B5E7B",
+            backgroundColor:"rgba(107,94,123,0.15)",
+            tension:0.25,
+            fill:true,
+            pointRadius:3
+          }]
+        },
+        options:{ responsive:true, plugins:{ legend:{ display:false } },
+          scales:{ y:{ title:{ display:true, text:"µg/m³", font:{ size:10 } } } } }
       });
     } else if(mode === "windrose"){
       // Bucket wind readings into 16 compass directions, weighted by speed

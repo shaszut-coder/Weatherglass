@@ -3,13 +3,13 @@
 A personal weather journal. Log conditions by hand or pull them live, track clouds and pressure trends, watch severe weather alerts, and build a searchable history of what the sky was doing wherever you were.
 
 **Live app:** https://weatherglass.shaszut.workers.dev/
-**Current version:** v3.1.0
+**Current version:** v3.3.0
 
 ## What it does
 
 - **Record** — log a reading manually or auto-fill current conditions (temp, humidity, pressure, wind, cloud cover, precipitation) for your GPS location
 - **Journal** — a searchable, filterable log of every entry, with photos
-- **Trends** — charts (temp, pressure, humidity, heat index, pressure rate-of-change, year-over-year, transect), plus computed Insights (temp/humidity correlation, personal comfort threshold, peak heat index, alert coverage), Pattern Tiles, and a Pressure Watch rapid-change indicator
+- **Trends** — charts (temp, pressure, humidity, heat index, pressure rate-of-change, year-over-year, transect, UV, PM2.5) over 1d/7d/30d/All windows, plus computed Insights (temp/humidity correlation, personal comfort threshold, peak heat index, alert coverage), Pattern Tiles, and a Pressure Watch rapid-change indicator
 - **Map** — station view or a chronological route view of everywhere you've logged, color-coded by temperature
 - **Gallery** — cloud photos organized by genus, with a built-in cloud atlas reference (Cloudspotter's Guide classifications)
 - **Alerts** — active NWS watches/warnings for your location, logged alongside the entry
@@ -24,7 +24,7 @@ Single self-contained `index.html` — no build step, no bundler, no backend. Ev
 **Storage:** IndexedDB, with automatic one-time migration from an older localStorage-based version. Nothing leaves your device except the API calls below — there's no server component and no account system.
 
 **External data sources** (all free, no API key required):
-- [Open-Meteo](https://open-meteo.com/) — current conditions, historical backfill, air quality (PM2.5/UV)
+- [Open-Meteo](https://open-meteo.com/) — current conditions, historical backfill (including UV/PM2.5, backfillable in bulk for existing entries via Settings), air quality
 - [api.weather.gov](https://www.weather.gov/documentation/services-web-api) (NOAA/NWS) — active weather alerts (US only)
 - [Nominatim](https://nominatim.org/) (OpenStreetMap) — reverse geocoding for location names (rate-limited to 1 request/sec per their usage policy)
 - [NOAA CO-OPS](https://tidesandcurrents.noaa.gov/) — tide predictions, for coastal locations
