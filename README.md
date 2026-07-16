@@ -3,7 +3,7 @@
 A personal weather journal. Log conditions by hand or pull them live, track clouds and pressure trends, watch severe weather alerts, and build a searchable history of what the sky was doing wherever you were.
 
 **Live app:** https://weatherglass.shaszut.workers.dev/
-**Current version:** v3.0.0
+**Current version:** v3.1.0
 
 ## What it does
 
@@ -14,7 +14,7 @@ A personal weather journal. Log conditions by hand or pull them live, track clou
 - **Gallery** — cloud photos organized by genus, with a built-in cloud atlas reference (Cloudspotter's Guide classifications)
 - **Alerts** — active NWS watches/warnings for your location, logged alongside the entry
 - **Moon phase & illumination**, logged automatically with each entry
-- **Speaker Mode** — pick a date range, get a fullscreen presentation-ready slide deck (stats, alert timeline, photos, route) for showing your data live
+- **Speaker Mode** — pick a date range, get a fullscreen presentation-ready slide deck (tiles for this range and overall totals, stats, alert timeline, photos, route) for showing your data live
 - **Trip Summaries** — auto-detected from GPS gaps in your log, with distance, temp range, and notable events per trip
 
 ## How it's built
@@ -43,9 +43,10 @@ Hosted on **Cloudflare** (Pages/Workers), source on **GitHub**. Push `index.html
 
 Each release is:
 1. A new `index.html` (version bumped in two places: the header comment and the `APP_VERSION` constant)
-2. A matching `changelog-X.Y.Z.md` describing what changed
+2. An updated `CHANGELOG.md` — one running file, newest entry at the top, not a per-version file
+3. An updated `README.md`, kept current with whatever shipped
 
-This keeps testing and rollback simple — reverting a bad release is just reverting the one file. No import/export data migration is needed between versions; the IndexedDB schema is stable and additive.
+This keeps testing and rollback simple — reverting a bad release is just reverting `index.html`. No import/export data migration is needed between versions; the IndexedDB schema is stable and additive.
 
 ## Backup & data safety
 

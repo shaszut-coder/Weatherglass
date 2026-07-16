@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Weatherglass — personal weather station & log
-  Version: 3.0.0
+  Version: 3.1.0
 
   Single-file app: no build step, no backend. Data lives in the
   visitor's own browser via localStorage.
@@ -1427,7 +1427,7 @@
 (function(){
   "use strict";
 
-  const APP_VERSION = "3.0.0";
+  const APP_VERSION = "3.1.0";
   const STORAGE_KEY = "weatherglass.entries.v1";
 
   function showToast(message, kind){
@@ -1720,7 +1720,10 @@
   setInterval(tickClock, 30000);
 
   /* ---------- overview cards ---------- */
-  function renderCards(){
+  // Pure — no DOM access — so Speaker Mode can build the same tiles inside
+  // its slide deck without duplicating this math. renderCards() below is
+  // just this data plus the home-screen HTML/grid wrapper around it.
+  function computeOverviewCards(){
     const total = entries.length;
     const severe = entries.filter(e=>e.level==="Severe").length;
     const temps = entries.filter(e=>isFinite(e.tempF)).map(e=>e.tempF);
@@ -1778,7 +1781,7 @@
       return d.getMonth()===today.getMonth() && d.getFullYear()===today.getFullYear();
     }).length;
 
-    const cards = [
+    return [
       // — Activity group —
       {
         label:"Total Observations",
@@ -1812,6 +1815,10 @@
         note: severe > 0 ? `${((severe/total)*100).toFixed(0)}% of entries` : "none logged yet"
       },
     ];
+  }
+
+  function renderCards(){
+    const cards = computeOverviewCards();
     document.getElementById("overviewCards").innerHTML =
       `<div style="grid-column:1/-1; font-family:'IBM Plex Mono',monospace; font-size:10px; text-transform:uppercase; letter-spacing:0.6px; color:var(--ink-soft); padding:2px 0 4px; border-bottom:1px solid var(--line);">Activity</div>` +
       cards.slice(0,4).map(c=>`
@@ -5621,6 +5628,25 @@
 
   const SPEAKER_MAX_PHOTO_SLIDES = 25; // keeps a big range from turning into a 200-slide deck
 
+  // Renders a grid of tiles (same {label,value,note} shape computeOverviewCards
+  // returns) using dark-overlay styling that matches the rest of Speaker Mode,
+  // rather than the light home-screen card CSS which wouldn't read well here.
+  function speakerTileSlideHtml(heading, tiles){
+    return `
+      <div>
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:13px; opacity:0.6; text-transform:uppercase; letter-spacing:1px; margin-bottom:20px;">${escapeHtml(heading)}</div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:16px;">
+          ${tiles.map(t=>`
+            <div style="border:1px solid rgba(244,239,230,0.25); border-radius:8px; padding:16px 18px;">
+              <div style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; opacity:0.65; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px;">${escapeHtml(t.label)}</div>
+              <div style="font-family:'Playfair Display',serif; font-weight:600; font-size:clamp(24px,3.5vw,34px); margin-bottom:4px;">${escapeHtml(String(t.value))}</div>
+              ${t.note ? `<div style="font-family:'IBM Plex Mono',monospace; font-size:11px; opacity:0.6;">${escapeHtml(t.note)}</div>` : ""}
+            </div>
+          `).join("")}
+        </div>
+      </div>`;
+  }
+
   function buildSpeakerSlides(rangeEntries, startStr, endStr){
     const slides = [];
     if(!rangeEntries.length) return slides;
@@ -5639,7 +5665,25 @@
       </div>`
     });
 
-    // 2. Stats slide
+    // 2. Range overview tiles — same tile look as the home screen, but
+    // scoped to just the entries in this presentation's date range.
+    const rangeTemps = rangeEntries.filter(e=>isFinite(e.tempF)).map(e=>e.tempF);
+    const rangeAvgTemp = rangeTemps.length ? (rangeTemps.reduce((a,b)=>a+b,0)/rangeTemps.length).toFixed(1) : "—";
+    const rangeSevere = rangeEntries.filter(e=>e.level==="Severe").length;
+    const rangeDayCount = new Set(rangeEntries.map(e=> new Date(e.timestamp).toLocaleDateString("en-CA"))).size;
+    slides.push({ kind:"tiles", html: speakerTileSlideHtml("This presentation", [
+      { label:"Entries in Range", value: rangeEntries.length, note: `${rangeDayCount} day${rangeDayCount===1?"":"s"} logged` },
+      { label:"Avg Temperature", value: rangeAvgTemp !== "—" ? rangeAvgTemp+"°F" : "—", note: "across this range" },
+      { label:"Severe Events", value: rangeSevere, note: rangeSevere ? `${((rangeSevere/rangeEntries.length)*100).toFixed(0)}% of range` : "none in this range" },
+      { label:"Locations", value: locNames.length, note: locNames.length ? locNames.slice(0,2).join(", ") + (locNames.length>2 ? "…" : "") : "—" },
+    ])});
+
+    // 3. App-wide overview tiles — the same six tiles as the home screen
+    // (Total Observations, This Month, This Week, Streak, Avg Temp, Severe
+    // Events), computed across your ENTIRE journal, not just this range.
+    slides.push({ kind:"tiles", html: speakerTileSlideHtml("Overall, so far", computeOverviewCards()) });
+
+    // 4. Stats slide
     const temps = rangeEntries.filter(e=>isFinite(e.tempF)).map(e=>e.tempF);
     const pressures = rangeEntries.filter(e=>isFinite(e.pressureInHg)).map(e=>e.pressureInHg);
     const heatPeaks = rangeEntries.filter(e=>isFinite(e.tempF)&&isFinite(e.humidity))
@@ -5662,7 +5706,7 @@
       });
     }
 
-    // 3. Alert timeline slide
+    // 5. Alert timeline slide
     const alertEntries = rangeEntries.filter(e=>e.alertActive==="yes" && e.alertSummary);
     if(alertEntries.length){
       slides.push({ kind:"alerts", html:`
@@ -5679,7 +5723,7 @@
       });
     }
 
-    // 4. Photo slides (capped)
+    // 6. Photo slides (capped)
     const withPhotos = rangeEntries.filter(e=>e.photo);
     const photoSet = withPhotos.length > SPEAKER_MAX_PHOTO_SLIDES
       ? withPhotos.filter((_,i)=> i % Math.ceil(withPhotos.length / SPEAKER_MAX_PHOTO_SLIDES) === 0)
@@ -5697,7 +5741,7 @@
       slides[slides.length-1].html += `<div style="text-align:center; font-family:'IBM Plex Mono',monospace; font-size:11px; opacity:0.5; margin-top:14px;">Showing ${photoSet.length} of ${withPhotos.length} photos in this range</div>`;
     }
 
-    // 5. Route/stops slide — chronological list of named locations.
+    // 7. Route/stops slide — chronological list of named locations.
     // (A live interactive map here would need its own Leaflet instance
     // separate from the Map tab's; deferred rather than rushed — see
     // changelog. This still gives the "where did I go, in order" view.)
