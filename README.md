@@ -1,150 +1,67 @@
 # Weatherglass
 
-A personal, privacy-first weather journal for the serious observer.
-Log conditions, clouds, storms, and sky photos — all stored locally
-in your browser. No account, no server, no backend, no ads.
+A personal weather journal. Log conditions by hand or pull them live, track clouds and pressure trends, watch severe weather alerts, and build a searchable history of what the sky was doing wherever you were.
 
-Current version: **2.9.12** — see `CHANGELOG.md` for full history.
+**Live app:** https://weatherglass.shaszut.workers.dev/
+**Current version:** v3.0.0
 
----
+## What it does
 
-## What this is
+- **Record** — log a reading manually or auto-fill current conditions (temp, humidity, pressure, wind, cloud cover, precipitation) for your GPS location
+- **Journal** — a searchable, filterable log of every entry, with photos
+- **Trends** — charts (temp, pressure, humidity, heat index, pressure rate-of-change, year-over-year, transect), plus computed Insights (temp/humidity correlation, personal comfort threshold, peak heat index, alert coverage), Pattern Tiles, and a Pressure Watch rapid-change indicator
+- **Map** — station view or a chronological route view of everywhere you've logged, color-coded by temperature
+- **Gallery** — cloud photos organized by genus, with a built-in cloud atlas reference (Cloudspotter's Guide classifications)
+- **Alerts** — active NWS watches/warnings for your location, logged alongside the entry
+- **Moon phase & illumination**, logged automatically with each entry
+- **Speaker Mode** — pick a date range, get a fullscreen presentation-ready slide deck (stats, alert timeline, photos, route) for showing your data live
+- **Trip Summaries** — auto-detected from GPS gaps in your log, with distance, temp range, and notable events per trip
 
-A single static HTML file (`index.html`). No build step, no
-server-side code. All data lives in your browser's **IndexedDB**,
-on your own device.
+## How it's built
 
-Designed for enthusiasts who want a personal instrument station —
-not a weather app that shows you what a server thinks the weather
-is, but a log of what *you* actually observed.
+Single self-contained `index.html` — no build step, no bundler, no backend. Everything (HTML, CSS, JS) lives in one file by design, so a new version is just a new `index.html`.
 
----
+**Storage:** IndexedDB, with automatic one-time migration from an older localStorage-based version. Nothing leaves your device except the API calls below — there's no server component and no account system.
 
-## Features
+**External data sources** (all free, no API key required):
+- [Open-Meteo](https://open-meteo.com/) — current conditions, historical backfill, air quality (PM2.5/UV)
+- [api.weather.gov](https://www.weather.gov/documentation/services-web-api) (NOAA/NWS) — active weather alerts (US only)
+- [Nominatim](https://nominatim.org/) (OpenStreetMap) — reverse geocoding for location names (rate-limited to 1 request/sec per their usage policy)
+- [NOAA CO-OPS](https://tidesandcurrents.noaa.gov/) — tide predictions, for coastal locations
 
-### Recording
-- **Quick Log (⚡)** — one tap captures location, current weather,
-  NWS alerts, moon phase, and time of day automatically
-- Full entry form: Entry Type, Category, Location name, Site Type,
-  Observation Context, Time of Day, Cloud Classification, Weather
-  Alerts, NOAA Tides (auto-shown for coastal site types), Air
-  Quality (UV Index + PM2.5), Historical weather fill, Instruments,
-  Personal Impression, Notes, Sky Photo
-- **EXIF date from photo** sets entry timestamp and pre-fills
-  historical weather automatically
-- **Reverse geocoding** — Quick Log entries are automatically named
-  by place ("Russellville, Arkansas") using OpenStreetMap
-
-### Tabs
-| Tab | Contents |
-|---|---|
-| **Record** | Entry form + Quick Log |
-| **Journal** | Searchable entry list, On This Day strip, ⚙️ Settings |
-| **Trends** | Charts, Personal Records, Insights, Pressure Watch dial, Pattern Tiles |
-| **Map** | Station (clustered pins) or Route (temperature-coded path) with date filter strip |
-| **Gallery** | Photo grid, My Cloud Atlas by genus, Cloud Atlas reference (Howard + Goethe), Sky Stats |
-
-### Trends charts
-TOT · POT · HOT · HIOT · HRC · YOY · ATX — plus pattern tiles for
-Daily Min/Max (DMM) and Wind Rose (WDR) that tap to reveal the chart.
-
-Time range selector: **7d / 30d / All**
-
-Filter by: **Region** (geographic cluster) · **Location** (name) · **Site Type**
-
-### Cloud Atlas
-Based on *The Cloudspotter's Guide* by Gavin Pretor-Pinney,
-incorporating Luke Howard's original 1803 classification system
-(*On the Modification of Clouds*). Each genus shows:
-- Howard's original notation symbol (∞ ○ — etc.)
-- Fair/Foul/Changing/Unsettled weather signal
-- "What Howard said" — his original forecasting text (expandable)
-- Goethe's cloud verses as a coda (1817–1821, expandable)
-
-### Map — Route mode
-Plots entries chronologically as a temperature-coded path:
-blue (<65°F) → green → yellow → orange → red → dark red (95°F+).
-Date filter chips let you isolate a single day's travel.
-
-### Trip Summary
-Settings → Location Tools → **Generate Trip Summaries** detects
-trips from GPS data (entries >50 miles from home base) and produces
-a summary card per trip: dates, duration, temperature range, places
-visited, alerts, storm events.
-
-### Settings (⚙️ in Journal toolbar)
-- Export JSON (multi-file, includes photos)
-- Export CSV (with heat index, UV, PM2.5, tides, moon, alerts,
-  site type, observation context)
-- Import JSON
-- Reset Storage (auto-exports backup first)
-- Delete All Data (two-step confirmation + auto-export)
-- Name existing locations (batch reverse geocoding, ~1/sec)
-- Generate Trip Summaries
-
----
-
-## External services used
-
-All free, no API key required, no account needed:
-
-| Service | Purpose |
-|---|---|
-| Open-Meteo | Current weather + air quality + historical archive |
-| NOAA / NWS | Active weather alerts (US only) |
-| NOAA Tides & Currents | Tide predictions (US coastal stations) |
-| Nominatim / OpenStreetMap | Reverse geocoding for place names |
-| Leaflet + OpenStreetMap | Interactive map |
-| Chart.js | Trend charts |
-| exif-js | Reading photo date/location metadata |
-
----
+**Libraries** (loaded via cdnjs):
+- [Leaflet](https://leafletjs.com/) — maps
+- [Chart.js](https://www.chartjs.org/) — trend charts
+- [exif-js](https://github.com/exif-js/exif-js) — reading photo metadata
+- [JSZip](https://stuk.github.io/jszip/) — Speaker Kit archive export
 
 ## Deployment
 
-Deployed as a Cloudflare Worker via Git integration.
+Hosted on **Cloudflare** (Pages/Workers), source on **GitHub**. Push `index.html` to the repo and it deploys automatically — no CI/build pipeline involved.
 
-**To update:** push `index.html` to the `main` branch on GitHub.
-Cloudflare detects the push and redeploys automatically — no action
-needed in the Cloudflare dashboard.
+### Versioning workflow
 
-**Files in this repo:**
-- `index.html` — the entire app (only file that changes)
-- `wrangler.jsonc` — Cloudflare Workers config (rarely changes)
-- `netlify.toml` — Netlify fallback config
-- `CHANGELOG.md` — version history
-- `README.md` — this file
+Each release is:
+1. A new `index.html` (version bumped in two places: the header comment and the `APP_VERSION` constant)
+2. A matching `changelog-X.Y.Z.md` describing what changed
 
----
+This keeps testing and rollback simple — reverting a bad release is just reverting the one file. No import/export data migration is needed between versions; the IndexedDB schema is stable and additive.
 
-## Your data
+## Backup & data safety
 
-All entries are stored in **IndexedDB** on your device. They are
-**not** synced anywhere. They will not appear on a different browser
-or device.
+Since everything lives in browser storage on one device, **regular exports are the only backup** — there's no cloud sync.
 
-**Back up regularly** using Export JSON in Settings. The JSON file
-includes all entries and embedded photos. Import JSON restores
-everything on the same or a new device.
+- **Export JSON** — full backup, everything including photos, re-importable
+- **Export CSV** — for spreadsheet analysis; not re-importable
+- **Speaker Kit (.zip)** — JSON + CSV + all photos as real image files + a manifest with a SHA-256 checksum, bundled in one archive
+- **Import** — accepts Weatherglass JSON exports; skips entries that already exist (by id) rather than duplicating them
+- A reminder banner appears in Settings if it's been 7+ days since your last export
 
-The live **Storage indicator** in Settings shows how much space
-your entries are using and how much remains.
+Very large exports split automatically into multiple parts (`part1-of-N`, `part2-of-N`, …) to avoid crashing the tab; import each part separately.
 
----
+## Known limitations / open items
 
-## Cloud classification source
-
-Genus / Species / Varieties options are based on the International
-Cloud Atlas classification as presented in *The Cloudspotter's Guide*
-by Gavin Pretor-Pinney (Cloud Appreciation Society), cross-referenced
-with Luke Howard's original 1803 essay *On the Modification of Clouds*.
-
----
-
-## Version numbering
-
-The version lives in two places in `index.html` — keep them in sync:
-- The `Version:` comment at the very top of the file
-- The `APP_VERSION` constant near the top of the `<script>` block
-
-Add a `CHANGELOG.md` entry for anything notable.
+- Single-device only — no sync between browsers or devices
+- Not currently an installable PWA (no service worker/manifest yet) — requires a network connection to load on first visit
+- Speaker Mode's route slide is a chronological list, not a live interactive map (deferred — would need a second Leaflet instance independent of the Map tab's)
+- `tideState`/tide fields only populate near a NOAA tide station; empty for inland locations
