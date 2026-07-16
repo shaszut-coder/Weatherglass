@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Weatherglass — personal weather station & log
-  Version: 2.9.14
+  Version: 3.0.0
 
   Single-file app: no build step, no backend. Data lives in the
   visitor's own browser via localStorage.
@@ -23,6 +23,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exif-js/2.3.0/exif.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
   :root{
     --sky: #E6EDF2;
@@ -1065,6 +1066,7 @@
     <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:12px;">
       Export your entries regularly as a backup. JSON preserves everything including photos. CSV is for analysis in spreadsheets.
     </div>
+    <div id="exportNudge" style="display:none; font-family:'IBM Plex Mono', monospace; font-size:11px; margin-bottom:12px; padding:8px 10px; border-radius:6px; border:1px solid var(--brass);"></div>
     <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px;">
       <button class="btn secondary" id="exportBtn">Export JSON</button>
       <button class="btn secondary" id="exportCsvBtn">Export CSV</button>
@@ -1072,6 +1074,12 @@
         Import JSON
         <input type="file" id="importInput" accept="application/json" style="display:none;">
       </label>
+    </div>
+    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px;">
+      <button class="btn" id="speakerKitBtn" style="width:100%;">Download Speaker Kit (.zip)</button>
+    </div>
+    <div style="font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--ink-soft); margin-bottom:14px;">
+      Speaker Kit bundles a full JSON backup, a CSV, and every photo into one .zip — handy before a talk, or just as a single-file archive.
     </div>
     <div id="importStatus" style="display:none; font-family:'IBM Plex Mono', monospace; font-size:11.5px; color:var(--ink-soft); margin-bottom:10px;"></div>
     <div id="exportPartsArea" style="margin-bottom:10px;"></div>
@@ -1138,6 +1146,23 @@
       </div>
       <button type="button" class="btn secondary" id="tripSummaryBtn">Generate Trip Summaries</button>
       <div id="tripSummaryOutput" style="margin-top:14px;"></div>
+    </div>
+
+    <h3 class="records-title">Speaker Mode</h3>
+    <div style="border:1px dashed var(--line); border-radius:6px; padding:12px 14px; margin-bottom:18px;">
+      <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:10px;">
+        Pick a date range and get a fullscreen, presentation-ready slide sequence built from that stretch of your journal — stats, alerts, photos, and the stops you logged, in order.
+      </div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
+        <label style="font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--ink-soft);">
+          From<br><input type="date" id="speakerStartDate" style="font-family:inherit; padding:6px; border:1px solid var(--line); border-radius:4px;">
+        </label>
+        <label style="font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--ink-soft);">
+          To<br><input type="date" id="speakerEndDate" style="font-family:inherit; padding:6px; border:1px solid var(--line); border-radius:4px;">
+        </label>
+      </div>
+      <button type="button" class="btn" id="speakerModeStartBtn" style="width:100%;">Start Presentation</button>
+      <div id="speakerModeStatus" style="display:none; margin-top:8px; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft);"></div>
     </div>
 
     <h3 class="records-title">About</h3>
@@ -1371,6 +1396,19 @@
   </div>
 </div>
 
+<!-- Speaker Mode: fullscreen presentation overlay, built dynamically by renderSpeakerSlide() -->
+<div id="speakerOverlay" style="display:none; position:fixed; inset:0; z-index:80; background:#1B2530; color:#F4EFE6; flex-direction:column;">
+  <div style="display:flex; justify-content:space-between; align-items:center; padding:16px 20px;">
+    <span id="speakerSlideCounter" style="font-family:'IBM Plex Mono',monospace; font-size:13px; letter-spacing:0.5px; opacity:0.75;"></span>
+    <button type="button" id="speakerCloseBtn" style="background:none; border:1px solid rgba(244,239,230,0.35); border-radius:4px; color:inherit; font-size:14px; padding:6px 12px; cursor:pointer;">Exit ✕</button>
+  </div>
+  <div id="speakerSlideContent" style="flex:1; overflow-y:auto; padding:10px 32px 32px; display:flex; flex-direction:column; justify-content:center;"></div>
+  <div style="display:flex; justify-content:space-between; padding:18px 20px 26px;">
+    <button type="button" id="speakerPrevBtn" style="background:none; border:1px solid rgba(244,239,230,0.35); border-radius:4px; color:inherit; font-size:15px; padding:10px 20px; cursor:pointer;">‹ Prev</button>
+    <button type="button" id="speakerNextBtn" style="background:none; border:1px solid rgba(244,239,230,0.35); border-radius:4px; color:inherit; font-size:15px; padding:10px 20px; cursor:pointer;">Next ›</button>
+  </div>
+</div>
+
 <div id="cloudAtlasSheet" style="display:none; position:fixed; inset:0; z-index:55; background:rgba(44,58,71,0.45); align-items:flex-end; justify-content:center;">
   <div class="sheet-content" style="max-width:680px;">
     <div class="sheet-handle"></div>
@@ -1389,7 +1427,7 @@
 (function(){
   "use strict";
 
-  const APP_VERSION = "2.9.14";
+  const APP_VERSION = "3.0.0";
   const STORAGE_KEY = "weatherglass.entries.v1";
 
   function showToast(message, kind){
@@ -1661,7 +1699,13 @@
       document.getElementById("panel-"+btn.dataset.tab).classList.add("active");
       if(btn.dataset.tab === "map"){ setTimeout(()=>{ if(map) map.invalidateSize(); renderMapDateStrip(); renderMap(); }, 50); }
       if(btn.dataset.tab === "trends"){ populateTrendsLocationFilter(); populateTrendsRegionFilter(); renderRecords(); renderInsights(); renderPatternTiles(); renderPressureWatch(); renderChart(currentChartMode); }
-      if(btn.dataset.tab === "log"){ renderOnThisDay(); }
+      if(btn.dataset.tab === "log"){
+        renderOnThisDay();
+        // The journal list is virtualized against viewport position, which
+        // is meaningless while its panel is hidden (offsetParent === null,
+        // see vlistRenderSlice) — so re-render now that it's actually visible.
+        vlistRenderSlice();
+      }
       if(btn.dataset.tab === "sky"){ renderSkyTab(); }
     });
   });
@@ -1930,13 +1974,31 @@
   }
 
   // ---------- Insights: correlation, comfort threshold, alert severity ----------
-  function renderInsights(){
-    const el = document.getElementById("insightCards");
-    if(!el) return;
-    const cards = [];
+  // Pure, self-contained number-crunching for the four insight cards below —
+  // no DOM access, no closures over outer scope. Deliberately written this
+  // way (including its own local heat-index calc rather than calling the
+  // outer calcHeatIndex) so the SAME function can run either directly on the
+  // main thread (fallback) or be shipped into a Web Worker via
+  // computeInsightsCore.toString() with zero code duplication. See
+  // insightsWorker setup below. At current data volumes (hundreds of rows)
+  // this finishes in well under a millisecond either way — moving it off
+  // the main thread is about staying smooth as the journal grows into the
+  // thousands (e.g. scrubbing date ranges during Speaker Mode), not fixing
+  // a present-day slowdown.
+  function computeInsightsCore(pairedRaw, totalCount){
+    function localHeatIndex(T, RH){
+      if(!isFinite(T) || !isFinite(RH)) return null;
+      if(T < 80) return T;
+      const hi = -42.379 + 2.04901523*T + 10.14333127*RH - 0.22475541*T*RH
+        - 6.83783e-3*T*T - 5.481717e-2*RH*RH + 1.22874e-3*T*T*RH
+        + 8.5282e-4*T*RH*RH - 1.99e-6*T*T*RH*RH;
+      return Math.round(hi);
+    }
+
+    const result = { pearson:null, comfort:null, peakHeat:null, alerts:null };
 
     // 1. Temp vs Humidity Pearson r
-    const paired = trendsEntries().filter(e=>isFinite(e.tempF) && isFinite(e.humidity));
+    const paired = pairedRaw.filter(e=>isFinite(e.tempF) && isFinite(e.humidity));
     if(paired.length >= 5){
       const n = paired.length;
       const mt = paired.reduce((s,e)=>s+e.tempF,0)/n;
@@ -1945,55 +2007,147 @@
       const st = Math.sqrt(paired.reduce((s,e)=>s+(e.tempF-mt)**2,0)/n);
       const sh = Math.sqrt(paired.reduce((s,e)=>s+(e.humidity-mh)**2,0)/n);
       if(st > 0 && sh > 0){
-        const r = (cov/(st*sh)).toFixed(2);
-        const strength = Math.abs(r) >= 0.7 ? "Strong" : Math.abs(r) >= 0.4 ? "Moderate" : "Weak";
-        const dir = r < 0 ? "inverse" : "direct";
-        cards.push(`<div class="card">
-          <div class="label">Temp / Humidity Correlation</div>
-          <div class="value" style="font-size:22px;">r = ${r}</div>
-          <div class="sub-value">${strength} ${dir} relationship (${n} readings)</div>
-        </div>`);
+        const r = parseFloat((cov/(st*sh)).toFixed(2));
+        result.pearson = {
+          r, n,
+          strength: Math.abs(r) >= 0.7 ? "Strong" : Math.abs(r) >= 0.4 ? "Moderate" : "Weak",
+          dir: r < 0 ? "inverse" : "direct"
+        };
       }
     }
 
     // 2. Personal comfort threshold (Impression vs Temp)
-    const comfortable = trendsEntries().filter(e=>e.impression==="Comfortable" && isFinite(e.tempF)).map(e=>e.tempF);
-    const uncomfortable = trendsEntries().filter(e=>e.impression==="Uncomfortable" && isFinite(e.tempF)).map(e=>e.tempF);
+    const comfortable = pairedRaw.filter(e=>e.impression==="Comfortable" && isFinite(e.tempF)).map(e=>e.tempF);
+    const uncomfortable = pairedRaw.filter(e=>e.impression==="Uncomfortable" && isFinite(e.tempF)).map(e=>e.tempF);
     if(comfortable.length >= 2 && uncomfortable.length >= 2){
-      const avgC = (comfortable.reduce((a,b)=>a+b,0)/comfortable.length).toFixed(1);
-      const avgU = (uncomfortable.reduce((a,b)=>a+b,0)/uncomfortable.length).toFixed(1);
-      const threshold = ((parseFloat(avgC)+parseFloat(avgU))/2).toFixed(0);
-      cards.push(`<div class="card">
-        <div class="label">Comfort Threshold</div>
-        <div class="value" style="font-size:22px;">~${threshold}°F</div>
-        <div class="sub-value">Comfortable avg ${avgC}°F · Uncomfortable avg ${avgU}°F</div>
-      </div>`);
+      const avgC = parseFloat((comfortable.reduce((a,b)=>a+b,0)/comfortable.length).toFixed(1));
+      const avgU = parseFloat((uncomfortable.reduce((a,b)=>a+b,0)/uncomfortable.length).toFixed(1));
+      const threshold = Math.round((avgC+avgU)/2);
+      result.comfort = { avgC, avgU, threshold };
     }
 
     // 3. Peak heat index ever logged
-    const hiReadings = trendsEntries().filter(e=>isFinite(e.tempF) && isFinite(e.humidity));
+    const hiReadings = pairedRaw.filter(e=>isFinite(e.tempF) && isFinite(e.humidity));
     if(hiReadings.length){
-      const peaks = hiReadings.map(e=>({ hi: calcHeatIndex(e.tempF, e.humidity), e }))
+      const peaks = hiReadings.map(e=>({ hi: localHeatIndex(e.tempF, e.humidity), e }))
         .filter(x=>x.hi!=null).sort((a,b)=>b.hi-a.hi);
       if(peaks.length){
         const best = peaks[0];
-        cards.push(`<div class="card">
-          <div class="label">Peak Feels Like</div>
-          <div class="value" style="font-size:22px;">${best.hi}°F</div>
-          <div class="sub-value">${escapeHtml(best.e.title)} · ${escapeHtml(formatTs(best.e.timestamp))}</div>
-        </div>`);
+        result.peakHeat = { hi: best.hi, title: best.e.title, timestamp: best.e.timestamp };
       }
     }
 
     // 4. Alert coverage
-    const withAlerts = trendsEntries().filter(e=>e.alertActive==="yes");
+    const withAlerts = pairedRaw.filter(e=>e.alertActive==="yes");
     if(withAlerts.length){
-      const pct = Math.round(withAlerts.length/entries.length*100);
+      const pct = Math.round(withAlerts.length/totalCount*100);
       const severeCount = withAlerts.filter(e=>e.alertSeverity==="Severe"||e.alertSeverity==="Extreme").length;
+      result.alerts = { pct, count: withAlerts.length, severeCount };
+    }
+
+    return result;
+  }
+
+  // Runs computeInsightsCore in a Web Worker when available (built from the
+  // function's own source via toString(), so there's exactly one copy of
+  // the logic — see the comment on computeInsightsCore above). Falls back to
+  // calling it directly on the main thread in browsers without Worker
+  // support, or if the worker fails to start for any reason.
+  let insightsWorker = null;
+  let insightsWorkerFailed = false;
+  let insightsRequestId = 0;
+  const insightsPending = new Map();
+  function getInsightsWorker(){
+    if(insightsWorker || insightsWorkerFailed) return insightsWorker;
+    if(typeof Worker === "undefined"){ insightsWorkerFailed = true; return null; }
+    try{
+      const src = `
+        const computeInsightsCore = ${computeInsightsCore.toString()};
+        self.onmessage = function(e){
+          const { id, pairedRaw, totalCount } = e.data;
+          self.postMessage({ id, result: computeInsightsCore(pairedRaw, totalCount) });
+        };
+      `;
+      const blob = new Blob([src], { type: "application/javascript" });
+      insightsWorker = new Worker(URL.createObjectURL(blob));
+      insightsWorker.onmessage = (e)=>{
+        const { id, result } = e.data;
+        const resolve = insightsPending.get(id);
+        if(resolve){ insightsPending.delete(id); resolve(result); }
+      };
+      insightsWorker.onerror = ()=>{
+        // If the worker blows up after startup, stop trying to use it —
+        // any pending calls fall back to a synchronous compute instead.
+        insightsWorkerFailed = true;
+        insightsWorker = null;
+        insightsPending.forEach(resolve=>resolve(null));
+        insightsPending.clear();
+      };
+    } catch(err){
+      insightsWorkerFailed = true;
+      insightsWorker = null;
+    }
+    return insightsWorker;
+  }
+  function computeInsightsAsync(pairedRaw, totalCount){
+    const worker = getInsightsWorker();
+    if(!worker) return Promise.resolve(computeInsightsCore(pairedRaw, totalCount));
+    const id = ++insightsRequestId;
+    return new Promise(resolve=>{
+      insightsPending.set(id, (result)=> resolve(result == null ? computeInsightsCore(pairedRaw, totalCount) : result));
+      worker.postMessage({ id, pairedRaw, totalCount });
+    });
+  }
+
+  let insightsRenderToken = 0;
+  async function renderInsights(){
+    const el = document.getElementById("insightCards");
+    if(!el) return;
+
+    // Snapshot the DOM-dependent filtered set on the main thread (has to
+    // happen here — trendsEntries() reads filter dropdowns), then hand the
+    // actual number-crunching off to computeInsightsAsync, which runs it in
+    // a Worker when available. A token guards against a slower older
+    // request clobbering a newer one if filters change again mid-flight.
+    const myToken = ++insightsRenderToken;
+    const stats = await computeInsightsAsync(trendsEntries(), entries.length);
+    if(myToken !== insightsRenderToken) return; // a newer render superseded this one
+
+    const cards = [];
+
+    if(stats.pearson){
+      const { r, n, strength, dir } = stats.pearson;
+      cards.push(`<div class="card">
+        <div class="label">Temp / Humidity Correlation</div>
+        <div class="value" style="font-size:22px;">r = ${r.toFixed(2)}</div>
+        <div class="sub-value">${strength} ${dir} relationship (${n} readings)</div>
+      </div>`);
+    }
+
+    if(stats.comfort){
+      const { avgC, avgU, threshold } = stats.comfort;
+      cards.push(`<div class="card">
+        <div class="label">Comfort Threshold</div>
+        <div class="value" style="font-size:22px;">~${threshold}°F</div>
+        <div class="sub-value">Comfortable avg ${avgC.toFixed(1)}°F · Uncomfortable avg ${avgU.toFixed(1)}°F</div>
+      </div>`);
+    }
+
+    if(stats.peakHeat){
+      const { hi, title, timestamp } = stats.peakHeat;
+      cards.push(`<div class="card">
+        <div class="label">Peak Feels Like</div>
+        <div class="value" style="font-size:22px;">${hi}°F</div>
+        <div class="sub-value">${escapeHtml(title)} · ${escapeHtml(formatTs(timestamp))}</div>
+      </div>`);
+    }
+
+    if(stats.alerts){
+      const { pct, count, severeCount } = stats.alerts;
       cards.push(`<div class="card">
         <div class="label">Alert Coverage</div>
         <div class="value" style="font-size:22px;">${pct}%</div>
-        <div class="sub-value">${withAlerts.length} entries under alerts · ${severeCount} Severe/Extreme</div>
+        <div class="sub-value">${count} entries under alerts · ${severeCount} Severe/Extreme</div>
       </div>`);
     }
 
@@ -3653,16 +3807,19 @@
     return bits.join(" · ");
   }
 
-  const JOURNAL_PAGE_SIZE = 50;
-  // "Load more" caps how many NEW rows get added per click, but with
-  // nothing else limiting it, clicking it enough times eventually rebuilds
-  // one giant list with every entry's photo embedded at once anyway — the
-  // same crash this was meant to prevent, just deferred. JOURNAL_HARD_CAP
-  // is a real ceiling: past this many rows, stop offering more and point
-  // toward search/filter instead, which work against the full underlying
-  // data regardless of how much is currently rendered.
-  const JOURNAL_HARD_CAP = 300;
-  let journalPage = 1;
+  // ---------- Journal virtualization ----------
+  // Previously: "Load more" pagination capped at JOURNAL_HARD_CAP (300) rows,
+  // because rendering every row's DOM node (photo thumb included) at once
+  // eventually got slow/crashy regardless of how the rows arrived.
+  // Now: only the rows actually scrolled into view (plus a small buffer)
+  // are ever in the DOM at once, so there's no practical ceiling on journal
+  // size — search/filter/sort all still run against the full entries array
+  // as before, only the RENDERING is windowed.
+  const VLIST_ROW_HEIGHT_DEFAULT = 67; // measured/refined at runtime, see below
+  const VLIST_BUFFER_ROWS = 8; // extra rows rendered above/below the viewport
+  let vlistRowHeight = VLIST_ROW_HEIGHT_DEFAULT;
+  let vlistRows = []; // the current filtered+sorted row set renderTable is windowing over
+  let vlistScrollHandler = null;
   /* ---------- on this day (strict year-over-year) ---------- */
   function renderOnThisDay(){
     const block = document.getElementById("onThisDayBlock");
@@ -3711,55 +3868,107 @@
     block.style.display = "block";
   }
 
+  function vlistRowHtml(e){
+    return `<li>
+      <button type="button" class="log-row" data-open="${e.id}">
+        ${e.photo
+          ? `<img class="log-row-thumb" src="${e.photo}" alt="">`
+          : `<span class="log-row-thumb placeholder">·</span>`}
+        <span class="log-row-main">
+          <span class="log-row-title">${escapeHtml(e.title)}</span>
+          <span class="log-row-meta">${metaLine(e)}</span>
+        </span>
+        <span class="log-row-chevron">›</span>
+      </button>
+    </li>`;
+  }
+
+  // Renders only the slice of vlistRows that's actually in (or near) the
+  // viewport, using top/bottom spacer divs to hold the scrollbar's total
+  // height steady. Re-run on scroll/resize (rAF-throttled below).
+  function vlistRenderSlice(isRemeasurePass){
+    const outer = document.getElementById("vlistOuter");
+    if(!outer || outer.offsetParent === null || !vlistRows.length) return;
+    const total = vlistRows.length;
+    const outerTop = outer.getBoundingClientRect().top + window.scrollY;
+    const viewTop = window.scrollY;
+    const viewBottom = viewTop + window.innerHeight;
+
+    let startIdx = Math.floor((viewTop - outerTop) / vlistRowHeight) - VLIST_BUFFER_ROWS;
+    let endIdx = Math.ceil((viewBottom - outerTop) / vlistRowHeight) + VLIST_BUFFER_ROWS;
+    startIdx = Math.max(0, startIdx);
+    endIdx = Math.min(total, Math.max(endIdx, startIdx + 1));
+
+    document.getElementById("vlistTopSpacer").style.height = (startIdx * vlistRowHeight) + "px";
+    document.getElementById("vlistBottomSpacer").style.height = ((total - endIdx) * vlistRowHeight) + "px";
+
+    const visibleEl = document.getElementById("vlistVisible");
+    visibleEl.innerHTML = vlistRows.slice(startIdx, endIdx).map(vlistRowHtml).join("");
+    visibleEl.querySelectorAll("[data-open]").forEach(row=>{
+      row.addEventListener("click", ()=> openEntryDetail(row.dataset.open));
+    });
+
+    // First real paint: measure the actual row height (font rendering
+    // varies slightly by platform) and re-run once to correct spacer sizes.
+    if(!isRemeasurePass){
+      const firstRow = visibleEl.querySelector(".log-row");
+      if(firstRow){
+        const measured = firstRow.getBoundingClientRect().height;
+        if(measured > 0 && Math.abs(measured - vlistRowHeight) > 1){
+          vlistRowHeight = measured;
+          vlistRenderSlice(true);
+        }
+      }
+    }
+  }
+
+  let vlistScrollScheduled = false;
+  function onVlistScroll(){
+    if(vlistScrollScheduled) return;
+    vlistScrollScheduled = true;
+    requestAnimationFrame(()=>{
+      vlistScrollScheduled = false;
+      vlistRenderSlice();
+    });
+  }
+  function setupVlistScroll(){
+    teardownVlistScroll();
+    vlistScrollHandler = onVlistScroll;
+    window.addEventListener("scroll", vlistScrollHandler, { passive:true });
+    window.addEventListener("resize", vlistScrollHandler);
+  }
+  function teardownVlistScroll(){
+    if(vlistScrollHandler){
+      window.removeEventListener("scroll", vlistScrollHandler);
+      window.removeEventListener("resize", vlistScrollHandler);
+      vlistScrollHandler = null;
+    }
+  }
+
   function renderTable(){
     const rows = sortRows(getFiltered());
     const wrap = document.getElementById("tableWrap");
     if(!entries.length){
+      teardownVlistScroll();
       wrap.innerHTML = `<div class="empty-state">No entries yet. Record your first reading in the "Record" tab.</div>`;
       return;
     }
     if(!rows.length){
+      teardownVlistScroll();
       wrap.innerHTML = `<div class="empty-state">No entries match your search/filter.</div>`;
       return;
     }
-    const cappedTotal = Math.min(rows.length, JOURNAL_HARD_CAP);
-    const visibleCount = Math.min(cappedTotal, journalPage * JOURNAL_PAGE_SIZE);
-    const visibleRows = rows.slice(0, visibleCount);
-    const hasMore = visibleCount < cappedTotal;
-    const atHardCap = !hasMore && rows.length > JOURNAL_HARD_CAP;
-
-    wrap.innerHTML = `<ul class="log-list">${visibleRows.map(e=>`
-      <li>
-        <button type="button" class="log-row" data-open="${e.id}">
-          ${e.photo
-            ? `<img class="log-row-thumb" src="${e.photo}" alt="">`
-            : `<span class="log-row-thumb placeholder">·</span>`}
-          <span class="log-row-main">
-            <span class="log-row-title">${escapeHtml(e.title)}</span>
-            <span class="log-row-meta">${metaLine(e)}</span>
-          </span>
-          <span class="log-row-chevron">›</span>
-        </button>
-      </li>
-    `).join("")}</ul>` + (hasMore
-      ? `<button type="button" class="btn secondary" id="journalLoadMoreBtn" style="width:100%; margin-top:10px;">Load more (${visibleCount} of ${rows.length})</button>`
-      : (atHardCap
-        ? `<div class="empty-state">Showing the most recent ${JOURNAL_HARD_CAP} of ${rows.length} entries. Use search or a category filter above to find older ones — this cap exists to keep the list from becoming too large to render smoothly.</div>`
-        : ""));
-
-    wrap.querySelectorAll("[data-open]").forEach(row=>{
-      row.addEventListener("click", ()=> openEntryDetail(row.dataset.open));
-    });
-    const loadMoreBtn = document.getElementById("journalLoadMoreBtn");
-    if(loadMoreBtn){
-      loadMoreBtn.addEventListener("click", ()=>{
-        journalPage += 1;
-        renderTable();
-      });
-    }
+    vlistRows = rows;
+    wrap.innerHTML = `<div id="vlistOuter" style="position:relative;">
+      <div id="vlistTopSpacer" style="height:0px;"></div>
+      <ul class="log-list" id="vlistVisible"></ul>
+      <div id="vlistBottomSpacer" style="height:0px;"></div>
+    </div>
+    <div class="empty-state" style="margin-top:10px; font-family:'IBM Plex Mono',monospace; font-size:10.5px;">${rows.length} entr${rows.length===1?"y":"ies"}${rows.length!==entries.length?` (of ${entries.length} total)`:""} · search/filter above narrows this list</div>`;
+    vlistRenderSlice();
+    setupVlistScroll();
   }
   function resetJournalPageAndRender(){
-    journalPage = 1;
     renderTable();
   }
   document.getElementById("searchInput").addEventListener("input", resetJournalPageAndRender);
@@ -3936,6 +4145,7 @@
         triggerDownload(blob, `weatherglass-${todayStr()}.json`);
         statusEl.style.display = "none";
         showToast("Exported.", "success");
+        markExportDone();
         onAllPartsDone();
       }).catch(err=>{
         console.warn("Export failed:", err.message || err);
@@ -3955,6 +4165,7 @@
     if(!exportQueue || exportQueue.currentPart >= exportQueue.totalParts){
       const done = exportQueue && exportQueue.onAllPartsDone;
       area.innerHTML = exportQueue ? `<div class="empty-state">All ${exportQueue.totalParts} parts downloaded.</div>` : "";
+      if(exportQueue) markExportDone();
       exportQueue = null;
       if(done) done();
       return;
@@ -3991,13 +4202,44 @@
     return new Date().toISOString().slice(0,10);
   }
 
+  // ---------- Export nudge ("days since last backup") ----------
+  // A lightweight localStorage timestamp — not app data, so it deliberately
+  // doesn't go through IndexedDB/persistChange. Purely a UI reminder; losing
+  // it just means the nudge resets, never a real data loss.
+  const LAST_EXPORT_KEY = "weatherglass_last_export_at";
+  function markExportDone(){
+    try{ localStorage.setItem(LAST_EXPORT_KEY, new Date().toISOString()); }catch(e){}
+    renderExportNudge();
+  }
+  function renderExportNudge(){
+    const el = document.getElementById("exportNudge");
+    if(!el) return;
+    if(!entries.length){ el.style.display = "none"; return; }
+    let lastStr = null;
+    try{ lastStr = localStorage.getItem(LAST_EXPORT_KEY); }catch(e){}
+    if(!lastStr){
+      el.style.display = "block";
+      el.textContent = "No export on record in this browser yet — consider downloading a backup below.";
+      return;
+    }
+    const days = Math.floor((Date.now() - new Date(lastStr).getTime()) / 86400000);
+    if(days >= 7){
+      el.style.display = "block";
+      el.textContent = days === 1
+        ? "It's been 1 day since your last export."
+        : `It's been ${days} days since your last export — worth downloading a fresh backup.`;
+    } else {
+      el.style.display = "none";
+    }
+  }
+
   /* ---------- settings drawer (gear icon in Journal toolbar) ---------- */
   function toggleSettingsDrawer(forceOpen){
     const drawer = document.getElementById("settingsDrawer");
     const isOpen = drawer.style.display !== "none";
     const shouldOpen = forceOpen !== undefined ? forceOpen : !isOpen;
     drawer.style.display = shouldOpen ? "block" : "none";
-    if(shouldOpen) refreshStorageIndicator();
+    if(shouldOpen){ refreshStorageIndicator(); renderExportNudge(); }
   }
   document.getElementById("settingsToggleBtn").addEventListener("click", ()=> toggleSettingsDrawer());
   document.getElementById("settingsCloseBtn").addEventListener("click", ()=> toggleSettingsDrawer(false));
@@ -4082,9 +4324,107 @@
       const blob = new Blob([lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
       triggerDownload(blob, `weatherglass-${todayStr()}.csv`);
       showToast(`Exported ${entries.length} entries as CSV.`, "success");
+      markExportDone();
     }catch(err){
       console.warn("CSV export failed:", err.message || err);
       showToast("Could not prepare the CSV file — try again.", "error");
+    }
+  });
+
+  /* ---------- Speaker Kit: one .zip with JSON + CSV + photos ---------- */
+  // Bundles everything into a single archive for backup or hand-off — the
+  // JSON is the restorable source of truth, the CSV is for spreadsheet use,
+  // and photos are pulled out of their base64 data URLs into real image
+  // files so the zip is actually browsable, not just re-importable.
+  async function sha256Hex(text){
+    if(!window.crypto?.subtle) return null;
+    const buf = await window.crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+    return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,"0")).join("");
+  }
+  function dataUrlToBytes(dataUrl){
+    const base64 = dataUrl.split(",")[1] || "";
+    const binStr = atob(base64);
+    const bytes = new Uint8Array(binStr.length);
+    for(let i=0;i<binStr.length;i++) bytes[i] = binStr.charCodeAt(i);
+    return bytes;
+  }
+  function photoExtFromDataUrl(dataUrl){
+    const m = /^data:image\/(\w+);/.exec(dataUrl);
+    if(!m) return "jpg";
+    return m[1] === "jpeg" ? "jpg" : m[1];
+  }
+  document.getElementById("speakerKitBtn").addEventListener("click", async ()=>{
+    if(!entries.length){
+      showToast("No entries to export yet.", "error");
+      return;
+    }
+    if(typeof JSZip === "undefined"){
+      showToast("Speaker Kit needs a small library that didn't load — check your connection and try again.", "error");
+      return;
+    }
+    const btn = document.getElementById("speakerKitBtn");
+    const statusEl = document.getElementById("importStatus");
+    btn.disabled = true;
+    statusEl.style.display = "block";
+    try{
+      statusEl.textContent = "Building JSON backup…";
+      const jsonBlob = await buildJSONBlobForEntries(entries, (done,total)=>{
+        statusEl.textContent = `Building JSON backup: ${done} of ${total}…`;
+      });
+      const jsonText = await jsonBlob.text();
+
+      statusEl.textContent = "Building CSV…";
+      const csvLines = [CSV_FIELDS.join(",")];
+      entries.forEach(e => csvLines.push(entryToCsvRow(e)));
+      const csvText = csvLines.join("\r\n");
+
+      statusEl.textContent = "Computing checksum…";
+      const jsonHash = await sha256Hex(jsonText);
+
+      const zip = new JSZip();
+      zip.file(`weatherglass-${todayStr()}.json`, jsonText);
+      zip.file(`weatherglass-${todayStr()}.csv`, csvText);
+
+      const withPhotos = entries.filter(e=>e.photo);
+      const photosFolder = withPhotos.length ? zip.folder("photos") : null;
+      for(let i=0; i<withPhotos.length; i++){
+        const e = withPhotos[i];
+        statusEl.textContent = `Adding photos: ${i+1} of ${withPhotos.length}…`;
+        try{
+          photosFolder.file(`${e.id}.${photoExtFromDataUrl(e.photo)}`, dataUrlToBytes(e.photo));
+        }catch(photoErr){
+          console.warn("Skipping unreadable photo for entry", e.id, photoErr);
+        }
+        if((i+1) % 20 === 0) await new Promise(r=>setTimeout(r,0)); // yield periodically
+      }
+
+      const manifest = [
+        "Weatherglass Speaker Kit",
+        `Generated: ${new Date().toISOString()}`,
+        `App version: ${APP_VERSION}`,
+        `Entries: ${entries.length}`,
+        `Photos included: ${withPhotos.length}`,
+        jsonHash ? `SHA-256 of the .json file: ${jsonHash}` : "",
+        "",
+        "To restore: use Import JSON in Weatherglass with the .json file from this archive.",
+        "The .csv is for spreadsheets/analysis only and cannot be re-imported."
+      ].filter(Boolean).join("\n");
+      zip.file("manifest.txt", manifest);
+
+      statusEl.textContent = "Compressing archive…";
+      const zipBlob = await zip.generateAsync({ type: "blob", compression: "DEFLATE" }, (meta)=>{
+        statusEl.textContent = `Compressing archive: ${Math.round(meta.percent)}%…`;
+      });
+
+      triggerDownload(zipBlob, `weatherglass-speakerkit-${todayStr()}.zip`);
+      showToast(`Speaker Kit exported — ${entries.length} entries, ${withPhotos.length} photos.`, "success");
+      markExportDone();
+    }catch(err){
+      console.warn("Speaker Kit export failed:", err.message || err);
+      showToast("Could not build the Speaker Kit — try again, or use the plain JSON/CSV exports above.", "error");
+    }finally{
+      btn.disabled = false;
+      statusEl.style.display = "none";
     }
   });
 
@@ -4412,16 +4752,34 @@
 
     const reader = new FileReader();
     reader.onload = function(){
-      let newEntries;
+      let newEntries, skippedCount = 0;
       try{
         statusEl.textContent = "Parsing entries…";
         const imported = JSON.parse(reader.result);
         if(!Array.isArray(imported)) throw new Error("Expected a JSON array of entries.");
-        newEntries = imported.map(en=>({ ...en, id: en.id || cryptoId() }));
+        const existingIds = new Set(entries.map(e=>e.id));
+        const withIds = imported.map(en=>({ ...en, id: en.id || cryptoId() }));
+        // Skip anything whose id already exists in the current data instead
+        // of silently appending a duplicate — this matters most when
+        // re-importing a backup you're not sure you already have, or
+        // restoring after a partial import.
+        newEntries = withIds.filter(en=>{
+          if(existingIds.has(en.id)){ skippedCount++; return false; }
+          existingIds.add(en.id);
+          return true;
+        });
       }catch(err){
         showToast("Could not import file: " + err.message, "error");
         statusEl.style.display = "none";
         e.target.value = "";
+        return;
+      }
+      if(!newEntries.length){
+        statusEl.style.display = "none";
+        e.target.value = "";
+        showToast(skippedCount
+          ? `All ${skippedCount} entries in this file are already in your journal — nothing new to import.`
+          : "This file has no entries to import.", "success");
         return;
       }
       const nextEntries = entries.concat(newEntries);
@@ -4431,7 +4789,8 @@
       persistChange({ bulkEntries: newEntries }, nextEntries, onProgress).then(()=>{
         entries = nextEntries;
         renderAll();
-        showToast("Imported " + newEntries.length + " entries.", "success");
+        showToast("Imported " + newEntries.length + " entries." +
+          (skippedCount ? ` (${skippedCount} already present, skipped.)` : ""), "success");
         refreshStorageIndicator();
       }).catch(err=>{
         console.warn("Import failed:", err.message || err);
@@ -5241,6 +5600,186 @@
 
   document.getElementById("versionTag").textContent = "Weatherglass v" + APP_VERSION;
   initMap();
+
+  /* ---------- Speaker Mode: presentation-mode slide builder ---------- */
+  let speakerSlides = [];
+  let speakerSlideIndex = 0;
+
+  function speakerEntriesInRange(startStr, endStr){
+    const start = startStr ? new Date(startStr + "T00:00:00") : null;
+    const end = endStr ? new Date(endStr + "T23:59:59") : null;
+    return entries
+      .filter(e=>{
+        const t = new Date(e.timestamp);
+        if(start && t < start) return false;
+        if(end && t > end) return false;
+        return true;
+      })
+      .slice()
+      .sort((a,b)=> new Date(a.timestamp) - new Date(b.timestamp));
+  }
+
+  const SPEAKER_MAX_PHOTO_SLIDES = 25; // keeps a big range from turning into a 200-slide deck
+
+  function buildSpeakerSlides(rangeEntries, startStr, endStr){
+    const slides = [];
+    if(!rangeEntries.length) return slides;
+
+    // 1. Title slide
+    const locNames = [...new Set(rangeEntries.map(e=>e.location?.name).filter(Boolean))];
+    slides.push({ kind:"title", html:`
+      <div style="text-align:center;">
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:14px; opacity:0.7; letter-spacing:1px; text-transform:uppercase; margin-bottom:14px;">Weatherglass</div>
+        <div style="font-family:'Playfair Display',serif; font-style:italic; font-weight:600; font-size:clamp(32px,6vw,56px); line-height:1.15; margin-bottom:18px;">
+          ${escapeHtml(startStr || "")}${startStr && endStr ? " – " : ""}${escapeHtml(endStr || "")}
+        </div>
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:16px; opacity:0.85;">
+          ${rangeEntries.length} entries logged${locNames.length ? ` · ${locNames.length} location${locNames.length===1?"":"s"}` : ""}
+        </div>
+      </div>`
+    });
+
+    // 2. Stats slide
+    const temps = rangeEntries.filter(e=>isFinite(e.tempF)).map(e=>e.tempF);
+    const pressures = rangeEntries.filter(e=>isFinite(e.pressureInHg)).map(e=>e.pressureInHg);
+    const heatPeaks = rangeEntries.filter(e=>isFinite(e.tempF)&&isFinite(e.humidity))
+      .map(e=>calcHeatIndex(e.tempF,e.humidity)).filter(v=>v!=null);
+    const alertCount = rangeEntries.filter(e=>e.alertActive==="yes").length;
+    if(temps.length || pressures.length || alertCount){
+      const statRow = (label, value)=> value==null ? "" : `
+        <div style="margin-bottom:22px;">
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:13px; opacity:0.65; text-transform:uppercase; letter-spacing:0.5px;">${escapeHtml(label)}</div>
+          <div style="font-family:'Playfair Display',serif; font-weight:600; font-size:clamp(26px,4.5vw,40px);">${value}</div>
+        </div>`;
+      slides.push({ kind:"stats", html:`
+        <div>
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:13px; opacity:0.6; text-transform:uppercase; letter-spacing:1px; margin-bottom:20px;">By the numbers</div>
+          ${statRow("Temperature range", temps.length ? `${Math.min(...temps).toFixed(0)}° – ${Math.max(...temps).toFixed(0)}°F` : null)}
+          ${statRow("Peak feels-like", heatPeaks.length ? `${Math.max(...heatPeaks)}°F` : null)}
+          ${statRow("Pressure range", pressures.length ? `${Math.min(...pressures).toFixed(2)} – ${Math.max(...pressures).toFixed(2)} inHg` : null)}
+          ${statRow("Entries under an active alert", alertCount ? `${alertCount} of ${rangeEntries.length}` : null)}
+        </div>`
+      });
+    }
+
+    // 3. Alert timeline slide
+    const alertEntries = rangeEntries.filter(e=>e.alertActive==="yes" && e.alertSummary);
+    if(alertEntries.length){
+      slides.push({ kind:"alerts", html:`
+        <div>
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:13px; opacity:0.6; text-transform:uppercase; letter-spacing:1px; margin-bottom:20px;">Alert timeline</div>
+          <div style="display:flex; flex-direction:column; gap:16px; font-size:clamp(15px,2.2vw,19px);">
+            ${alertEntries.map(e=>`
+              <div style="border-left:3px solid #C4713D; padding-left:14px;">
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:12px; opacity:0.65;">${escapeHtml(formatTs(e.timestamp))}${e.location?.name ? " · "+escapeHtml(e.location.name) : ""}</div>
+                <div>${escapeHtml(e.alertSummary)}</div>
+              </div>`).join("")}
+          </div>
+        </div>`
+      });
+    }
+
+    // 4. Photo slides (capped)
+    const withPhotos = rangeEntries.filter(e=>e.photo);
+    const photoSet = withPhotos.length > SPEAKER_MAX_PHOTO_SLIDES
+      ? withPhotos.filter((_,i)=> i % Math.ceil(withPhotos.length / SPEAKER_MAX_PHOTO_SLIDES) === 0)
+      : withPhotos;
+    photoSet.forEach(e=>{
+      slides.push({ kind:"photo", html:`
+        <div style="text-align:center;">
+          <img src="${e.photo}" style="max-width:100%; max-height:60vh; border-radius:6px; object-fit:contain; margin-bottom:18px;">
+          <div style="font-family:'Playfair Display',serif; font-style:italic; font-size:clamp(20px,3.5vw,30px); margin-bottom:8px;">${escapeHtml(e.title)}</div>
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:13px; opacity:0.7;">${escapeHtml(formatTs(e.timestamp))}${e.location?.name ? " · "+escapeHtml(e.location.name) : ""}</div>
+        </div>`
+      });
+    });
+    if(withPhotos.length > SPEAKER_MAX_PHOTO_SLIDES){
+      slides[slides.length-1].html += `<div style="text-align:center; font-family:'IBM Plex Mono',monospace; font-size:11px; opacity:0.5; margin-top:14px;">Showing ${photoSet.length} of ${withPhotos.length} photos in this range</div>`;
+    }
+
+    // 5. Route/stops slide — chronological list of named locations.
+    // (A live interactive map here would need its own Leaflet instance
+    // separate from the Map tab's; deferred rather than rushed — see
+    // changelog. This still gives the "where did I go, in order" view.)
+    const stops = [];
+    rangeEntries.forEach(e=>{
+      const name = e.location?.name;
+      if(name && stops[stops.length-1]?.name !== name){
+        stops.push({ name, timestamp: e.timestamp });
+      }
+    });
+    if(stops.length){
+      slides.push({ kind:"stops", html:`
+        <div>
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:13px; opacity:0.6; text-transform:uppercase; letter-spacing:1px; margin-bottom:20px;">Route</div>
+          <div style="display:flex; flex-direction:column; gap:10px; font-size:clamp(15px,2.2vw,19px);">
+            ${stops.map((s,i)=>`
+              <div>
+                <span style="font-family:'IBM Plex Mono',monospace; opacity:0.5; margin-right:10px;">${i+1}.</span>
+                ${escapeHtml(s.name)}
+                <span style="font-family:'IBM Plex Mono',monospace; font-size:12px; opacity:0.6; margin-left:8px;">${escapeHtml(formatTs(s.timestamp))}</span>
+              </div>`).join("")}
+          </div>
+        </div>`
+      });
+    }
+
+    return slides;
+  }
+
+  function renderSpeakerSlide(){
+    const content = document.getElementById("speakerSlideContent");
+    const counter = document.getElementById("speakerSlideCounter");
+    if(!speakerSlides.length){
+      content.innerHTML = `<div style="text-align:center; font-family:'IBM Plex Mono',monospace; opacity:0.7;">No entries in this date range.</div>`;
+      counter.textContent = "";
+      return;
+    }
+    speakerSlideIndex = Math.max(0, Math.min(speakerSlideIndex, speakerSlides.length-1));
+    content.innerHTML = speakerSlides[speakerSlideIndex].html;
+    counter.textContent = `${speakerSlideIndex+1} / ${speakerSlides.length}`;
+    document.getElementById("speakerPrevBtn").disabled = speakerSlideIndex === 0;
+    document.getElementById("speakerNextBtn").disabled = speakerSlideIndex === speakerSlides.length-1;
+  }
+  function speakerGoTo(delta){
+    speakerSlideIndex += delta;
+    renderSpeakerSlide();
+  }
+  function openSpeakerMode(){
+    const overlay = document.getElementById("speakerOverlay");
+    overlay.style.display = "flex";
+    speakerSlideIndex = 0;
+    renderSpeakerSlide();
+    if(overlay.requestFullscreen) overlay.requestFullscreen().catch(()=>{}); // best-effort; fine if blocked (e.g. iOS Safari)
+  }
+  function closeSpeakerMode(){
+    document.getElementById("speakerOverlay").style.display = "none";
+    if(document.fullscreenElement) document.exitFullscreen().catch(()=>{});
+  }
+  document.getElementById("speakerModeStartBtn").addEventListener("click", ()=>{
+    const startStr = document.getElementById("speakerStartDate").value;
+    const endStr = document.getElementById("speakerEndDate").value;
+    const statusEl = document.getElementById("speakerModeStatus");
+    const rangeEntries = speakerEntriesInRange(startStr, endStr);
+    if(!rangeEntries.length){
+      statusEl.style.display = "block";
+      statusEl.textContent = "No entries in that date range — pick a wider range, or leave both blank to use everything.";
+      return;
+    }
+    statusEl.style.display = "none";
+    speakerSlides = buildSpeakerSlides(rangeEntries, startStr, endStr);
+    openSpeakerMode();
+  });
+  document.getElementById("speakerCloseBtn").addEventListener("click", closeSpeakerMode);
+  document.getElementById("speakerPrevBtn").addEventListener("click", ()=> speakerGoTo(-1));
+  document.getElementById("speakerNextBtn").addEventListener("click", ()=> speakerGoTo(1));
+  document.addEventListener("keydown", (e)=>{
+    if(document.getElementById("speakerOverlay").style.display === "none") return;
+    if(e.key === "ArrowRight" || e.key === " ") { e.preventDefault(); speakerGoTo(1); }
+    else if(e.key === "ArrowLeft") speakerGoTo(-1);
+    else if(e.key === "Escape") closeSpeakerMode();
+  });
+
 
   document.getElementById("mapModeStation").addEventListener("click", ()=>{
     mapMode = "station";
