@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Weatherglass — personal weather station & log
-  Version: 3.4.3
+  Version: 3.4.5
 
   Single-file app: no build step, no backend. Data lives in the
   visitor's own browser via localStorage.
@@ -1451,7 +1451,7 @@
 (function(){
   "use strict";
 
-  const APP_VERSION = "3.4.3";
+  const APP_VERSION = "3.4.5";
   const STORAGE_KEY = "weatherglass.entries.v1";
 
   function showToast(message, kind){
@@ -3367,7 +3367,7 @@
       timestamp: now.toISOString(),
       level: "Routine",
       category: "Temperature",
-      title: "Quick log — " + now.toLocaleString(undefined, { month:"short", day:"numeric", hour:"2-digit", minute:"2-digit" }),
+      title: "Quick log — " + now.toLocaleString(undefined, { month:"short", day:"numeric", year:"numeric", hour:"2-digit", minute:"2-digit" }),
       location: {
         name: locationName,
         lat: lat,
@@ -3459,7 +3459,7 @@
         timestamp: now.toISOString(),
         level: "Routine",
         category: "Temperature",
-        title: "Quick photo log — " + now.toLocaleString(undefined, { month:"short", day:"numeric", hour:"2-digit", minute:"2-digit" }),
+        title: "Quick photo log — " + now.toLocaleString(undefined, { month:"short", day:"numeric", year:"numeric", hour:"2-digit", minute:"2-digit" }),
         location: { name: locationName, lat: lat, lng: lng },
         tempF: weatherFields.tempF ?? null,
         humidity: weatherFields.humidity ?? null,
@@ -3901,7 +3901,7 @@
   }
   function formatTs(iso){
     const d = new Date(iso);
-    return d.toLocaleString(undefined, { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+    return d.toLocaleString(undefined, { month:'short', day:'numeric', year:'numeric', hour:'2-digit', minute:'2-digit' });
   }
   function compassLabel(deg){
     const dirs = ["N","NE","E","SE","S","SW","W","NW"];
@@ -5081,21 +5081,25 @@
           scales:{x:xAxis,y:{title:{display:true,text:"°F",font:{size:10}}}}}
       });
     } else if(mode === "daily"){
-      // Group entries by calendar date, compute min/avg/max temp per day
+      // Group entries by calendar date, compute min/avg/max temp per day.
+      // Grouped by full ISO date (not just "month day") so the same
+      // calendar day in different years — e.g. two Jul 19ths — doesn't
+      // get silently merged into one bar once entries span multiple years.
       const byDay = {};
       trendsEntries().filter(e=>isFinite(e.tempF)).forEach(e=>{
-        const day = new Date(e.timestamp).toLocaleDateString(undefined,{month:"short",day:"numeric"});
-        if(!byDay[day]) byDay[day] = [];
-        byDay[day].push(e.tempF);
+        const iso = new Date(e.timestamp).toLocaleDateString("en-CA"); // YYYY-MM-DD — sorts correctly too
+        if(!byDay[iso]) byDay[iso] = [];
+        byDay[iso].push(e.tempF);
       });
-      const days = Object.keys(byDay);
+      const days = Object.keys(byDay).sort();
+      const dayLabels = days.map(iso => new Date(iso+"T12:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}));
       const mins = days.map(d=>Math.min(...byDay[d]));
       const avgs = days.map(d=>parseFloat((byDay[d].reduce((a,b)=>a+b,0)/byDay[d].length).toFixed(1)));
       const maxs = days.map(d=>Math.max(...byDay[d]));
       chartInstance = new Chart(ctx, {
         type:"bar",
         data:{
-          labels:days,
+          labels:dayLabels,
           datasets:[
             {label:"Min",data:mins,backgroundColor:"rgba(62,96,121,0.3)",borderColor:"#3E6079",borderWidth:1},
             {label:"Avg",data:avgs,backgroundColor:"rgba(62,96,121,0.55)",borderColor:"#3E6079",borderWidth:1},
@@ -5289,21 +5293,25 @@
       const byDay = {};
       trendsEntriesForRange().filter(e=>isFinite(e.tempF)).forEach(e=>{
         const dt = new Date(e.timestamp);
-        const day = dt.toLocaleDateString(undefined,{month:"short",day:"numeric"});
+        // Grouped by full ISO date, not just "month day" — otherwise a
+        // morning reading from one year could get paired with an
+        // afternoon reading from a completely different year once
+        // entries span multiple years, producing a nonsense rate.
+        const day = dt.toLocaleDateString("en-CA");
         if(!byDay[day]) byDay[day] = { morning:[], afternoon:[] };
         const h = dt.getHours();
         if(h < 12) byDay[day].morning.push({t:e.tempF, dt});
         else byDay[day].afternoon.push({t:e.tempF, dt});
       });
       const days=[], rates=[];
-      Object.entries(byDay).forEach(([day,{morning,afternoon}])=>{
+      Object.entries(byDay).sort(([a],[b])=>a<b?-1:1).forEach(([day,{morning,afternoon}])=>{
         if(!morning.length || !afternoon.length) return;
         const morn = morning.reduce((a,b)=>a.t<b.t?a:b); // coolest morning reading
         const aftn = afternoon.reduce((a,b)=>a.t>b.t?a:b); // hottest afternoon reading
         const hrs = (aftn.dt - morn.dt) / 3600000;
         if(hrs <= 0) return;
         const rate = parseFloat(((aftn.t - morn.t) / hrs).toFixed(2));
-        days.push(day);
+        days.push(new Date(day+"T12:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}));
         rates.push(rate);
       });
       if(!days.length){
@@ -5460,7 +5468,7 @@
         ).toFixed(1)),
         tempF: isFinite(e.tempF) ? e.tempF : null,
         humidity: isFinite(e.humidity) ? e.humidity : null,
-        label: `${e.location.name||"?"} · ${new Date(e.timestamp).toLocaleDateString(undefined,{month:"short",day:"numeric"})}`
+        label: `${e.location.name||"?"} · ${new Date(e.timestamp).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"})}`
       }));
 
       const totalMiles = Math.max(...points.map(p=>p.miles));
@@ -5551,7 +5559,7 @@
 
     strip.innerHTML = `<button class="map-date-chip all${!mapSelectedDate?" active":""}" data-date="">All</button>` +
       dates.map(d=>{
-        const display = new Date(d+"T12:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric"});
+        const display = new Date(d+"T12:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"});
         const count = allPts.filter(e=>new Date(e.timestamp).toLocaleDateString("en-CA")===d).length;
         const active = mapSelectedDate===d?" active":"";
         return `<button class="map-date-chip${active}" data-date="${d}" title="${count} entries">${display}</button>`;

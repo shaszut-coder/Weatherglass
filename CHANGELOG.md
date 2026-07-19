@@ -2,6 +2,20 @@
 
 All notable changes to Weatherglass are documented here, newest first.
 
+## v3.4.5
+
+**Year added everywhere dates are shown**, plus two real bugs fixed along the way:
+
+- Quick Log and Quick Photo Log entry titles now include the year.
+- Route map point labels and the Map tab's date-strip chips now include the year.
+- **Fixed:** the Daily Min/Avg/Max Temperature chart grouped entries by "month + day" only, meaning the same calendar date in different years (e.g. two Jul 19ths) silently merged into a single bar, blending temperatures from different years together. Now grouped by full date.
+- **Fixed:** the Heating Rate chart had the same bug, but worse — a morning reading from one year could get paired with an afternoon reading from an entirely different year, producing a nonsense °F/hour rate. Now grouped by full date, so morning/afternoon pairs always come from the same actual day.
+- **Deliberately unchanged:** the Year-over-Year chart's x-axis uses a fake shared year on purpose, to overlay multiple real years on the same axis for comparison — adding real years there would break the comparison it's designed to show.
+
+## v3.4.4
+
+**Fixed: dates were missing the year everywhere, not just the Gallery.** The shared `formatTs()` function used across the whole app — Gallery captions, Journal rows, Speaker Mode slides, alert timelines, entry detail sheets (21 call sites total) — was formatting timestamps as "Jul 19, 3:15 PM" with no year. Fixed at the source, so it's corrected everywhere at once rather than patched in just the Gallery. Existing entries are unaffected — this only changes how dates are *displayed*, not any stored data.
+
 ## v3.4.3
 
 **Photo Capture renamed to Quick Photo Log** — mirrors "Quick Log" directly so the two buttons read as the same family of action, not two unrelated features. Updated everywhere: button tooltip, the label underneath the button, the shared help text, and the title on every entry it saves (new entries read "Quick photo log — ..." in the Journal).
