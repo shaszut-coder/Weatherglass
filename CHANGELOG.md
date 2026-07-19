@@ -2,6 +2,12 @@
 
 All notable changes to Weatherglass are documented here, newest first.
 
+## v3.4.0
+
+**Photo Capture** — new camera button (📷) next to Quick Log on the Record tab. Opens the camera directly; once you take the photo, location, current weather, active alerts, and place name all fill in automatically and the entry saves — same one-tap philosophy as Quick Log, just photo-first. Uses live GPS rather than the photo's embedded location data, since this is a "right now" capture (EXIF location remains how the manual entry form backfills past photos).
+
+Under the hood: extracted Quick Log's location/weather/alert/geocode logic into a shared `gatherCurrentConditions()` function so Quick Log and Photo Capture both call the same implementation instead of maintaining two copies. Both buttons share the existing 60-second cooldown protection against accidental duplicate entries.
+
 ## v3.3.0
 
 **New chart tiles: UV Index and PM2.5 Over Time** — two new buttons in Trends → Charts, alongside the existing TOT/POT/HOT/HIOT/HRC/YOY/ATX set: **UVOT** (UV Index Over Time) and **PMOT** (PM2.5 Over Time). Same simple line-chart treatment as Temperature/Pressure/Humidity Over Time, pulling from whichever entries in the selected date range have UV/PM2.5 data (including anything filled in by the v3.2.0 backfill tool). Shows a clear "no data yet" message rather than an empty chart if nothing's logged.

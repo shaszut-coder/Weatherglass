@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Weatherglass — personal weather station & log
-  Version: 3.3.0
+  Version: 3.4.0
 
   Single-file app: no build step, no backend. Data lives in the
   visitor's own browser via localStorage.
@@ -726,10 +726,15 @@
     <!-- Hidden legacy anchor kept for JS compat -->
     <div id="editBanner" style="display:none;"></div>
 
-    <div style="display:flex; justify-content:center; margin-bottom:18px;">
+    <div style="display:flex; justify-content:center; gap:22px; margin-bottom:18px;">
       <div style="text-align:center;">
         <button type="button" id="quickLogBtn" title="Quick Log — tap to instantly save current conditions" style="background:var(--steel); border:1.5px solid var(--ink); border-radius:999px; padding:10px 28px; font-size:22px; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px rgba(0,0,0,0.15);">⚡</button>
-        <div id="quickLogStatus" style="display:none; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-top:6px; text-align:center;"></div>
+        <div id="quickLogStatus" style="display:none; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-top:6px; text-align:center; max-width:200px;"></div>
+      </div>
+      <div style="text-align:center;">
+        <button type="button" id="photoCaptureBtn" title="Photo Capture — take a photo, conditions fill in automatically" style="background:var(--brass); border:1.5px solid var(--ink); border-radius:999px; padding:10px 28px; font-size:22px; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px rgba(0,0,0,0.15); color:#fff;">📷</button>
+        <input type="file" id="photoCaptureInput" accept="image/*" capture="environment" style="display:none;">
+        <div id="photoCaptureStatus" style="display:none; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-top:6px; text-align:center; max-width:200px;"></div>
       </div>
     </div>
     <form id="entryForm">
@@ -1441,7 +1446,7 @@
 (function(){
   "use strict";
 
-  const APP_VERSION = "3.3.0";
+  const APP_VERSION = "3.4.0";
   const STORAGE_KEY = "weatherglass.entries.v1";
 
   function showToast(message, kind){
@@ -3223,29 +3228,14 @@
   }
 
   /* ---------- quick log ---------- */
-  document.getElementById("quickLogBtn").addEventListener("click", async function(){
-    const btn = this;
-    const statusEl = document.getElementById("quickLogStatus");
-
-    // 60-second cooldown to prevent accidental duplicate entries
-    const nowMs = Date.now();
-    const secondsSinceLast = (nowMs - lastQuickLogTime) / 1000;
-    if(secondsSinceLast < 60){
-      const remaining = Math.ceil(60 - secondsSinceLast);
-      statusEl.style.display = "block";
-      statusEl.textContent = `Wait ${remaining}s before logging again.`;
-      setTimeout(()=>{ statusEl.style.display = "none"; }, 2500);
-      return;
-    }
-
-    btn.disabled = true;
-    btn.textContent = "…";
-    statusEl.style.display = "block";
-    statusEl.textContent = "Getting your location…";
-
+  // Shared by Quick Log and Photo Capture — gets live location, current
+  // weather, active alerts, and a reverse-geocoded place name. Used to be
+  // duplicated inline in the Quick Log handler; extracted so both capture
+  // flows share one implementation instead of two copies to keep in sync.
+  async function gatherCurrentConditions(statusEl){
     let lat = null, lng = null;
 
-    // Try geolocation — but don't block on failure, save the entry either way
+    statusEl.textContent = "Getting your location…";
     try{
       if(navigator.geolocation){
         const pos = await new Promise((resolve, reject)=>
@@ -3258,7 +3248,6 @@
       // Location unavailable — carry on without it
     }
 
-    // Fetch weather if we have coords
     let weatherFields = {};
     if(lat != null && lng != null){
       statusEl.textContent = "Fetching current weather…";
@@ -3280,11 +3269,10 @@
           };
         }
       }catch(e){
-        // Weather fetch failed — save what we have
+        // Weather fetch failed — return what we have
       }
     }
 
-    // Fetch active NWS alerts if we have coords (US only, fails gracefully)
     let alertFields = { alertActive: null, alertSeverity: null, alertSummary: "", alertFullText: "" };
     if(lat != null && lng != null){
       statusEl.textContent = "Checking alerts…";
@@ -3317,8 +3305,6 @@
       }
     }
 
-    // Reverse geocode coordinates into a meaningful place name
-    // Uses Nominatim/OpenStreetMap — free, no API key, respects usage policy
     let locationName = "Current location";
     if(lat != null && lng != null){
       statusEl.textContent = "Finding location name…";
@@ -3330,7 +3316,6 @@
         if(geoRes.ok){
           const geoData = await geoRes.json();
           const addr = geoData.address || {};
-          // Build a readable name: city/town + state, or road + city, or county + state
           const city = addr.city || addr.town || addr.village || addr.hamlet || addr.suburb;
           const state = addr.state;
           const county = addr.county;
@@ -3344,6 +3329,30 @@
         // Geocoding failed — fall back to "Current location"
       }
     }
+
+    return { lat, lng, weatherFields, alertFields, locationName };
+  }
+
+  document.getElementById("quickLogBtn").addEventListener("click", async function(){
+    const btn = this;
+    const statusEl = document.getElementById("quickLogStatus");
+
+    // 60-second cooldown to prevent accidental duplicate entries
+    const nowMs = Date.now();
+    const secondsSinceLast = (nowMs - lastQuickLogTime) / 1000;
+    if(secondsSinceLast < 60){
+      const remaining = Math.ceil(60 - secondsSinceLast);
+      statusEl.style.display = "block";
+      statusEl.textContent = `Wait ${remaining}s before logging again.`;
+      setTimeout(()=>{ statusEl.style.display = "none"; }, 2500);
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = "…";
+    statusEl.style.display = "block";
+
+    const { lat, lng, weatherFields, alertFields, locationName } = await gatherCurrentConditions(statusEl);
 
     statusEl.textContent = "Saving…";
     const now = new Date();
@@ -3395,6 +3404,95 @@
       statusEl.style.display = "none";
     });
   });
+
+  document.getElementById("photoCaptureBtn").addEventListener("click", function(){
+    document.getElementById("photoCaptureInput").click();
+  });
+
+  document.getElementById("photoCaptureInput").addEventListener("change", async function(e){
+    const file = e.target.files[0];
+    const input = e.target;
+    if(!file) return;
+
+    const btn = document.getElementById("photoCaptureBtn");
+    const statusEl = document.getElementById("photoCaptureStatus");
+
+    // Shares Quick Log's 60-second cooldown — same reasoning applies:
+    // guards against accidental duplicate entries from a double-tap.
+    const nowMs = Date.now();
+    const secondsSinceLast = (nowMs - lastQuickLogTime) / 1000;
+    if(secondsSinceLast < 60){
+      const remaining = Math.ceil(60 - secondsSinceLast);
+      statusEl.style.display = "block";
+      statusEl.textContent = `Wait ${remaining}s before logging again.`;
+      setTimeout(()=>{ statusEl.style.display = "none"; }, 2500);
+      input.value = "";
+      return;
+    }
+
+    btn.disabled = true;
+    statusEl.style.display = "block";
+    statusEl.textContent = "Processing photo…";
+
+    try{
+      // Compress the photo and gather live conditions in parallel — no
+      // reason to make the camera roll wait on a network round trip or
+      // vice versa. This is a "right now" capture, so live GPS is used
+      // rather than the photo's EXIF location (which is more relevant to
+      // the manual backfill flow, where the photo may be from earlier).
+      const [photo, conditions] = await Promise.all([
+        compressImage(file, 1000, 0.72),
+        gatherCurrentConditions(statusEl)
+      ]);
+      const { lat, lng, weatherFields, alertFields, locationName } = conditions;
+
+      statusEl.textContent = "Saving…";
+      const now = new Date();
+      const moon = getMoonPhase(now);
+      const entry = {
+        id: cryptoId(),
+        timestamp: now.toISOString(),
+        level: "Routine",
+        category: "Temperature",
+        title: "Photo capture — " + now.toLocaleString(undefined, { month:"short", day:"numeric", hour:"2-digit", minute:"2-digit" }),
+        location: { name: locationName, lat: lat, lng: lng },
+        tempF: weatherFields.tempF ?? null,
+        humidity: weatherFields.humidity ?? null,
+        pressureInHg: weatherFields.pressureInHg ?? null,
+        windMph: weatherFields.windMph ?? null,
+        windDirDeg: weatherFields.windDirDeg ?? null,
+        cloudPct: weatherFields.cloudPct ?? null,
+        precipIn: weatherFields.precipIn ?? null,
+        sky: weatherFields.sky || "",
+        cloudGenus: null, cloudSpecies: null, cloudVarieties: [],
+        alertActive: alertFields.alertActive, alertSeverity: alertFields.alertSeverity,
+        alertSummary: alertFields.alertSummary, alertFullText: alertFields.alertFullText,
+        moonPhase: moon.phaseName,
+        moonIllumination: moon.illumination,
+        equipment: "iPhone",
+        impression: "",
+        timeOfDayTag: nearestTimeOfDay(now),
+        notes: "",
+        photo: photo
+      };
+
+      const nextEntries = entries.concat([entry]);
+      await persistChange({ putEntry: entry }, nextEntries);
+      entries = nextEntries;
+      renderAll();
+      lastQuickLogTime = Date.now();
+      showToast("Photo entry saved — open Journal to review or add notes.", "success");
+      refreshStorageIndicator();
+    }catch(err){
+      console.warn("Photo capture failed:", err.message || err);
+      showToast("Could not save photo entry — try again.", "error");
+    }finally{
+      btn.disabled = false;
+      statusEl.style.display = "none";
+      input.value = "";
+    }
+  });
+
 
   /* ---------- NOAA tides ---------- */
   const COASTAL_SITE_TYPES = new Set(["Coastal / Beach","Dock / Marina","Boat / Watercraft","Lake / River"]);
