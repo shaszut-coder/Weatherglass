@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Weatherglass — personal weather station & log
-  Version: 3.4.0
+  Version: 3.4.3
 
   Single-file app: no build step, no backend. Data lives in the
   visitor's own browser via localStorage.
@@ -726,16 +726,21 @@
     <!-- Hidden legacy anchor kept for JS compat -->
     <div id="editBanner" style="display:none;"></div>
 
-    <div style="display:flex; justify-content:center; gap:22px; margin-bottom:18px;">
+    <div style="display:flex; justify-content:center; gap:22px; margin-bottom:6px;">
       <div style="text-align:center;">
         <button type="button" id="quickLogBtn" title="Quick Log — tap to instantly save current conditions" style="background:var(--steel); border:1.5px solid var(--ink); border-radius:999px; padding:10px 28px; font-size:22px; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px rgba(0,0,0,0.15);">⚡</button>
-        <div id="quickLogStatus" style="display:none; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-top:6px; text-align:center; max-width:200px;"></div>
+        <div style="font-family:'IBM Plex Mono', monospace; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-soft); margin-top:5px;">Quick Log</div>
+        <div id="quickLogStatus" style="display:none; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-top:4px; text-align:center; max-width:200px;"></div>
       </div>
       <div style="text-align:center;">
-        <button type="button" id="photoCaptureBtn" title="Photo Capture — take a photo, conditions fill in automatically" style="background:var(--brass); border:1.5px solid var(--ink); border-radius:999px; padding:10px 28px; font-size:22px; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px rgba(0,0,0,0.15); color:#fff;">📷</button>
+        <button type="button" id="photoCaptureBtn" title="Quick Photo Log — take a photo, conditions fill in automatically" style="background:var(--burnt-orange); border:1.5px solid var(--ink); border-radius:999px; padding:10px 24px; font-size:20px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:2px; box-shadow:0 2px 6px rgba(0,0,0,0.15);">⚡📷</button>
         <input type="file" id="photoCaptureInput" accept="image/*" capture="environment" style="display:none;">
-        <div id="photoCaptureStatus" style="display:none; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-top:6px; text-align:center; max-width:200px;"></div>
+        <div style="font-family:'IBM Plex Mono', monospace; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-soft); margin-top:5px;">Quick Photo Log</div>
+        <div id="photoCaptureStatus" style="display:none; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-top:4px; text-align:center; max-width:200px;"></div>
       </div>
+    </div>
+    <div style="text-align:center; font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--ink-soft); margin-bottom:18px; padding:0 20px;">
+      Both instantly save your current location, weather, and alerts. <strong style="color:var(--burnt-orange);">Quick Photo Log</strong> also opens your camera first and attaches the picture.
     </div>
     <form id="entryForm">
       <div class="grid-form">
@@ -1446,7 +1451,7 @@
 (function(){
   "use strict";
 
-  const APP_VERSION = "3.4.0";
+  const APP_VERSION = "3.4.3";
   const STORAGE_KEY = "weatherglass.entries.v1";
 
   function showToast(message, kind){
@@ -3454,7 +3459,7 @@
         timestamp: now.toISOString(),
         level: "Routine",
         category: "Temperature",
-        title: "Photo capture — " + now.toLocaleString(undefined, { month:"short", day:"numeric", hour:"2-digit", minute:"2-digit" }),
+        title: "Quick photo log — " + now.toLocaleString(undefined, { month:"short", day:"numeric", hour:"2-digit", minute:"2-digit" }),
         location: { name: locationName, lat: lat, lng: lng },
         tempF: weatherFields.tempF ?? null,
         humidity: weatherFields.humidity ?? null,

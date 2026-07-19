@@ -2,6 +2,23 @@
 
 All notable changes to Weatherglass are documented here, newest first.
 
+## v3.4.3
+
+**Photo Capture renamed to Quick Photo Log** — mirrors "Quick Log" directly so the two buttons read as the same family of action, not two unrelated features. Updated everywhere: button tooltip, the label underneath the button, the shared help text, and the title on every entry it saves (new entries read "Quick photo log — ..." in the Journal).
+
+**Button colors and help text finalized:**
+- Quick Log: steel blue (`var(--steel)`), unchanged from the original.
+- Quick Photo Log: burnt orange (`var(--burnt-orange)`) — the same color already used for the date/time in the header, not just a similar shade.
+- Small uppercase labels now sit under each button ("Quick Log" / "Quick Photo Log"), plus one shared line explaining both: both save location/weather/alerts instantly, Quick Photo Log also opens the camera first and attaches the photo. Built for a passenger operating the buttons while the driver's attention stays on the road.
+
+## v3.4.2
+
+Photo Capture button is now a distinctly darker navy (`#1F3A52`) than Quick Log's steel blue (`#3E6079`) — two shades of the same navy family, chosen to be glanceable-different for a passenger operating the buttons while the driver's attention stays on the road. No functional change.
+
+## v3.4.1
+
+Photo Capture button now shows ⚡📷 (lightning + camera) on the same steel-blue background as Quick Log, instead of a separate brass/camera-only style — visually ties the two buttons together as variants of the same action. No functional change.
+
 ## v3.4.0
 
 **Photo Capture** — new camera button (📷) next to Quick Log on the Record tab. Opens the camera directly; once you take the photo, location, current weather, active alerts, and place name all fill in automatically and the entry saves — same one-tap philosophy as Quick Log, just photo-first. Uses live GPS rather than the photo's embedded location data, since this is a "right now" capture (EXIF location remains how the manual entry form backfills past photos).
