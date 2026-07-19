@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Weatherglass — personal weather station & log
-  Version: 3.4.5
+  Version: 3.4.6
 
   Single-file app: no build step, no backend. Data lives in the
   visitor's own browser via localStorage.
@@ -1451,7 +1451,7 @@
 (function(){
   "use strict";
 
-  const APP_VERSION = "3.4.5";
+  const APP_VERSION = "3.4.6";
   const STORAGE_KEY = "weatherglass.entries.v1";
 
   function showToast(message, kind){
@@ -3664,7 +3664,11 @@
 
   /* ---------- location dropdown ---------- */
   function getLocationName(){
-    return document.getElementById("f-location-name").value.trim();
+    // Falls back to "Current location" rather than an empty string, so a
+    // saved entry with coordinates but no typed name still matches the
+    // bulk "Name existing locations" tool's placeholder check, and shows
+    // something meaningful in the entry detail view instead of a blank.
+    return document.getElementById("f-location-name").value.trim() || "Current location";
   }
   function setLocationName(name){
     document.getElementById("f-location-name").value = name || "";
@@ -4630,7 +4634,7 @@
 
     const toGeocode = entries.filter(e=>
       e.location &&
-      (e.location.name === "Current location" || e.location.name === "Unknown") &&
+      (!e.location.name || e.location.name === "Current location" || e.location.name === "Unknown") &&
       isFinite(e.location.lat) &&
       isFinite(e.location.lng)
     );

@@ -2,6 +2,12 @@
 
 All notable changes to Weatherglass are documented here, newest first.
 
+## v3.4.6
+
+**Fixed: "Name existing locations" was silently skipping entries with a blank location name.** The bulk tool only matched entries whose location name was *exactly* the string "Current location" or "Unknown" — an entry with coordinates but an empty name (e.g. a photo attached through the manual entry form, where EXIF fills in latitude/longitude but never a place name, and the Location Name field was left blank) didn't match either string, so it was treated as "nothing to do" rather than "needs naming." The tool now also catches blank names.
+
+**Also fixed at the source:** the manual entry form now defaults an empty Location Name field to "Current location" at save time, instead of saving an empty string — matching Quick Log and Quick Photo Log's existing convention, so this specific gap can't reoccur for new entries going forward. Entries already saved with a blank name will get picked up correctly the next time "Name existing locations" runs.
+
 ## v3.4.5
 
 **Year added everywhere dates are shown**, plus two real bugs fixed along the way:
