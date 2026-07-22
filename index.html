@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Weatherglass — personal weather station & log
-  Version: 3.4.6
+  Version: 3.4.7
 
   Single-file app: no build step, no backend. Data lives in the
   visitor's own browser via localStorage.
@@ -1451,7 +1451,7 @@
 (function(){
   "use strict";
 
-  const APP_VERSION = "3.4.6";
+  const APP_VERSION = "3.4.7";
   const STORAGE_KEY = "weatherglass.entries.v1";
 
   function showToast(message, kind){
@@ -3907,6 +3907,18 @@
     const d = new Date(iso);
     return d.toLocaleString(undefined, { month:'short', day:'numeric', year:'numeric', hour:'2-digit', minute:'2-digit' });
   }
+  // Chart x-axis labels need to stay short — formatTs's full "MMM D, YYYY
+  // at H:MM AM/PM" is right for Journal/Gallery/detail views, but crowds
+  // out the plot area when 5-7 of them are rotated along an axis. Adapts
+  // to the selected chart range: year only matters when viewing "All"
+  // (which can span multiple years), otherwise it's implied and dropped.
+  function formatChartLabel(iso){
+    const d = new Date(iso);
+    if(chartRangeDays === null){
+      return d.toLocaleDateString(undefined, { month:'short', day:'numeric', year:'2-digit' });
+    }
+    return d.toLocaleString(undefined, { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
+  }
   function compassLabel(deg){
     const dirs = ["N","NE","E","SE","S","SW","W","NW"];
     return dirs[Math.round(((deg % 360) + 360) % 360 / 45) % 8];
@@ -5132,7 +5144,7 @@
       chartInstance = new Chart(ctx, {
         type:"bar",
         data:{
-          labels:withAlerts.map(e=>formatTs(e.timestamp)),
+          labels:withAlerts.map(e=>formatChartLabel(e.timestamp)),
           datasets:[{
             label:"Alert Severity",
             data:sevValues,
@@ -5154,7 +5166,7 @@
       chartInstance = new Chart(ctx, {
         type:"line",
         data:{
-          labels: withTemp.map(e=>formatTs(e.timestamp)),
+          labels: withTemp.map(e=>formatChartLabel(e.timestamp)),
           datasets:[{
             label:"Temperature (°F)",
             data: withTemp.map(e=>e.tempF),
@@ -5172,7 +5184,7 @@
       chartInstance = new Chart(ctx, {
         type:"line",
         data:{
-          labels: withPressure.map(e=>formatTs(e.timestamp)),
+          labels: withPressure.map(e=>formatChartLabel(e.timestamp)),
           datasets:[{
             label:"Pressure (inHg)",
             data: withPressure.map(e=>e.pressureInHg),
@@ -5190,7 +5202,7 @@
       chartInstance = new Chart(ctx, {
         type:"line",
         data:{
-          labels: withHumidity.map(e=>formatTs(e.timestamp)),
+          labels: withHumidity.map(e=>formatChartLabel(e.timestamp)),
           datasets:[{
             label:"Humidity (%)",
             data: withHumidity.map(e=>e.humidity),
@@ -5212,7 +5224,7 @@
       chartInstance = new Chart(ctx, {
         type:"line",
         data:{
-          labels: withUv.map(e=>formatTs(e.timestamp)),
+          labels: withUv.map(e=>formatChartLabel(e.timestamp)),
           datasets:[{
             label:"UV Index",
             data: withUv.map(e=>e.uvIndex),
@@ -5235,7 +5247,7 @@
       chartInstance = new Chart(ctx, {
         type:"line",
         data:{
-          labels: withPm25.map(e=>formatTs(e.timestamp)),
+          labels: withPm25.map(e=>formatChartLabel(e.timestamp)),
           datasets:[{
             label:"PM2.5 (µg/m³)",
             data: withPm25.map(e=>e.pm25),

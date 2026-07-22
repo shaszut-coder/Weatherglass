@@ -2,6 +2,12 @@
 
 All notable changes to Weatherglass are documented here, newest first.
 
+## v3.4.7
+
+**Fixed: chart x-axis labels were crowding out the plot area.** This was a side effect of the v3.4.5 year fix — charts (Temperature, Pressure, Humidity, UV, PM2.5, Alert Severity) were reusing the same `formatTs()` function as Journal/Gallery/detail views, so each rotated axis label became the full "Jul 20, 2026 at 09:03 PM" instead of something shorter, squeezing the actual chart down to make room for the text.
+
+Added a separate `formatChartLabel()` just for chart axes, adapted to the selected range: 1D/7D/30D views drop the year (it's implied — you're looking at a recent window) and show date + time; the "All" view keeps a compact year (since it can span multiple years) but drops the time. Full, unambiguous dates are still exactly one tap away in the entry detail view — this only shortens what's on the chart axis itself.
+
 ## v3.4.6
 
 **Fixed: "Name existing locations" was silently skipping entries with a blank location name.** The bulk tool only matched entries whose location name was *exactly* the string "Current location" or "Unknown" — an entry with coordinates but an empty name (e.g. a photo attached through the manual entry form, where EXIF fills in latitude/longitude but never a place name, and the Location Name field was left blank) didn't match either string, so it was treated as "nothing to do" rather than "needs naming." The tool now also catches blank names.
