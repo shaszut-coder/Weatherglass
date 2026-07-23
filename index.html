@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Weatherglass — personal weather station & log
-  Version: 3.4.7
+  Version: 3.4.8
 
   Single-file app: no build step, no backend. Data lives in the
   visitor's own browser via localStorage.
@@ -1451,7 +1451,7 @@
 (function(){
   "use strict";
 
-  const APP_VERSION = "3.4.7";
+  const APP_VERSION = "3.4.8";
   const STORAGE_KEY = "weatherglass.entries.v1";
 
   function showToast(message, kind){
@@ -4036,7 +4036,14 @@
 
     let startIdx = Math.floor((viewTop - outerTop) / vlistRowHeight) - VLIST_BUFFER_ROWS;
     let endIdx = Math.ceil((viewBottom - outerTop) / vlistRowHeight) + VLIST_BUFFER_ROWS;
-    startIdx = Math.max(0, startIdx);
+    // startIdx was only ever clamped to a minimum of 0, never a maximum —
+    // if scroll position and the list's on-page offset combined to compute
+    // a startIdx larger than the actual row count, slice(startIdx, endIdx)
+    // with startIdx past the end silently returns an empty array. No error,
+    // no visible failure — just a Journal that looks completely empty
+    // regardless of tab switches or reloads, since it's driven by scroll
+    // state that reproduces the same broken result every time.
+    startIdx = Math.min(Math.max(0, startIdx), Math.max(0, total - 1));
     endIdx = Math.min(total, Math.max(endIdx, startIdx + 1));
 
     document.getElementById("vlistTopSpacer").style.height = (startIdx * vlistRowHeight) + "px";

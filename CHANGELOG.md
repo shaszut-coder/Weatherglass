@@ -2,6 +2,14 @@
 
 All notable changes to Weatherglass are documented here, newest first.
 
+## v3.4.8
+
+**Fixed: the Journal list could render completely empty**, surviving tab switches and full page reloads, while all data underneath stayed completely intact (confirmed via a real 290-entry export — no data loss, no corruption, every entry present and valid).
+
+Root cause: the Journal's virtualized list computes which rows to render based on scroll position (`startIdx`/`endIdx`), added back in v3.0.0. `startIdx` was only ever clamped to a *minimum* of 0 — never a maximum. If scroll position and the list's on-page offset combined to compute a `startIdx` larger than the actual entry count, `vlistRows.slice(startIdx, endIdx)` with a start point past the end silently returns an empty array in JavaScript — no error, no visible failure, just nothing rendered. Since this is driven by scroll state rather than the data itself, it reproduced the same broken result on every reload rather than resolving on its own.
+
+Fixed by clamping `startIdx` to never exceed the last valid row index. Verified against the exact failure condition (a large leftover scroll offset against 290 rows) — the old logic produced a slice length of zero; the fixed logic correctly renders starting from the last valid row instead.
+
 ## v3.4.7
 
 **Fixed: chart x-axis labels were crowding out the plot area.** This was a side effect of the v3.4.5 year fix — charts (Temperature, Pressure, Humidity, UV, PM2.5, Alert Severity) were reusing the same `formatTs()` function as Journal/Gallery/detail views, so each rotated axis label became the full "Jul 20, 2026 at 09:03 PM" instead of something shorter, squeezing the actual chart down to make room for the text.
