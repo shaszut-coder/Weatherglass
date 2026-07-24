@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Weatherglass — personal weather station & log
-  Version: 3.4.8
+  Version: 3.5.0
 
   Single-file app: no build step, no backend. Data lives in the
   visitor's own browser via localStorage.
@@ -742,6 +742,13 @@
     <div style="text-align:center; font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--ink-soft); margin-bottom:18px; padding:0 20px;">
       Both instantly save your current location, weather, and alerts. <strong style="color:var(--burnt-orange);">Quick Photo Log</strong> also opens your camera first and attaches the picture.
     </div>
+    <div id="activeNotebookBanner" style="display:none; align-items:center; justify-content:space-between; gap:10px; background:var(--glass); border:1.5px solid var(--brass); border-radius:8px; padding:10px 14px; margin:0 20px 18px;">
+      <div style="font-family:'IBM Plex Mono', monospace; font-size:11.5px; color:var(--ink);">
+        📓 <strong id="activeNotebookName"></strong><br>
+        <span id="activeNotebookCount" style="color:var(--ink-soft); font-size:10.5px;"></span>
+      </div>
+      <button type="button" class="btn secondary" id="activeNotebookEndBtn" style="padding:6px 14px; font-size:11px;">End</button>
+    </div>
     <form id="entryForm">
       <div class="grid-form">
         <div class="field">
@@ -1409,6 +1416,7 @@
     <div class="sheet-meta-grid" id="sheetMetaGrid"></div>
     <p class="sheet-notes" id="sheetNotes"></p>
     <p class="sheet-notes" id="sheetAlertFullText" style="display:none; font-size:13px; color:var(--ink-soft); border-top:1px dashed var(--line); padding-top:10px; margin-top:10px;"></p>
+    <div id="sheetNotebookArea" style="border-top:1px dashed var(--line); padding-top:12px; margin-top:12px;"></div>
     <div class="sheet-actions" id="sheetActionsDefault">
       <button type="button" class="btn secondary" id="sheetEditBtn">Edit</button>
       <button type="button" class="btn danger" id="sheetDeleteBtn">Delete</button>
@@ -1417,6 +1425,38 @@
       <button type="button" class="btn secondary" id="sheetDeleteCancelBtn">Cancel</button>
       <button type="button" class="btn danger" id="sheetDeleteConfirmBtn">Yes, delete it</button>
     </div>
+  </div>
+</div>
+
+<!-- Name-a-notebook mini sheet, opened on top of the entry detail sheet -->
+<div id="notebookNameSheet" style="display:none; position:fixed; inset:0; z-index:90; background:rgba(44,58,71,0.45); align-items:flex-end; justify-content:center;">
+  <div class="sheet-content" style="max-width:480px;">
+    <div class="sheet-handle"></div>
+    <h3 class="sheet-title" style="margin-bottom:14px;">Name this notebook</h3>
+    <div class="field wide" style="margin-bottom:14px;">
+      <input id="notebookNameInput" type="text" placeholder="e.g. Storm rolling through Lockport" style="width:100%; box-sizing:border-box; padding:10px 12px; border:1px solid var(--line); border-radius:6px; font-family:inherit; font-size:15px;">
+    </div>
+    <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:14px;">
+      Every Quick Log or Quick Photo Log you save while this notebook is active will join it automatically — no extra taps needed. End it anytime from the Record tab.
+    </div>
+    <div class="sheet-actions">
+      <button type="button" class="btn secondary" id="notebookNameCancelBtn">Cancel</button>
+      <button type="button" class="btn" id="notebookNameConfirmBtn">Start Notebook</button>
+    </div>
+  </div>
+</div>
+
+<!-- Notebook viewer — lists every entry sharing an eventId, chronologically.
+     Deliberately a separate lightweight overlay rather than a change to
+     the virtualized Journal list, which stays untouched. -->
+<div id="notebookViewSheet" style="display:none; position:fixed; inset:0; z-index:90; background:rgba(44,58,71,0.45); align-items:flex-end; justify-content:center;">
+  <div class="sheet-content" style="max-width:640px; max-height:80vh; overflow-y:auto;">
+    <div class="sheet-handle"></div>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+      <h3 class="sheet-title" id="notebookViewTitle" style="margin:0;"></h3>
+      <button type="button" class="sheet-close" id="notebookViewCloseBtn" aria-label="Close">✕</button>
+    </div>
+    <ul class="log-list" id="notebookViewList"></ul>
   </div>
 </div>
 
@@ -1451,7 +1491,7 @@
 (function(){
   "use strict";
 
-  const APP_VERSION = "3.4.8";
+  const APP_VERSION = "3.5.0";
   const STORAGE_KEY = "weatherglass.entries.v1";
 
   function showToast(message, kind){
@@ -3362,6 +3402,7 @@
     statusEl.textContent = "Saving…";
     const now = new Date();
     const moon = getMoonPhase(now);
+    const activeNotebook = getActiveNotebook();
     const entry = {
       id: cryptoId(),
       timestamp: now.toISOString(),
@@ -3390,7 +3431,8 @@
       impression: "",
       timeOfDayTag: nearestTimeOfDay(now),
       notes: "",
-      photo: null
+      photo: null,
+      eventId: activeNotebook ? activeNotebook.id : null
     };
 
     const nextEntries = entries.concat([entry]);
@@ -3454,6 +3496,7 @@
       statusEl.textContent = "Saving…";
       const now = new Date();
       const moon = getMoonPhase(now);
+      const activeNotebook = getActiveNotebook();
       const entry = {
         id: cryptoId(),
         timestamp: now.toISOString(),
@@ -3478,7 +3521,8 @@
         impression: "",
         timeOfDayTag: nearestTimeOfDay(now),
         notes: "",
-        photo: photo
+        photo: photo,
+        eventId: activeNotebook ? activeNotebook.id : null
       };
 
       const nextEntries = entries.concat([entry]);
@@ -4195,6 +4239,7 @@
     }
     document.getElementById("sheetActionsDefault").style.display = "flex";
     document.getElementById("sheetActionsConfirm").style.display = "none";
+    renderSheetNotebookArea(e);
     document.getElementById("entrySheet").classList.add("open");
   }
   function closeEntryDetail(){
@@ -4348,6 +4393,154 @@
   function todayStr(){
     return new Date().toISOString().slice(0,10);
   }
+
+  // ---------- Notebooks: linking several entries into one ongoing moment ----------
+  // "Which notebook is currently active" is ephemeral app state — like the
+  // export nudge, it lives in localStorage, not IndexedDB. Losing it just
+  // means new captures stop auto-joining; entries already linked (via their
+  // own eventId field) keep that link permanently regardless.
+  const ACTIVE_NOTEBOOK_KEY = "weatherglass_active_notebook";
+  function getActiveNotebook(){
+    try{
+      const raw = localStorage.getItem(ACTIVE_NOTEBOOK_KEY);
+      return raw ? JSON.parse(raw) : null;
+    }catch(e){ return null; }
+  }
+  function setActiveNotebook(id, name){
+    try{ localStorage.setItem(ACTIVE_NOTEBOOK_KEY, JSON.stringify({ id, name, startedAt: new Date().toISOString() })); }catch(e){}
+    renderActiveNotebookBanner();
+  }
+  function clearActiveNotebook(){
+    try{ localStorage.removeItem(ACTIVE_NOTEBOOK_KEY); }catch(e){}
+    renderActiveNotebookBanner();
+  }
+  function entriesInNotebook(eventId){
+    return entries.filter(e=>e.eventId === eventId).slice().sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
+  }
+  function renderActiveNotebookBanner(){
+    const banner = document.getElementById("activeNotebookBanner");
+    if(!banner) return;
+    const active = getActiveNotebook();
+    if(!active){ banner.style.display = "none"; return; }
+    const count = entriesInNotebook(active.id).length;
+    banner.style.display = "flex";
+    document.getElementById("activeNotebookName").textContent = active.name;
+    document.getElementById("activeNotebookCount").textContent = count === 1 ? "1 entry so far" : `${count} entries so far`;
+  }
+  document.getElementById("activeNotebookEndBtn").addEventListener("click", ()=>{
+    clearActiveNotebook();
+    showToast("Notebook ended. Entries already in it stay linked.", "success");
+  });
+
+  // Naming sheet, used both for starting a brand-new notebook
+  let notebookNameTargetEntryId = null;
+  function openNotebookNameSheet(entryId){
+    notebookNameTargetEntryId = entryId;
+    document.getElementById("notebookNameInput").value = "";
+    document.getElementById("notebookNameSheet").style.display = "flex";
+  }
+  function closeNotebookNameSheet(){
+    document.getElementById("notebookNameSheet").style.display = "none";
+    notebookNameTargetEntryId = null;
+  }
+  document.getElementById("notebookNameCancelBtn").addEventListener("click", closeNotebookNameSheet);
+  document.getElementById("notebookNameConfirmBtn").addEventListener("click", async ()=>{
+    const name = document.getElementById("notebookNameInput").value.trim();
+    if(!name){ showToast("Give the notebook a name first.", "error"); return; }
+    const entryId = notebookNameTargetEntryId;
+    const entry = entries.find(x=>x.id === entryId);
+    if(!entry){ closeNotebookNameSheet(); return; }
+
+    const eventId = cryptoId();
+    entry.eventId = eventId;
+    entry.eventAnchor = true;
+    entry.eventName = name;
+    try{
+      await persistChange({ putEntry: entry }, entries);
+      setActiveNotebook(eventId, name);
+      closeNotebookNameSheet();
+      showToast(`"${name}" started — new Quick Log/Photo entries will join it.`, "success");
+      openEntryDetail(entryId); // refresh the sheet to show the new notebook section
+    }catch(err){
+      showToast("Could not start the notebook — try again.", "error");
+    }
+  });
+
+  async function addEntryToActiveNotebook(entryId){
+    const active = getActiveNotebook();
+    if(!active) return;
+    const entry = entries.find(x=>x.id === entryId);
+    if(!entry) return;
+    entry.eventId = active.id;
+    try{
+      await persistChange({ putEntry: entry }, entries);
+      renderActiveNotebookBanner();
+      showToast(`Added to "${active.name}".`, "success");
+      openEntryDetail(entryId);
+    }catch(err){
+      showToast("Could not add this entry — try again.", "error");
+    }
+  }
+
+  function openNotebookView(eventId){
+    const items = entriesInNotebook(eventId);
+    if(!items.length) return;
+    const anchor = items.find(e=>e.eventAnchor) || items[0];
+    document.getElementById("notebookViewTitle").textContent = anchor.eventName || "Notebook";
+    document.getElementById("notebookViewList").innerHTML = items.map(e=>`
+      <li>
+        <button type="button" class="log-row" data-open="${e.id}">
+          ${e.photo
+            ? `<img class="log-row-thumb" src="${e.photo}" alt="">`
+            : `<span class="log-row-thumb placeholder">·</span>`}
+          <span class="log-row-main">
+            <span class="log-row-title">${escapeHtml(e.title)}</span>
+            <span class="log-row-meta">${escapeHtml(metaLine(e))}</span>
+          </span>
+          <span class="log-row-chevron">›</span>
+        </button>
+      </li>`).join("");
+    document.getElementById("notebookViewList").querySelectorAll("[data-open]").forEach(row=>{
+      row.addEventListener("click", ()=>{
+        document.getElementById("notebookViewSheet").style.display = "none";
+        openEntryDetail(row.dataset.open);
+      });
+    });
+    document.getElementById("notebookViewSheet").style.display = "flex";
+  }
+  document.getElementById("notebookViewCloseBtn").addEventListener("click", ()=>{
+    document.getElementById("notebookViewSheet").style.display = "none";
+  });
+
+  // Builds the notebook section shown inside an entry's detail sheet —
+  // either a "start/add" prompt, or a "part of X, N entries" cross-reference
+  // linking to the notebook viewer. Kept separate from the Journal list
+  // entirely, per the earlier decision not to touch its virtualization.
+  function renderSheetNotebookArea(entry){
+    const el = document.getElementById("sheetNotebookArea");
+    if(!el) return;
+    const active = getActiveNotebook();
+
+    if(entry.eventId){
+      const items = entriesInNotebook(entry.eventId);
+      const anchor = items.find(e=>e.eventAnchor) || items[0];
+      const name = anchor?.eventName || "Notebook";
+      el.innerHTML = `
+        <div style="font-family:'IBM Plex Mono', monospace; font-size:11.5px; color:var(--ink-soft); margin-bottom:8px;">
+          📓 Part of <strong style="color:var(--ink);">${escapeHtml(name)}</strong> — ${items.length} ${items.length===1?"entry":"entries"}
+        </div>
+        <button type="button" class="btn secondary" id="sheetViewNotebookBtn" style="width:100%;">View notebook</button>
+      `;
+      document.getElementById("sheetViewNotebookBtn").addEventListener("click", ()=> openNotebookView(entry.eventId));
+    } else if(active){
+      el.innerHTML = `<button type="button" class="btn secondary" id="sheetAddToNotebookBtn" style="width:100%;">Add to "${escapeHtml(active.name)}"</button>`;
+      document.getElementById("sheetAddToNotebookBtn").addEventListener("click", ()=> addEntryToActiveNotebook(entry.id));
+    } else {
+      el.innerHTML = `<button type="button" class="btn secondary" id="sheetStartNotebookBtn" style="width:100%;">Start a Notebook from this entry</button>`;
+      document.getElementById("sheetStartNotebookBtn").addEventListener("click", ()=> openNotebookNameSheet(entry.id));
+    }
+  }
+
 
   // ---------- Export nudge ("days since last backup") ----------
   // A lightweight localStorage timestamp — not app data, so it deliberately
@@ -5876,6 +6069,7 @@
     renderMapDateStrip();
     renderMap();
     renderSkyTab();
+    renderActiveNotebookBanner();
   }
 
   document.getElementById("versionTag").textContent = "Weatherglass v" + APP_VERSION;

@@ -2,6 +2,21 @@
 
 All notable changes to Weatherglass are documented here, newest first.
 
+## v3.5.0
+
+**Notebooks** — link several entries together into one ongoing moment, like a storm rolling through where conditions are genuinely changing between shots, not one static reading.
+
+- From any entry's detail view, **"Start a Notebook from this entry"** — name it, and that entry becomes the anchor.
+- While a notebook is active, every **Quick Log** or **Quick Photo Log** you save automatically joins it — no extra taps, matching how the rest of capture already works.
+- A small banner appears above the capture buttons on the Record tab showing the active notebook's name and entry count, with an **End** button.
+- Any entry that's part of a notebook shows **"Part of [name] — N entries"** in its detail view, with a **View notebook** button opening a dedicated list of every linked entry, chronologically.
+- You can also add an *existing* entry (one that predates the notebook) via **"Add to [name]"** in its detail view, while a notebook is active.
+
+**Design notes, for anyone extending this later:**
+- Implemented as a single additive `eventId` field on entries (plus `eventAnchor`/`eventName` on the anchor entry only) — no schema migration, no new IndexedDB store. The "clean" version (a dedicated events object store) was considered and deliberately deferred, since it's gated behind building real `onupgradeneeded` migration scaffolding, which doesn't exist yet.
+- "Which notebook is active" lives in localStorage, not IndexedDB — same category as the export-nudge timestamp. Losing it just means new captures stop auto-joining; entries already linked keep that link permanently.
+- The notebook viewer is a deliberately separate, lightweight overlay — the virtualized Journal list itself was not touched, per the earlier assessment that its scroll-position math (already the source of a real bug fixed in v3.4.8) was the highest-risk part of this app to modify casually.
+
 ## v3.4.8
 
 **Fixed: the Journal list could render completely empty**, surviving tab switches and full page reloads, while all data underneath stayed completely intact (confirmed via a real 290-entry export — no data loss, no corruption, every entry present and valid).
