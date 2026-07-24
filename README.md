@@ -3,13 +3,13 @@
 A personal weather journal. Log conditions by hand or pull them live, track clouds and pressure trends, watch severe weather alerts, and build a searchable history of what the sky was doing wherever you were.
 
 **Live app:** https://weatherglass.shaszut.workers.dev/
-**Current version:** v3.5.0
+**Current version:** v3.7.0
 **Philosophy:** see [PHILOSOPHY.md](./PHILOSOPHY.md) — this is a personal weather observation journal, not a forecast app
 
 ## What it does
 
 - **Record** — log a reading manually, auto-fill current conditions with Quick Log, or use Quick Photo Log (camera-first — take a photo and conditions fill in automatically) for your GPS location
-- **Notebooks** — link several entries together into one ongoing moment (e.g. a storm as it rolls through), rather than flattening changing conditions into a single reading
+- **Notebooks** — link several entries together into one ongoing moment (e.g. a storm as it rolls through), rather than flattening changing conditions into a single reading. Manage them (rename, present in Speaker Mode, delete the grouping) from Settings → View All Notebooks
 - **Journal** — a searchable, filterable log of every entry, with photos
 - **Trends** — charts (temp, pressure, humidity, heat index, pressure rate-of-change, year-over-year, transect, UV, PM2.5) over 1d/7d/30d/All windows, plus computed Insights (temp/humidity correlation, personal comfort threshold, peak heat index, alert coverage), Pattern Tiles, and a Pressure Watch rapid-change indicator
 - **Map** — station view or a chronological route view of everywhere you've logged, color-coded by temperature

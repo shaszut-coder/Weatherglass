@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Weatherglass — personal weather station & log
-  Version: 3.5.0
+  Version: 3.7.0
 
   Single-file app: no build step, no backend. Data lives in the
   visitor's own browser via localStorage.
@@ -739,8 +739,12 @@
         <div id="photoCaptureStatus" style="display:none; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-top:4px; text-align:center; max-width:200px;"></div>
       </div>
     </div>
-    <div style="text-align:center; font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--ink-soft); margin-bottom:18px; padding:0 20px;">
+    <div style="text-align:center; font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--ink-soft); margin-bottom:10px; padding:0 20px;">
       Both instantly save your current location, weather, and alerts. <strong style="color:var(--burnt-orange);">Quick Photo Log</strong> also opens your camera first and attaches the picture.
+    </div>
+    <div id="captureCooldownIndicator" style="display:flex; align-items:center; justify-content:center; gap:6px; font-family:'IBM Plex Mono', monospace; font-size:11px; margin-bottom:16px;">
+      <span id="captureCooldownDot" style="width:9px; height:9px; border-radius:50%; display:inline-block; background:#4A8B5C;"></span>
+      <span id="captureCooldownText" style="color:var(--ink-soft);">Ready to capture</span>
     </div>
     <div id="activeNotebookBanner" style="display:none; align-items:center; justify-content:space-between; gap:10px; background:var(--glass); border:1.5px solid var(--brass); border-radius:8px; padding:10px 14px; margin:0 20px 18px;">
       <div style="font-family:'IBM Plex Mono', monospace; font-size:11.5px; color:var(--ink);">
@@ -748,6 +752,9 @@
         <span id="activeNotebookCount" style="color:var(--ink-soft); font-size:10.5px;"></span>
       </div>
       <button type="button" class="btn secondary" id="activeNotebookEndBtn" style="padding:6px 14px; font-size:11px;">End</button>
+    </div>
+    <div id="startNotebookPrompt" style="display:flex; align-items:center; justify-content:center; margin:0 20px 18px;">
+      <button type="button" class="btn secondary" id="startNotebookPromptBtn" style="font-size:11.5px; padding:8px 16px;">📓 Start a Notebook</button>
     </div>
     <form id="entryForm">
       <div class="grid-form">
@@ -1171,6 +1178,13 @@
       <button type="button" class="btn secondary" id="tripSummaryBtn">Generate Trip Summaries</button>
       <div id="tripSummaryOutput" style="margin-top:14px;"></div>
     </div>
+    <div style="border:1px dashed var(--line); border-radius:6px; padding:12px 14px; margin-bottom:18px;">
+      <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:8px;">
+        Every notebook you've started — rename it, present it in Speaker Mode, or remove the grouping (your entries themselves are never affected).
+      </div>
+      <button type="button" class="btn secondary" id="notebookIndexBtn">View All Notebooks</button>
+      <div id="notebookIndexOutput" style="margin-top:14px;"></div>
+    </div>
 
     <h3 class="records-title">Speaker Mode</h3>
     <div style="border:1px dashed var(--line); border-radius:6px; padding:12px 14px; margin-bottom:18px;">
@@ -1491,7 +1505,7 @@
 (function(){
   "use strict";
 
-  const APP_VERSION = "3.5.0";
+  const APP_VERSION = "3.7.0";
   const STORAGE_KEY = "weatherglass.entries.v1";
 
   function showToast(message, kind){
@@ -3385,8 +3399,8 @@
     // 60-second cooldown to prevent accidental duplicate entries
     const nowMs = Date.now();
     const secondsSinceLast = (nowMs - lastQuickLogTime) / 1000;
-    if(secondsSinceLast < 60){
-      const remaining = Math.ceil(60 - secondsSinceLast);
+    if(secondsSinceLast < CAPTURE_COOLDOWN_SECONDS){
+      const remaining = Math.ceil(CAPTURE_COOLDOWN_SECONDS - secondsSinceLast);
       statusEl.style.display = "block";
       statusEl.textContent = `Wait ${remaining}s before logging again.`;
       setTimeout(()=>{ statusEl.style.display = "none"; }, 2500);
@@ -3432,7 +3446,8 @@
       timeOfDayTag: nearestTimeOfDay(now),
       notes: "",
       photo: null,
-      eventId: activeNotebook ? activeNotebook.id : null
+      eventId: activeNotebook ? activeNotebook.id : null,
+      eventName: activeNotebook ? activeNotebook.name : null
     };
 
     const nextEntries = entries.concat([entry]);
@@ -3468,8 +3483,8 @@
     // guards against accidental duplicate entries from a double-tap.
     const nowMs = Date.now();
     const secondsSinceLast = (nowMs - lastQuickLogTime) / 1000;
-    if(secondsSinceLast < 60){
-      const remaining = Math.ceil(60 - secondsSinceLast);
+    if(secondsSinceLast < CAPTURE_COOLDOWN_SECONDS){
+      const remaining = Math.ceil(CAPTURE_COOLDOWN_SECONDS - secondsSinceLast);
       statusEl.style.display = "block";
       statusEl.textContent = `Wait ${remaining}s before logging again.`;
       setTimeout(()=>{ statusEl.style.display = "none"; }, 2500);
@@ -3522,7 +3537,8 @@
         timeOfDayTag: nearestTimeOfDay(now),
         notes: "",
         photo: photo,
-        eventId: activeNotebook ? activeNotebook.id : null
+        eventId: activeNotebook ? activeNotebook.id : null,
+        eventName: activeNotebook ? activeNotebook.name : null
       };
 
       const nextEntries = entries.concat([entry]);
@@ -3656,7 +3672,28 @@
   /* ---------- photo handling ---------- */
   let pendingPhoto = null;
   let editingId = null;
+  // Shared between Quick Log and Quick Photo Log — also drives the live
+  // red/green indicator on the Record tab, so the gate and the display
+  // can't drift out of sync with each other.
+  const CAPTURE_COOLDOWN_SECONDS = 30;
   let lastQuickLogTime = 0;
+  function updateCaptureCooldownIndicator(){
+    const dot = document.getElementById("captureCooldownDot");
+    const text = document.getElementById("captureCooldownText");
+    if(!dot || !text) return;
+    const secondsSinceLast = (Date.now() - lastQuickLogTime) / 1000;
+    if(secondsSinceLast < CAPTURE_COOLDOWN_SECONDS){
+      const remaining = Math.ceil(CAPTURE_COOLDOWN_SECONDS - secondsSinceLast);
+      dot.style.background = "#B5482E";
+      text.textContent = `Cooling down (${remaining}s)`;
+      text.style.color = "#B5482E";
+    } else {
+      dot.style.background = "#4A8B5C";
+      text.textContent = "Ready to capture";
+      text.style.color = "var(--ink-soft)";
+    }
+  }
+  setInterval(updateCaptureCooldownIndicator, 1000);
   let exifCapturedDate = null; // set when a photo with EXIF date is attached
 
   function compressImage(file, maxDim, quality){
@@ -4417,11 +4454,110 @@
   function entriesInNotebook(eventId){
     return entries.filter(e=>e.eventId === eventId).slice().sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
   }
+  // Every notebook, derived fresh from entries each time rather than kept
+  // as separate state — same "generate on demand" pattern as Trip Summaries,
+  // deliberately not a live-synced view. One entry per distinct eventId.
+  function getAllNotebooks(){
+    const byId = {};
+    entries.forEach(e=>{
+      if(!e.eventId) return;
+      if(!byId[e.eventId]) byId[e.eventId] = [];
+      byId[e.eventId].push(e);
+    });
+    return Object.keys(byId).map(id=>{
+      const items = byId[id].slice().sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
+      const name = items.find(e=>e.eventName)?.eventName || "Notebook";
+      return {
+        id, name,
+        count: items.length,
+        startDate: items[0].timestamp,
+        endDate: items[items.length-1].timestamp
+      };
+    }).sort((a,b)=>new Date(b.endDate)-new Date(a.endDate)); // most recently active first
+  }
+
+  async function deleteNotebookAssociation(eventId){
+    const members = entriesInNotebook(eventId);
+    if(!members.length) return;
+    members.forEach(e=>{ e.eventId = null; e.eventAnchor = null; e.eventName = null; });
+    try{
+      await persistChange({ bulkEntries: members }, entries);
+      const active = getActiveNotebook();
+      if(active && active.id === eventId) clearActiveNotebook();
+      showToast(`Notebook removed — ${members.length} ${members.length===1?"entry keeps":"entries keep"} its own data, just no longer grouped.`, "success");
+      renderNotebookIndex();
+    }catch(err){
+      showToast("Could not remove the notebook grouping — try again.", "error");
+    }
+  }
+
+  function presentNotebookInSpeakerMode(eventId){
+    const items = entriesInNotebook(eventId);
+    if(!items.length) return;
+    const name = items.find(e=>e.eventName)?.eventName || "Notebook";
+    speakerSlides = buildSpeakerSlides(items, name, "");
+    openSpeakerMode();
+  }
+
+  function renderNotebookIndex(){
+    const output = document.getElementById("notebookIndexOutput");
+    if(!output) return;
+    const notebooks = getAllNotebooks();
+    if(!notebooks.length){
+      output.innerHTML = `<div class="empty-state">No notebooks yet — start one from any entry's detail view.</div>`;
+      return;
+    }
+    output.innerHTML = notebooks.map(nb=>`
+      <div class="card" style="margin-bottom:10px;" data-notebook-card="${nb.id}">
+        <div class="label">📓 ${escapeHtml(nb.name)}</div>
+        <div class="value" style="font-size:18px;">${nb.count} ${nb.count===1?"entry":"entries"}</div>
+        <div class="note">${escapeHtml(formatTs(nb.startDate))} – ${escapeHtml(formatTs(nb.endDate))}</div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;" data-notebook-actions="${nb.id}">
+          <button type="button" class="btn secondary" data-nb-rename="${nb.id}" style="font-size:11px; padding:6px 12px;">Rename</button>
+          <button type="button" class="btn secondary" data-nb-present="${nb.id}" style="font-size:11px; padding:6px 12px;">Present</button>
+          <button type="button" class="btn danger" data-nb-delete="${nb.id}" style="font-size:11px; padding:6px 12px;">Delete</button>
+        </div>
+      </div>
+    `).join("");
+
+    output.querySelectorAll("[data-nb-rename]").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        const id = btn.dataset.nbRename;
+        const nb = notebooks.find(n=>n.id === id);
+        openNotebookRenameSheet(id, nb?.name);
+      });
+    });
+    output.querySelectorAll("[data-nb-present]").forEach(btn=>{
+      btn.addEventListener("click", ()=> presentNotebookInSpeakerMode(btn.dataset.nbPresent));
+    });
+    output.querySelectorAll("[data-nb-delete]").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        const id = btn.dataset.nbDelete;
+        const actionsRow = output.querySelector(`[data-notebook-actions="${id}"]`);
+        if(!actionsRow) return;
+        actionsRow.innerHTML = `
+          <span style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); align-self:center;">Remove this grouping? Entries stay untouched.</span>
+          <button type="button" class="btn secondary" data-nb-delete-cancel="${id}" style="font-size:11px; padding:6px 12px;">Cancel</button>
+          <button type="button" class="btn danger" data-nb-delete-confirm="${id}" style="font-size:11px; padding:6px 12px;">Yes, remove</button>
+        `;
+        actionsRow.querySelector("[data-nb-delete-cancel]").addEventListener("click", ()=> renderNotebookIndex());
+        actionsRow.querySelector("[data-nb-delete-confirm]").addEventListener("click", ()=> deleteNotebookAssociation(id));
+      });
+    });
+  }
+  document.getElementById("notebookIndexBtn").addEventListener("click", renderNotebookIndex);
+
   function renderActiveNotebookBanner(){
     const banner = document.getElementById("activeNotebookBanner");
+    const prompt = document.getElementById("startNotebookPrompt");
     if(!banner) return;
     const active = getActiveNotebook();
-    if(!active){ banner.style.display = "none"; return; }
+    if(!active){
+      banner.style.display = "none";
+      if(prompt) prompt.style.display = "flex";
+      return;
+    }
+    if(prompt) prompt.style.display = "none";
     const count = entriesInNotebook(active.id).length;
     banner.style.display = "flex";
     document.getElementById("activeNotebookName").textContent = active.name;
@@ -4431,36 +4567,76 @@
     clearActiveNotebook();
     showToast("Notebook ended. Entries already in it stay linked.", "success");
   });
+  document.getElementById("startNotebookPromptBtn").addEventListener("click", ()=> openNotebookNameSheet());
 
-  // Naming sheet, used both for starting a brand-new notebook
+  // Naming sheet — dual purpose: starting a brand-new notebook from an
+  // entry, or renaming an existing one. Same UI, different confirm action.
+  let notebookNameMode = "start"; // "start" | "rename"
   let notebookNameTargetEntryId = null;
+  let notebookRenameTargetEventId = null;
   function openNotebookNameSheet(entryId){
+    notebookNameMode = "start";
     notebookNameTargetEntryId = entryId;
     document.getElementById("notebookNameInput").value = "";
+    document.querySelector("#notebookNameSheet .sheet-title").textContent = "Name this notebook";
+    document.getElementById("notebookNameConfirmBtn").textContent = "Start Notebook";
+    document.getElementById("notebookNameSheet").style.display = "flex";
+  }
+  function openNotebookRenameSheet(eventId, currentName){
+    notebookNameMode = "rename";
+    notebookRenameTargetEventId = eventId;
+    document.getElementById("notebookNameInput").value = currentName || "";
+    document.querySelector("#notebookNameSheet .sheet-title").textContent = "Rename notebook";
+    document.getElementById("notebookNameConfirmBtn").textContent = "Save Name";
     document.getElementById("notebookNameSheet").style.display = "flex";
   }
   function closeNotebookNameSheet(){
     document.getElementById("notebookNameSheet").style.display = "none";
     notebookNameTargetEntryId = null;
+    notebookRenameTargetEventId = null;
   }
   document.getElementById("notebookNameCancelBtn").addEventListener("click", closeNotebookNameSheet);
   document.getElementById("notebookNameConfirmBtn").addEventListener("click", async ()=>{
     const name = document.getElementById("notebookNameInput").value.trim();
     if(!name){ showToast("Give the notebook a name first.", "error"); return; }
-    const entryId = notebookNameTargetEntryId;
-    const entry = entries.find(x=>x.id === entryId);
-    if(!entry){ closeNotebookNameSheet(); return; }
 
+    if(notebookNameMode === "rename"){
+      const eventId = notebookRenameTargetEventId;
+      const members = entriesInNotebook(eventId);
+      if(!members.length){ closeNotebookNameSheet(); return; }
+      members.forEach(e=> e.eventName = name);
+      try{
+        await persistChange({ bulkEntries: members }, entries);
+        const active = getActiveNotebook();
+        if(active && active.id === eventId) setActiveNotebook(eventId, name); // keep active-notebook banner in sync
+        closeNotebookNameSheet();
+        showToast(`Renamed to "${name}".`, "success");
+        renderNotebookIndex();
+      }catch(err){
+        showToast("Could not rename — try again.", "error");
+      }
+      return;
+    }
+
+    // mode === "start" — entryId is optional now that notebook names live
+    // on every member entry rather than requiring one specific anchor
+    // (v3.6.0). No entry yet just means the notebook starts empty and the
+    // next Quick Log/Photo Log becomes its first member.
+    const entryId = notebookNameTargetEntryId;
+    const entry = entryId ? entries.find(x=>x.id === entryId) : null;
     const eventId = cryptoId();
-    entry.eventId = eventId;
-    entry.eventAnchor = true;
-    entry.eventName = name;
+
+    if(entry){
+      entry.eventId = eventId;
+      entry.eventAnchor = true;
+      entry.eventName = name;
+    }
     try{
-      await persistChange({ putEntry: entry }, entries);
+      if(entry) await persistChange({ putEntry: entry }, entries);
       setActiveNotebook(eventId, name);
       closeNotebookNameSheet();
-      showToast(`"${name}" started — new Quick Log/Photo entries will join it.`, "success");
-      openEntryDetail(entryId); // refresh the sheet to show the new notebook section
+      showToast(`"${name}" started — Quick Log/Photo entries will join it.`, "success");
+      if(entryId) openEntryDetail(entryId); // refresh the sheet to show the new notebook section
     }catch(err){
       showToast("Could not start the notebook — try again.", "error");
     }
@@ -4472,6 +4648,7 @@
     const entry = entries.find(x=>x.id === entryId);
     if(!entry) return;
     entry.eventId = active.id;
+    entry.eventName = active.name;
     try{
       await persistChange({ putEntry: entry }, entries);
       renderActiveNotebookBanner();
@@ -4485,8 +4662,8 @@
   function openNotebookView(eventId){
     const items = entriesInNotebook(eventId);
     if(!items.length) return;
-    const anchor = items.find(e=>e.eventAnchor) || items[0];
-    document.getElementById("notebookViewTitle").textContent = anchor.eventName || "Notebook";
+    const name = items.find(e=>e.eventName)?.eventName || "Notebook";
+    document.getElementById("notebookViewTitle").textContent = name;
     document.getElementById("notebookViewList").innerHTML = items.map(e=>`
       <li>
         <button type="button" class="log-row" data-open="${e.id}">
@@ -4523,8 +4700,7 @@
 
     if(entry.eventId){
       const items = entriesInNotebook(entry.eventId);
-      const anchor = items.find(e=>e.eventAnchor) || items[0];
-      const name = anchor?.eventName || "Notebook";
+      const name = items.find(e=>e.eventName)?.eventName || "Notebook";
       el.innerHTML = `
         <div style="font-family:'IBM Plex Mono', monospace; font-size:11.5px; color:var(--ink-soft); margin-bottom:8px;">
           📓 Part of <strong style="color:var(--ink);">${escapeHtml(name)}</strong> — ${items.length} ${items.length===1?"entry":"entries"}
@@ -6070,6 +6246,7 @@
     renderMap();
     renderSkyTab();
     renderActiveNotebookBanner();
+    updateCaptureCooldownIndicator();
   }
 
   document.getElementById("versionTag").textContent = "Weatherglass v" + APP_VERSION;

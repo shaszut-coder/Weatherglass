@@ -2,6 +2,24 @@
 
 All notable changes to Weatherglass are documented here, newest first.
 
+## v3.7.0
+
+**Standalone "Start a Notebook" on the Record tab** — no longer requires capturing an entry first. Tap it, name your notebook, and it's active immediately with zero entries; the very next Quick Log or Quick Photo Log becomes its first member. Starting a notebook from an existing entry's detail view still works exactly as before — this is an additional starting point, not a replacement. Buildable cleanly because of v3.6.0's reliability fix: notebook names live on every member entry now, not one required anchor, so there was never a real reason a notebook needed an entry to exist before it could start.
+
+**Capture cooldown reduced from 60 to 30 seconds**, and made visible instead of easy to miss. A small live indicator now sits above the capture buttons — a red dot and "Cooling down (Ns)" while waiting, switching to green and "Ready to capture" the moment it's clear. Previously, a tap during cooldown showed a status message that vanished after 2.5 seconds with no other feedback, easy to miss entirely when your attention is on the sky, not the screen; now the button's readiness is visible before you tap, not just after.
+
+## v3.6.0
+
+**Notebook management** — Settings → **"View All Notebooks"** (next to Trip Summaries) now shows every notebook you've started, with three actions per notebook:
+
+- **Rename** — updates the name across every entry in the notebook.
+- **Present** — jumps straight into Speaker Mode with that notebook's entries, titled with the notebook's name.
+- **Delete** — removes the grouping only. Entries themselves are completely untouched; they just stop being linked together. Requires a second tap to confirm.
+
+**A reliability fix under the hood, not just a new feature:** notebook names used to live only on the "anchor" entry (the one you started the notebook from) — meaning deleting that specific entry would silently orphan the notebook's name, even though the other entries would still be grouped. Every entry that joins a notebook now carries the name itself, so the notebook survives losing any single entry, anchor included. This also made Rename straightforward to build correctly — it updates the name everywhere at once rather than one fragile source of truth.
+
+**Where this lives, and why:** deliberately in Settings, generated on-demand when you tap it — the same pattern as Trip Summaries, not a new tab and not a permanently-live view. Notebooks are for deliberate, occasional moments, not daily use, and every rendering bug fixed today (the Journal list, the map) traced back to a *live-updating* surface having to stay in sync with changing state. A list that reads the data fresh each time you open it carries almost none of that risk.
+
 ## v3.5.0
 
 **Notebooks** — link several entries together into one ongoing moment, like a storm rolling through where conditions are genuinely changing between shots, not one static reading.
