@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Weatherglass — personal weather station & log
-  Version: 3.7.0
+  Version: 4.0.1
 
   Single-file app: no build step, no backend. Data lives in the
   visitor's own browser via localStorage.
@@ -22,6 +22,7 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-adapter-date-fns/3.0.0/chartjs-adapter-date-fns.bundle.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exif-js/2.3.0/exif.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
@@ -698,7 +699,8 @@
     </div>
   </header>
 
-  <div class="cards" id="overviewCards" style="grid-template-columns:1fr 1fr;"></div>
+  <div style="font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--ink); line-height:1.7; margin-bottom:6px;" id="insightsLine"></div>
+  <div style="font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--ink); line-height:1.7; margin-bottom:16px;" id="latestConditionsLine"></div>
 
   <div id="storageWarningBanner" style="display:none; align-items:flex-start; gap:10px; border:1.5px solid var(--brass); border-radius:6px; padding:12px 14px; margin-bottom:18px; background:rgba(138,106,61,0.08); font-family:'IBM Plex Mono', monospace; font-size:12.5px; color:var(--ink);">
     <span id="storageWarningText" style="flex:1;"></span>
@@ -715,17 +717,7 @@
 
   <!-- NEW ENTRY -->
   <section class="panel active" id="panel-entry">
-    <h2 class="section-title" id="entrySectionTitle">Record a Reading</h2>
-
-    <!-- Edit mode header — replaces the old small banner, hidden in create mode -->
-    <div id="editModeHeader" style="display:none; background:rgba(138,106,61,0.10); border:1.5px solid var(--brass); border-radius:6px; padding:14px 16px; margin-bottom:18px;">
-      <div style="font-family:'IBM Plex Mono', monospace; font-size:10.5px; text-transform:uppercase; letter-spacing:0.6px; color:var(--brass); margin-bottom:4px;">✏ Editing entry</div>
-      <div id="editBannerText" style="font-family:'Source Serif 4', serif; font-size:14px; color:var(--ink); margin-bottom:10px;"></div>
-      <button type="button" class="btn secondary" id="cancelEditBtn" style="width:100%;">Cancel — discard changes &amp; return to new entry</button>
-    </div>
-    <!-- Hidden legacy anchor kept for JS compat -->
-    <div id="editBanner" style="display:none;"></div>
-
+    <h2 class="section-title">Record a Reading</h2>
     <div style="display:flex; justify-content:center; gap:22px; margin-bottom:6px;">
       <div style="text-align:center;">
         <button type="button" id="quickLogBtn" title="Quick Log — tap to instantly save current conditions" style="background:var(--steel); border:1.5px solid var(--ink); border-radius:999px; padding:10px 28px; font-size:22px; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px rgba(0,0,0,0.15);">⚡</button>
@@ -742,10 +734,13 @@
     <div style="text-align:center; font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--ink-soft); margin-bottom:10px; padding:0 20px;">
       Both instantly save your current location, weather, and alerts. <strong style="color:var(--burnt-orange);">Quick Photo Log</strong> also opens your camera first and attaches the picture.
     </div>
-    <div id="captureCooldownIndicator" style="display:flex; align-items:center; justify-content:center; gap:6px; font-family:'IBM Plex Mono', monospace; font-size:11px; margin-bottom:16px;">
+    <div id="captureCooldownIndicator" style="display:flex; align-items:center; justify-content:center; gap:6px; font-family:'IBM Plex Mono', monospace; font-size:11px; margin-bottom:20px;">
       <span id="captureCooldownDot" style="width:9px; height:9px; border-radius:50%; display:inline-block; background:#4A8B5C;"></span>
       <span id="captureCooldownText" style="color:var(--ink-soft);">Ready to capture</span>
     </div>
+
+    <div style="border-top:1px dashed var(--line); margin:0 20px 18px;"></div>
+
     <div id="activeNotebookBanner" style="display:none; align-items:center; justify-content:space-between; gap:10px; background:var(--glass); border:1.5px solid var(--brass); border-radius:8px; padding:10px 14px; margin:0 20px 18px;">
       <div style="font-family:'IBM Plex Mono', monospace; font-size:11.5px; color:var(--ink);">
         📓 <strong id="activeNotebookName"></strong><br>
@@ -753,9 +748,44 @@
       </div>
       <button type="button" class="btn secondary" id="activeNotebookEndBtn" style="padding:6px 14px; font-size:11px;">End</button>
     </div>
-    <div id="startNotebookPrompt" style="display:flex; align-items:center; justify-content:center; margin:0 20px 18px;">
+    <div id="startNotebookPrompt" style="text-align:center; margin:0 20px 22px;">
       <button type="button" class="btn secondary" id="startNotebookPromptBtn" style="font-size:11.5px; padding:8px 16px;">📓 Start a Notebook</button>
+      <div style="font-family:'IBM Plex Mono', monospace; font-size:10px; color:var(--ink-soft); margin-top:6px; padding:0 10px;">
+        Groups your next several captures into one storm or sequence — great for watching something unfold, like a storm rolling through.
+      </div>
     </div>
+
+    <div style="border-top:1px dashed var(--line); margin:0 20px 18px;"></div>
+
+    <div style="text-align:center; margin:0 20px 22px;">
+      <button type="button" id="openManualEntryBtn" style="background:rgba(138,106,61,0.12); border:1.5px solid var(--brass); color:var(--brass); border-radius:999px; padding:9px 20px; font-size:12.5px; font-weight:600; cursor:pointer;">+ Manual Entry</button>
+      <div style="font-family:'IBM Plex Mono', monospace; font-size:10px; color:var(--ink-soft); margin-top:6px; padding:0 10px;">
+        For backfilling an old photo, adding detail when you have time, or logging something the quick buttons can't capture automatically.
+      </div>
+    </div>
+  </section>
+
+  <!-- Manual entry / edit overlay — a deliberately distinct mode from quick
+       capture, not an inline expansion, per the reasoning that ambiguity
+       between "did that just save?" states was exactly what caused
+       confusion with notebooks earlier. Shared by both a brand-new manual
+       entry and editing an already-captured one (loadEntryIntoForm opens
+       this same overlay pre-filled). -->
+  <div id="entryFormOverlay" style="display:none; position:fixed; inset:0; z-index:85; background:var(--sky-card); overflow-y:auto;">
+    <div style="max-width:640px; margin:0 auto; padding:20px 20px 60px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+        <h2 class="section-title" id="entrySectionTitle" style="margin:0;">Record a Reading</h2>
+        <button type="button" id="closeEntryFormOverlayBtn" aria-label="Close" style="background:none; border:1.5px solid var(--line); border-radius:50%; width:34px; height:34px; font-size:16px; cursor:pointer; color:var(--ink-soft);">✕</button>
+      </div>
+    <!-- Edit mode header — replaces the old small banner, hidden in create mode -->
+    <div id="editModeHeader" style="display:none; background:rgba(138,106,61,0.10); border:1.5px solid var(--brass); border-radius:6px; padding:14px 16px; margin-bottom:18px;">
+      <div style="font-family:'IBM Plex Mono', monospace; font-size:10.5px; text-transform:uppercase; letter-spacing:0.6px; color:var(--brass); margin-bottom:4px;">✏ Editing entry</div>
+      <div id="editBannerText" style="font-family:'Source Serif 4', serif; font-size:14px; color:var(--ink); margin-bottom:10px;"></div>
+      <button type="button" class="btn secondary" id="cancelEditBtn" style="width:100%;">Cancel — discard changes &amp; return to new entry</button>
+    </div>
+    <!-- Hidden legacy anchor kept for JS compat -->
+    <div id="editBanner" style="display:none;"></div>
+
     <form id="entryForm">
       <div class="grid-form">
         <div class="field">
@@ -1050,7 +1080,9 @@
         <button type="button" class="btn secondary" id="clearFormBtn">Clear Form</button>
       </div>
     </form>
-  </section>
+    </div>
+  </div>
+
 
   <!-- LOG BOOK -->
   <section class="panel" id="panel-log">
@@ -1316,15 +1348,26 @@
       <button class="btn secondary" id="chartPm25Btn" title="PM2.5 over time" style="display:flex; flex-direction:column; align-items:center; gap:2px; padding:8px 12px; font-size:10px; min-width:52px;">
         <span style="font-size:18px; font-family:'Playfair Display',serif; color:var(--brass); line-height:1;">❖</span>PMOT
       </button>
+      <button class="btn secondary" id="chartTphBtn" title="Temperature, Pressure &amp; Humidity compared" style="display:flex; flex-direction:column; align-items:center; gap:2px; padding:8px 12px; font-size:10px; min-width:52px;">
+        <span style="font-size:18px; font-family:'Playfair Display',serif; color:var(--brass); line-height:1;">⬡</span>TPH
+      </button>
     </div>
     <div style="display:flex; justify-content:center; gap:6px; margin-bottom:14px;">
       <button class="btn secondary" id="chartRange1" style="font-size:10.5px; padding:5px 14px;">1d</button>
+      <button class="btn secondary" id="chartRange2" style="font-size:10.5px; padding:5px 14px;">2d</button>
+      <button class="btn secondary" id="chartRange3" style="font-size:10.5px; padding:5px 14px;">3d</button>
       <button class="btn secondary" id="chartRange7" style="font-size:10.5px; padding:5px 14px;">7d</button>
       <button class="btn secondary" id="chartRange30" style="font-size:10.5px; padding:5px 14px;">30d</button>
       <button class="btn secondary" id="chartRangeAll" style="font-size:10.5px; padding:5px 14px;">All</button>
     </div>
     <div class="chart-wrap">
-      <h3 class="chart-title" id="chartTitle">Temperature Over Time</h3>
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+        <h3 class="chart-title" id="chartTitle" style="margin:0;">Temperature Over Time</h3>
+        <div id="chartViewToggle" style="display:none; gap:6px;">
+          <button type="button" class="btn secondary" id="chartViewTrendBtn" style="font-size:10px; padding:4px 12px;">Trend</button>
+          <button type="button" class="btn secondary" id="chartViewScatterBtn" style="font-size:10px; padding:4px 12px;">Scatter</button>
+        </div>
+      </div>
       <canvas id="trendChart" height="220"></canvas>
     </div>
 
@@ -1505,7 +1548,7 @@
 (function(){
   "use strict";
 
-  const APP_VERSION = "3.7.0";
+  const APP_VERSION = "4.0.1";
   const STORAGE_KEY = "weatherglass.entries.v1";
 
   function showToast(message, kind){
@@ -1797,50 +1840,20 @@
   tickClock();
   setInterval(tickClock, 30000);
 
-  /* ---------- overview cards ---------- */
+  /* ---------- overview stats ---------- */
   // Pure — no DOM access — so Speaker Mode can build the same tiles inside
-  // its slide deck without duplicating this math. renderCards() below is
-  // just this data plus the home-screen HTML/grid wrapper around it.
+  // its slide deck without duplicating this math. On the home screen this
+  // renders as two quiet text lines (renderInsightsLine/
+  // renderLatestConditionsLine below), not tiles — Speaker Mode is the only
+  // place this still renders as a card grid, since a presentation slide is
+  // a different context than the everyday home screen.
   function computeOverviewCards(){
     const total = entries.length;
     const severe = entries.filter(e=>e.level==="Severe").length;
     const temps = entries.filter(e=>isFinite(e.tempF)).map(e=>e.tempF);
     const avgTemp = temps.length ? (temps.reduce((a,b)=>a+b,0)/temps.length).toFixed(1) : "—";
 
-    const loggedDays = new Set(entries.map(e=>
-      new Date(e.timestamp).toLocaleDateString("en-CA")
-    ));
     const today = new Date();
-    const todayKey = today.toLocaleDateString("en-CA");
-
-    // Current streak
-    let streak = 0;
-    if(loggedDays.has(todayKey)){
-      for(let i=0; i<365; i++){
-        const d = new Date(today); d.setDate(today.getDate()-i);
-        if(loggedDays.has(d.toLocaleDateString("en-CA"))) streak++;
-        else break;
-      }
-    } else {
-      for(let i=1; i<365; i++){
-        const d = new Date(today); d.setDate(today.getDate()-i);
-        if(loggedDays.has(d.toLocaleDateString("en-CA"))) streak++;
-        else break;
-      }
-    }
-
-    // Longest streak ever
-    const allDays = [...loggedDays].sort();
-    let longest = 0, cur = 0, prevDate = null;
-    allDays.forEach(day=>{
-      const d = new Date(day+"T12:00:00");
-      if(prevDate){
-        const diff = (d - prevDate) / 86400000;
-        cur = diff === 1 ? cur + 1 : 1;
-      } else { cur = 1; }
-      if(cur > longest) longest = cur;
-      prevDate = d;
-    });
 
     // This week vs last week
     const thisWeekStart = new Date(today); thisWeekStart.setDate(today.getDate()-6);
@@ -1860,7 +1873,6 @@
     }).length;
 
     return [
-      // — Activity group —
       {
         label:"Total Observations",
         value: total,
@@ -1877,12 +1889,6 @@
         note: lastWeek > 0 ? `${weekTrend} ${Math.abs(thisWeek-lastWeek)} vs last week` : "first week of logging"
       },
       {
-        label:"Logging Streak",
-        value: streak > 0 ? streak + (streak===1?" day":" days") : "—",
-        note: longest > streak ? `🏆 Best: ${longest} days` : longest > 0 ? `🏆 Best: ${longest} days` : "log daily to build a streak"
-      },
-      // — Conditions group —
-      {
         label:"Avg Temperature",
         value: avgTemp !== "—" ? avgTemp + "°F" : "—",
         note: "across all entries"
@@ -1895,26 +1901,55 @@
     ];
   }
 
-  function renderCards(){
+  // The home screen shows these as two quiet text lines, not tiles — see
+  // renderInsightsLine/renderLatestConditionsLine below. Speaker Mode still
+  // renders this same data as tiles in its own overlay, which is fine:
+  // that's a presentation context, not the everyday home screen the "feels
+  // like a game" feedback was actually about.
+  function renderInsightsLine(){
+    const el = document.getElementById("insightsLine");
+    if(!el) return;
     const cards = computeOverviewCards();
-    document.getElementById("overviewCards").innerHTML =
-      `<div style="grid-column:1/-1; font-family:'IBM Plex Mono',monospace; font-size:10px; text-transform:uppercase; letter-spacing:0.6px; color:var(--ink-soft); padding:2px 0 4px; border-bottom:1px solid var(--line);">Activity</div>` +
-      cards.slice(0,4).map(c=>`
-        <div class="card">
-          <div class="label">${escapeHtml(c.label)}</div>
-          <div class="value">${escapeHtml(String(c.value))}</div>
-          ${c.note ? `<div class="note">${escapeHtml(c.note)}</div>` : ""}
-        </div>
-      `).join("") +
-      `<div style="grid-column:1/-1; font-family:'IBM Plex Mono',monospace; font-size:10px; text-transform:uppercase; letter-spacing:0.6px; color:var(--ink-soft); padding:6px 0 4px; border-bottom:1px solid var(--line);">Conditions</div>` +
-      cards.slice(4).map(c=>`
-        <div class="card">
-          <div class="label">${escapeHtml(c.label)}</div>
-          <div class="value">${escapeHtml(String(c.value))}</div>
-          ${c.note ? `<div class="note">${escapeHtml(c.note)}</div>` : ""}
-        </div>
-      `).join("");
+    const byLabel = {};
+    cards.forEach(c=> byLabel[c.label] = c.value);
+    const severeCount = byLabel["Severe Events"];
+
+    el.innerHTML = `
+      <span style="text-transform:uppercase; letter-spacing:0.6px; font-size:9.5px; color:var(--ink-soft); margin-right:8px;">Insights</span>
+      ${escapeHtml(String(byLabel["Total Observations"]))} observations ·
+      ${escapeHtml(String(byLabel["This Week"]))} this week ·
+      ${escapeHtml(String(byLabel["This Month"]))} this month ·
+      avg ${escapeHtml(String(byLabel["Avg Temperature"]))} ·
+      <span id="severeEventsLink" style="text-decoration:underline; cursor:pointer; color:${severeCount>0 ? "var(--brass)" : "inherit"};">${escapeHtml(String(severeCount))} severe</span>
+    `;
+    const link = document.getElementById("severeEventsLink");
+    if(link){
+      link.addEventListener("click", ()=>{
+        document.getElementById("searchInput").value = "Severe";
+        switchToTab("log");
+        resetJournalPageAndRender();
+      });
+    }
   }
+
+  function renderLatestConditionsLine(){
+    const el = document.getElementById("latestConditionsLine");
+    if(!el) return;
+    if(!entries.length){
+      el.innerHTML = `<span style="text-transform:uppercase; letter-spacing:0.6px; font-size:9.5px; color:var(--ink-soft); margin-right:8px;">Latest Conditions</span>No entries yet.`;
+      return;
+    }
+    const latest = entries.slice().sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp))[0];
+    const dash = (v, unit)=> isFinite(v) ? v + unit : "—";
+    el.innerHTML = `
+      <span style="text-transform:uppercase; letter-spacing:0.6px; font-size:9.5px; color:var(--ink-soft); margin-right:8px;">Latest Conditions</span>
+      As of ${escapeHtml(formatTs(latest.timestamp))} —
+      ${dash(latest.tempF, "°F")} ·
+      ${dash(latest.pressureInHg, " inHg")} ·
+      ${dash(latest.humidity, "% humidity")}
+    `;
+  }
+
 
   /* ---------- personal records ---------- */
   function recordCard(label, entry, valueText){
@@ -2055,7 +2090,11 @@
     const hi = -42.379 + 2.04901523*T + 10.14333127*RH - 0.22475541*T*RH
       - 6.83783e-3*T*T - 5.481717e-2*RH*RH + 1.22874e-3*T*T*RH
       + 8.5282e-4*T*RH*RH - 1.99e-6*T*T*RH*RH;
-    return Math.round(hi);
+    // The Rothfusz regression can slightly under-predict right at the 80°F
+    // threshold, occasionally landing a fraction of a degree below the
+    // actual air temperature — physically impossible, since heat index
+    // can never make something feel cooler than it actually is. Clamped.
+    return Math.max(T, Math.round(hi));
   }
 
   // ---------- Insights: correlation, comfort threshold, alert severity ----------
@@ -2071,16 +2110,7 @@
   // thousands (e.g. scrubbing date ranges during Speaker Mode), not fixing
   // a present-day slowdown.
   function computeInsightsCore(pairedRaw, totalCount){
-    function localHeatIndex(T, RH){
-      if(!isFinite(T) || !isFinite(RH)) return null;
-      if(T < 80) return T;
-      const hi = -42.379 + 2.04901523*T + 10.14333127*RH - 0.22475541*T*RH
-        - 6.83783e-3*T*T - 5.481717e-2*RH*RH + 1.22874e-3*T*T*RH
-        + 8.5282e-4*T*RH*RH - 1.99e-6*T*T*RH*RH;
-      return Math.round(hi);
-    }
-
-    const result = { pearson:null, comfort:null, peakHeat:null, alerts:null };
+    const result = { pearson:null, comfort:null, alerts:null };
 
     // 1. Temp vs Humidity Pearson r
     const paired = pairedRaw.filter(e=>isFinite(e.tempF) && isFinite(e.humidity));
@@ -2111,18 +2141,7 @@
       result.comfort = { avgC, avgU, threshold };
     }
 
-    // 3. Peak heat index ever logged
-    const hiReadings = pairedRaw.filter(e=>isFinite(e.tempF) && isFinite(e.humidity));
-    if(hiReadings.length){
-      const peaks = hiReadings.map(e=>({ hi: localHeatIndex(e.tempF, e.humidity), e }))
-        .filter(x=>x.hi!=null).sort((a,b)=>b.hi-a.hi);
-      if(peaks.length){
-        const best = peaks[0];
-        result.peakHeat = { hi: best.hi, title: best.e.title, timestamp: best.e.timestamp };
-      }
-    }
-
-    // 4. Alert coverage
+    // 3. Alert coverage
     const withAlerts = pairedRaw.filter(e=>e.alertActive==="yes");
     if(withAlerts.length){
       const pct = Math.round(withAlerts.length/totalCount*100);
@@ -2218,14 +2237,6 @@
       </div>`);
     }
 
-    if(stats.peakHeat){
-      const { hi, title, timestamp } = stats.peakHeat;
-      cards.push(`<div class="card">
-        <div class="label">Peak Feels Like</div>
-        <div class="value" style="font-size:22px;">${hi}°F</div>
-        <div class="sub-value">${escapeHtml(title)} · ${escapeHtml(formatTs(timestamp))}</div>
-      </div>`);
-    }
 
     if(stats.alerts){
       const { pct, count, severeCount } = stats.alerts;
@@ -2315,9 +2326,9 @@
     const tiles = [
       {
         id:"tile-dmm", label:"Daily Min / Max", content:dmmHtml,
-        chart:"daily",
+        chart:null,
         detail: todayTemps.length
-          ? `<div style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--ink-soft); margin-top:8px; border-top:1px solid var(--line); padding-top:8px;">Based on ${todayTemps.length} reading${todayTemps.length>1?"s":""} today. Tap tile to see full daily history below ↑</div>`
+          ? `<div style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--ink-soft); margin-top:8px; border-top:1px solid var(--line); padding-top:8px;">Based on ${todayTemps.length} reading${todayTemps.length>1?"s":""} today. For the full daily history over time, use the "Daily" chart in Charts above.</div>`
           : ""
       },
       {
@@ -2329,9 +2340,9 @@
       },
       {
         id:"tile-wdr", label:"Prevailing Wind", content:wdrHtml,
-        chart:"windrose",
+        chart:null,
         detail: windEntries.length
-          ? `<div style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--ink-soft); margin-top:8px; border-top:1px solid var(--line); padding-top:8px;">From ${windEntries.length} wind readings. Tap tile to see wind rose chart below ↑</div>`
+          ? `<div style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--ink-soft); margin-top:8px; border-top:1px solid var(--line); padding-top:8px;">From ${windEntries.length} wind readings. For the full compass breakdown, use the wind rose chart in Charts above.</div>`
           : ""
       },
       {
@@ -3866,10 +3877,9 @@
     document.getElementById("saveEntryBtn").textContent = "Update Reading";
     document.getElementById("editBannerText").textContent = formatTs(entry.timestamp) + " · " + escapeHtml(entry.title);
     document.getElementById("editModeHeader").style.display = "block";
-    document.getElementById("quickLogBtn").parentElement.parentElement.style.display = "none";
 
-    switchToTab("entry");
-    // Set location name last — after switchToTab — so panel visibility
+    openEntryFormOverlay();
+    // Set location name last — after opening the overlay — so visibility
     // changes can't interfere with the field value
     document.getElementById("f-location-name").value = entry.location?.name || "";
     document.getElementById("f-title").focus();
@@ -3890,9 +3900,31 @@
     document.getElementById("saveEntryBtn").textContent = "Save Reading";
     document.getElementById("editModeHeader").style.display = "none";
     document.getElementById("entrySectionTitle").textContent = "Record a Reading";
-    document.getElementById("quickLogBtn").parentElement.parentElement.style.display = "flex";
   }
-  document.getElementById("cancelEditBtn").addEventListener("click", resetFormToCreateMode);
+
+  // The overlay is a deliberately distinct mode, not an inline expansion —
+  // see the comment on its markup for why. Opening/closing it is the only
+  // thing that changed; everything that populates or reads the form inside
+  // it (loadEntryIntoForm, the save handler, resetFormToCreateMode) is
+  // unchanged.
+  function openEntryFormOverlay(){
+    document.getElementById("entryFormOverlay").style.display = "block";
+  }
+  function closeEntryFormOverlay(){
+    document.getElementById("entryFormOverlay").style.display = "none";
+  }
+  document.getElementById("openManualEntryBtn").addEventListener("click", ()=>{
+    resetFormToCreateMode();
+    openEntryFormOverlay();
+  });
+  document.getElementById("closeEntryFormOverlayBtn").addEventListener("click", ()=>{
+    resetFormToCreateMode();
+    closeEntryFormOverlay();
+  });
+  document.getElementById("cancelEditBtn").addEventListener("click", ()=>{
+    resetFormToCreateMode();
+    closeEntryFormOverlay();
+  });
 
   /* ---------- form ---------- */
   document.getElementById("entryForm").addEventListener("submit", function(e){
@@ -3918,6 +3950,20 @@
       ? entries.find(x=>x.id===editingId).timestamp
       : (exifCapturedDate ? exifCapturedDate.toISOString() : new Date().toISOString());
     const moon = getMoonPhase(new Date(timestamp));
+
+    // Notebook membership: the form has no fields for eventId/eventName/
+    // eventAnchor, so without this, saving an edit would silently wipe
+    // them (the rebuilt object below only sets what the form knows about).
+    // Editing preserves whatever the entry already had; a brand-new entry
+    // auto-joins the active notebook, same as Quick Log/Quick Photo Log.
+    let eventFields;
+    if(editingId){
+      const original = entries.find(x=>x.id===editingId);
+      eventFields = { eventId: original.eventId || null, eventAnchor: original.eventAnchor || null, eventName: original.eventName || null };
+    } else {
+      const activeNotebook = getActiveNotebook();
+      eventFields = { eventId: activeNotebook ? activeNotebook.id : null, eventName: activeNotebook ? activeNotebook.name : null, eventAnchor: null };
+    }
 
     const entry = {
       id: editingId || cryptoId(),
@@ -3958,7 +4004,8 @@
       siteType: document.getElementById("f-site-type").value || null,
       obsContext: document.getElementById("f-obs-context").value.trim() || null,
       notes: document.getElementById("f-notes").value.trim(),
-      photo: pendingPhoto || null
+      photo: pendingPhoto || null,
+      ...eventFields
     };
 
     const wasEditing = !!editingId;
@@ -3970,8 +4017,8 @@
       entries = nextEntries;
       renderAll();
       resetFormToCreateMode();
-      showToast(wasEditing ? "Entry updated & form cleared." : "Entry saved & form cleared.", "success");
-      document.getElementById("f-title").focus();
+      closeEntryFormOverlay();
+      showToast(wasEditing ? "Entry updated." : "Entry saved.", "success");
       refreshStorageIndicator();
     }).catch(err=>{
       console.warn("Save failed:", err.message || err);
@@ -4010,7 +4057,7 @@
     return entries.filter(e=>{
       if(cat && e.category !== cat) return false;
       if(!q) return true;
-      const hay = [e.title, e.location?.name, e.notes, e.sky, e.equipment, e.impression].join(" ").toLowerCase();
+      const hay = [e.title, e.location?.name, e.notes, e.sky, e.equipment, e.impression, e.level].join(" ").toLowerCase();
       return hay.includes(q);
     });
   }
@@ -4554,7 +4601,7 @@
     const active = getActiveNotebook();
     if(!active){
       banner.style.display = "none";
-      if(prompt) prompt.style.display = "flex";
+      if(prompt) prompt.style.display = "block";
       return;
     }
     if(prompt) prompt.style.display = "none";
@@ -4775,7 +4822,8 @@
     "tideState", "tideHeightFt", "tideNext",
     "moonPhase", "moonIllumination",
     "siteType", "obsContext",
-    "equipment", "impression", "timeOfDayTag", "notes", "hasPhoto"
+    "equipment", "impression", "timeOfDayTag", "notes", "hasPhoto",
+    "eventId", "eventName", "eventAnchor"
   ];
   function csvEscape(value){
     const str = (value === null || value === undefined) ? "" : String(value);
@@ -4825,7 +4873,10 @@
       impression: e.impression || "",
       timeOfDayTag: e.timeOfDayTag || "",
       notes: (e.notes || "").replace(/\r?\n/g, " "),
-      hasPhoto: e.photo ? "yes" : "no"
+      hasPhoto: e.photo ? "yes" : "no",
+      eventId: e.eventId || "",
+      eventName: e.eventName || "",
+      eventAnchor: e.eventAnchor ? "yes" : ""
     };
     return CSV_FIELDS.map(f => csvEscape(row[f])).join(",");
   }
@@ -5411,29 +5462,104 @@
   document.getElementById("chartTransectBtn").addEventListener("click", ()=>renderChart("transect"));
   document.getElementById("chartUvBtn").addEventListener("click", ()=>renderChart("uv"));
   document.getElementById("chartPm25Btn").addEventListener("click", ()=>renderChart("pm25"));
+  document.getElementById("chartTphBtn").addEventListener("click", ()=>renderChart("tph"));
 
   // Time range filter — how many days back to show in the main chart
   let chartRangeDays = 7;
   function setChartRange(days){
     chartRangeDays = days;
-    ["chartRange1","chartRange7","chartRange30","chartRangeAll"].forEach(id=>{
+    ["chartRange1","chartRange2","chartRange3","chartRange7","chartRange30","chartRangeAll"].forEach(id=>{
       document.getElementById(id).classList.remove("active");
     });
-    const active = days===1?"chartRange1":days===7?"chartRange7":days===30?"chartRange30":"chartRangeAll";
+    const active = days===1?"chartRange1":days===2?"chartRange2":days===3?"chartRange3":days===7?"chartRange7":days===30?"chartRange30":"chartRangeAll";
     document.getElementById(active).classList.add("active");
     renderChart(currentChartMode);
   }
   document.getElementById("chartRange1").addEventListener("click", ()=>setChartRange(1));
+  document.getElementById("chartRange2").addEventListener("click", ()=>setChartRange(2));
+  document.getElementById("chartRange3").addEventListener("click", ()=>setChartRange(3));
   document.getElementById("chartRange7").addEventListener("click", ()=>setChartRange(7));
   document.getElementById("chartRange30").addEventListener("click", ()=>setChartRange(30));
   document.getElementById("chartRangeAll").addEventListener("click", ()=>setChartRange(null));
   // Set 7d as default active
   document.getElementById("chartRange7").classList.add("active");
 
+  // Trend (existing line-over-labels) vs Scatter (real time-axis points) —
+  // only meaningful for single-value-over-time modes, not the multi-series
+  // or categorical charts (daily min/avg/max, alert severity, wind rose,
+  // etc.), so the toggle only shows for the modes listed here.
+  let chartViewType = "trend";
+  const SINGLE_METRIC_MODES = {
+    temp:     { field:"tempF",       label:"Temperature (°F)", color:"#3E6079", yTitle:"°F" },
+    pressure: { field:"pressureInHg",label:"Pressure (inHg)",  color:"#8A6A3D", yTitle:"inHg" },
+    humidity: { field:"humidity",    label:"Humidity (%)",     color:"#46606E", yTitle:"%" }
+  };
+  function hexToRgba(hex, alpha){
+    const n = parseInt(hex.slice(1), 16);
+    return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${alpha})`;
+  }
+  function renderSingleMetricChart(ctx, cfg, titleEl, chartLabel){
+    const withData = trendsEntriesForRange().filter(e=>isFinite(e[cfg.field]))
+      .slice().sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
+    if(!withData.length){
+      if(titleEl) titleEl.textContent = chartLabel + " — no data yet";
+      return;
+    }
+    if(chartViewType === "scatter"){
+      chartInstance = new Chart(ctx, {
+        type:"scatter",
+        data:{ datasets:[{
+          label:cfg.label,
+          data: withData.map(e=>({ x:new Date(e.timestamp), y:e[cfg.field] })),
+          backgroundColor:hexToRgba(cfg.color,0.65),
+          borderColor:cfg.color,
+          pointRadius:4,
+          pointHoverRadius:6
+        }]},
+        options:{ responsive:true, plugins:{ legend:{ display:false } },
+          scales:{
+            x:{ type:"time", time:{ tooltipFormat:"MMM d, yyyy h:mm a" }, ticks:{ font:{ size:9 }, maxRotation:45, minRotation:30 }, grid:{ display:false } },
+            y:{ title:{ display:true, text:cfg.yTitle, font:{ size:10 } } }
+          }
+        }
+      });
+    } else {
+      chartInstance = new Chart(ctx, {
+        type:"line",
+        data:{
+          labels: withData.map(e=>formatChartLabel(e.timestamp)),
+          datasets:[{
+            label:cfg.label,
+            data: withData.map(e=>e[cfg.field]),
+            borderColor:cfg.color,
+            backgroundColor:hexToRgba(cfg.color,0.15),
+            tension:0.25,
+            fill:true,
+            pointRadius:3
+          }]
+        },
+        options:{ responsive:true, plugins:{ legend:{ display:false } },
+          scales:{ y:{ title:{ display:true, text:cfg.yTitle, font:{ size:10 } } } } }
+      });
+    }
+  }
+  function setChartViewType(type){
+    chartViewType = type;
+    document.getElementById("chartViewTrendBtn").classList.toggle("active", type==="trend");
+    document.getElementById("chartViewScatterBtn").classList.toggle("active", type==="scatter");
+    renderChart(currentChartMode);
+  }
+  document.getElementById("chartViewTrendBtn").addEventListener("click", ()=>setChartViewType("trend"));
+  document.getElementById("chartViewScatterBtn").addEventListener("click", ()=>setChartViewType("scatter"));
+  document.getElementById("chartViewTrendBtn").classList.add("active");
+
   function renderChart(mode){
     currentChartMode = mode;
     const ctx = document.getElementById("trendChart");
     const titleEl = document.getElementById("chartTitle");
+
+    const toggle = document.getElementById("chartViewToggle");
+    if(toggle) toggle.style.display = SINGLE_METRIC_MODES[mode] ? "flex" : "none";
 
     // Shared x-axis config: fewer labels and 45° rotation so they don't
     // collide at larger dataset sizes
@@ -5452,7 +5578,8 @@
       daily:"Daily Min / Avg / Max Temperature", alert:"Alert Severity Over Time",
       windrose:"Wind Direction Rose", heatrate:"Heating Rate — Morning to Afternoon", yoy:"Year-over-Year Temperature", transect:"Atmospheric Transect — Temperature & Humidity by Distance",
       tod:"Entries by Time of Day", cat:"Entries by Category",
-      uv:"UV Index Over Time", pm25:"PM2.5 Over Time"
+      uv:"UV Index Over Time", pm25:"PM2.5 Over Time",
+      tph:"Temperature, Pressure & Humidity"
     };
     if(titleEl) titleEl.textContent = titles[mode] || "";
     if(chartInstance) chartInstance.destroy();
@@ -5538,59 +5665,11 @@
             y:{min:0,max:4,ticks:{stepSize:1,callback:(v)=>["None","Minor","Moderate","Severe","Extreme"][v]||""}}}}
       });
     } else if(mode === "temp"){
-      const withTemp = trendsEntriesForRange().filter(e=>isFinite(e.tempF)).slice().sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
-      chartInstance = new Chart(ctx, {
-        type:"line",
-        data:{
-          labels: withTemp.map(e=>formatChartLabel(e.timestamp)),
-          datasets:[{
-            label:"Temperature (°F)",
-            data: withTemp.map(e=>e.tempF),
-            borderColor:"#3E6079",
-            backgroundColor:"rgba(62,96,121,0.15)",
-            tension:0.25,
-            fill:true,
-            pointRadius:3
-          }]
-        },
-        options:{ responsive:true, plugins:{ legend:{ display:false } } }
-      });
+      renderSingleMetricChart(ctx, SINGLE_METRIC_MODES.temp, titleEl, "Temperature Over Time");
     } else if(mode === "pressure"){
-      const withPressure = trendsEntriesForRange().filter(e=>isFinite(e.pressureInHg)).slice().sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
-      chartInstance = new Chart(ctx, {
-        type:"line",
-        data:{
-          labels: withPressure.map(e=>formatChartLabel(e.timestamp)),
-          datasets:[{
-            label:"Pressure (inHg)",
-            data: withPressure.map(e=>e.pressureInHg),
-            borderColor:"#8A6A3D",
-            backgroundColor:"rgba(138,106,61,0.15)",
-            tension:0.25,
-            fill:true,
-            pointRadius:3
-          }]
-        },
-        options:{ responsive:true, plugins:{ legend:{ display:false } } }
-      });
+      renderSingleMetricChart(ctx, SINGLE_METRIC_MODES.pressure, titleEl, "Pressure Over Time");
     } else if(mode === "humidity"){
-      const withHumidity = trendsEntriesForRange().filter(e=>isFinite(e.humidity)).slice().sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
-      chartInstance = new Chart(ctx, {
-        type:"line",
-        data:{
-          labels: withHumidity.map(e=>formatChartLabel(e.timestamp)),
-          datasets:[{
-            label:"Humidity (%)",
-            data: withHumidity.map(e=>e.humidity),
-            borderColor:"#46606E",
-            backgroundColor:"rgba(70,96,110,0.15)",
-            tension:0.25,
-            fill:true,
-            pointRadius:3
-          }]
-        },
-        options:{ responsive:true, plugins:{ legend:{ display:false } } }
-      });
+      renderSingleMetricChart(ctx, SINGLE_METRIC_MODES.humidity, titleEl, "Humidity Over Time");
     } else if(mode === "uv"){
       const withUv = trendsEntriesForRange().filter(e=>isFinite(e.uvIndex)).slice().sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
       if(!withUv.length){
@@ -5637,6 +5716,53 @@
         options:{ responsive:true, plugins:{ legend:{ display:false } },
           scales:{ y:{ title:{ display:true, text:"µg/m³", font:{ size:10 } } } } }
       });
+    } else if(mode === "tph"){
+      // Pressure (x) vs Humidity (y), each point colored by Temperature —
+      // same three-variable relationship explored in chat analysis earlier,
+      // now tied into the app's real filters/date-range instead of a
+      // one-off export. Color is a simple two-stop blue-to-red gradient
+      // scaled to this dataset's own min/max temp (matplotlib's "coolwarm"
+      // does the same kind of per-dataset scaling).
+      const withAll = trendsEntriesForRange()
+        .filter(e=>isFinite(e.tempF) && isFinite(e.pressureInHg) && isFinite(e.humidity));
+      if(withAll.length < 3){
+        if(titleEl) titleEl.textContent = "Temperature, Pressure & Humidity — need at least 3 entries with all three logged";
+        return;
+      }
+      const temps = withAll.map(e=>e.tempF);
+      const tMin = Math.min(...temps), tMax = Math.max(...temps);
+      const colorForTemp = (t)=>{
+        const frac = tMax > tMin ? (t - tMin) / (tMax - tMin) : 0.5; // 0 = coolest, 1 = hottest
+        // blue (cool) -> pale grey (mid) -> red (hot), matching the earlier analysis chart
+        const cool = [62,96,121], hot = [166,49,32];
+        const mix = (a,b,f)=> Math.round(a + (b-a)*f);
+        const rgb = [mix(cool[0],hot[0],frac), mix(cool[1],hot[1],frac), mix(cool[2],hot[2],frac)];
+        return `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.75)`;
+      };
+      chartInstance = new Chart(ctx, {
+        type:"scatter",
+        data:{ datasets:[{
+          label:"Pressure vs Humidity (color = Temp)",
+          data: withAll.map(e=>({ x:e.pressureInHg, y:e.humidity, _t:e.tempF })),
+          backgroundColor: withAll.map(e=>colorForTemp(e.tempF)),
+          borderColor:"#2C3A47",
+          borderWidth:0.5,
+          pointRadius:5,
+          pointHoverRadius:7
+        }]},
+        options:{
+          responsive:true,
+          plugins:{
+            legend:{ display:false },
+            tooltip:{ callbacks:{ label:(c)=> `${c.raw.x.toFixed(2)} inHg, ${c.raw.y}% RH, ${c.raw._t.toFixed(1)}°F` } }
+          },
+          scales:{
+            x:{ title:{ display:true, text:"Pressure (inHg)", font:{ size:10 } } },
+            y:{ title:{ display:true, text:"Humidity (%)", font:{ size:10 } } }
+          }
+        }
+      });
+      if(titleEl) titleEl.textContent = `Temperature, Pressure & Humidity — blue ${tMin.toFixed(0)}°F to red ${tMax.toFixed(0)}°F`;
     } else if(mode === "windrose"){
       // Bucket wind readings into 16 compass directions, weighted by speed
       const DIRS = ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
@@ -6233,7 +6359,8 @@
 
   /* ---------- render all ---------- */
   function renderAll(){
-    renderCards();
+    renderInsightsLine();
+    renderLatestConditionsLine();
     populateTrendsLocationFilter();
     populateTrendsRegionFilter();
     renderRecords();

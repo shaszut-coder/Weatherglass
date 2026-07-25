@@ -2,6 +2,65 @@
 
 All notable changes to Weatherglass are documented here, newest first.
 
+## v4.0.1
+
+**Removed the "Peak Feels Like" tile from Trends → Insights** — duplicated Personal Records' "Hottest logged." Insights now shows two cards (Temp/Humidity Correlation, Comfort Threshold), both confirmed genuinely unique — nothing else in the app computes either. A second overlap was found and flagged during the audit (Alert Coverage vs. Snapshots' Alert Summary) but kept as-is, deliberately.
+
+**Fixed: the Daily Min/Max and Prevailing Wind snapshot tiles no longer hijack the shared chart.** Both used to force-switch whatever chart you were looking at the moment you tapped them — most noticeable with wind, since tapping the snapshot tile while comparing something else would silently replace it with the wind rose, no way back except manually reselecting. Both tiles now expand their own inline detail instead, matching how Alert Summary/Peak Log Time/Top Category already behaved. The full Daily and Wind Rose charts are still one tap away in Charts — this only stops the summary tiles from doing it *for* you unexpectedly.
+
+**Cleaned up under the hood:** the peak-heat-index calculation (and its Worker-local helper, now unused) were removed entirely from `computeInsightsCore` rather than just hidden — confirmed nothing else in the app referenced it before removing.
+
+## v4.0.0
+
+**The home screen's tile grid is gone**, replaced by two quiet text lines above the tabs:
+
+- **Insights** — *"303 observations · 66 this week · 265 this month · avg 82.4°F · 5 severe"*. Tapping the severe count jumps to Journal with "severe" pre-filled in search — a small addition to the search system itself (it now also scans `level`, so searching "severe" works anywhere, not just from this link).
+- **Latest Conditions** — the single most recent entry, whatever it has: *"As of Jul 25, 5:12 PM — 82°F · 30.05 inHg · 58% humidity"*, temperature/pressure/humidity in that order. Shows the absolute latest capture even if some fields are missing (shown as "—"), never a different, more "complete" entry.
+
+**Logging Streak is removed entirely** — not moved, not merged, gone. It's the one piece of this app that ever pushed toward "don't break the chain" thinking, which runs directly against PHILOSOPHY.md's own stated position that finishing an entry should feel like closing a notebook, not winning something. This wasn't a new decision — it's a tile that predated that principle finally catching up to it.
+
+**Under the hood:** `computeOverviewCards()` (the shared function Speaker Mode's "Overall, so far" slide also uses) had the streak calculation removed entirely — so Speaker Mode's presentation tiles lose it too, automatically, no separate change needed there. Speaker Mode still renders the remaining stats as tiles, since a presentation slide is a different context than the everyday home screen the "feels like a game" feedback was actually about.
+
+## v3.9.1
+
+**New chart tile: TPH — Temperature, Pressure & Humidity compared.** The three-variable scatter from earlier chat analysis (pressure vs. humidity, colored by temperature) is now a real tile in Trends → Charts, tied into the app's actual filters and date range instead of a one-off export. Blue points are your coolest readings, red points are your hottest, scaled automatically to whatever range is in the currently selected time window — tap any point for the exact pressure/humidity/temperature values. Needs at least 3 entries with all three fields logged to render.
+
+## v3.9.0
+
+**Trend / Scatter toggle for TOT, POT, and HOT** — Temperature, Pressure, and Humidity Over Time now have a small toggle above the chart switching between the existing line-trend view and a new scatter plot. Scatter uses a real time-based x-axis (added the `chartjs-adapter-date-fns` library for this — same trusted-CDN pattern as every other library in the app), so points are spaced by actual elapsed time rather than evenly by index — a genuine tool for spotting clustering or gaps, not just a different line style. The toggle only appears for these three single-metric charts; it's hidden for multi-series or categorical charts (Daily Min/Avg/Max, Alert Severity, Wind Rose, etc.) where a scatter view wouldn't mean anything.
+
+Built as one shared function (`renderSingleMetricChart`) instead of three near-identical copies — the old temp/pressure/humidity branches were byte-for-byte the same shape, just different field/color/label, so extending three separately would have meant tripling the same toggle logic. UV and PM2.5 charts weren't touched — same underlying shape, could get the same toggle later if wanted.
+
+## v3.8.2
+
+Added **2d** and **3d** chart range buttons in Trends → Charts, alongside the existing 1d/7d/30d/All. Slotted in numeric order between 1d and 7d. No changes needed to the underlying range-filtering or chart-label logic — both were already written generically for any day count, not hardcoded to the four original options.
+
+## v3.8.1
+
+**Record tab reorganized into three clear blocks**, separated by subtle dividers, before any further building on top of it:
+
+1. **Quick capture** — the two buttons, shared help text, cooldown indicator (unchanged)
+2. **Notebook** — the active banner, or a "Start a Notebook" button with new explanatory text ("groups your next several captures into one storm or sequence")
+3. **Manual Entry** — now a distinct amber/brass-outlined button (was plain gray, easy to confuse with Start Notebook above it), with its own explanatory line
+
+**Fixed along the way:** the notebook prompt's show/hide logic was setting `display:flex`, which was correct for the old single-button layout but wrong for the new button-plus-help-text stacked layout — would have rendered the button and its explanation side-by-side instead of stacked. Caught before shipping.
+
+## v3.8.0
+
+**Record tab revamped — the full entry form is no longer permanently visible.** Reflects an actual workflow pattern: quick capture now, detail added later (sometimes days later) via Edit. The Record tab now shows just the two capture buttons, the notebook banner, and a new **"+ Manual Entry"** button. Tapping it — or tapping Edit on any existing entry — opens the full form in a **dedicated overlay**, a deliberately distinct mode rather than an inline expansion. This directly addresses the same ambiguity that caused confusion with notebooks earlier (a rejected tap and a successful one looking nearly identical) — you're now unambiguously either in quick-capture mode or in the deliberate entry screen, never something in between.
+
+**Two real bugs found and fixed while rebuilding this:**
+- **Editing any entry via the manual form silently removed it from its notebook.** The save logic rebuilt a flat new object from the form fields — and since the form has no fields for `eventId`/`eventName`/`eventAnchor`, saving an edit just dropped them. Fixed: editing now preserves whatever notebook membership an entry already had.
+- **The manual form never auto-joined an active notebook** — the gap identified a while back (only Quick Log and Quick Photo Log had this). Fixed as part of the same edit: a brand-new manual entry now joins the active notebook automatically, exactly like the other two capture paths.
+
+Editing an existing entry works exactly as before — same form, same fields, same "Edit"/"Cancel — discard changes" flow — just opening in the overlay instead of inline on the Record tab.
+
+## v3.7.1
+
+**Fixed: heat index could compute below actual air temperature** — physically impossible, since heat index can never make something feel cooler than it really is. Found via a real CSV export analysis (6 instances, all just above 80°F where the heat index formula switches on). This is a known quirk of the standard NWS Rothfusz regression the app uses — it can slightly under-predict right at that threshold. Fixed by clamping the result to never go below actual air temperature. Fixed in both places the formula exists — the main `calcHeatIndex()` and the Insights Web Worker's self-contained copy — so they can't drift apart. The CSV export's heat index column recomputes live rather than storing a value, so it's automatically corrected too, no separate fix needed there.
+
+**CSV export now includes Notebooks data** — `eventId`, `eventName`, and `eventAnchor` columns added, matching what's already been in the JSON export since v3.5.0. Speaker Kit's CSV picks this up automatically too, since it reuses the same export code.
+
 ## v3.7.0
 
 **Standalone "Start a Notebook" on the Record tab** — no longer requires capturing an entry first. Tap it, name your notebook, and it's active immediately with zero entries; the very next Quick Log or Quick Photo Log becomes its first member. Starting a notebook from an existing entry's detail view still works exactly as before — this is an additional starting point, not a replacement. Buildable cleanly because of v3.6.0's reliability fix: notebook names live on every member entry now, not one required anchor, so there was never a real reason a notebook needed an entry to exist before it could start.
