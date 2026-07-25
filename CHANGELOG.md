@@ -2,6 +2,24 @@
 
 All notable changes to Weatherglass are documented here, newest first.
 
+## v4.1.0
+
+**Map tab date navigation replaced — a real month calendar instead of a flat scrolling strip of every date.** With 300+ entries, scrolling through dozens of individual date chips to find one day stopped being practical. Now: a proper month grid, days with entries marked with a small dot, tap a day to filter the map to it (tap again to clear), prev/next arrows to move between months, and an **All** button to see everything at once. Navigation is bounded to the actual range of your data — you can't page into a month with nothing in it.
+
+**Caught and fixed a real date-math bug while building this**, verified with a direct test before shipping: the month-boundary comparison (used to disable prev/next at the edges of your data range) compared a noon timestamp against a midnight one, so equal months didn't register as equal — the "next month" arrow would have stayed clickable one month past where your data actually ends. Fixed by normalizing both to the same time-of-day before comparing.
+
+## v4.0.3
+
+**Swapped YOY and WDR positions in Charts.** WDR now sits where YOY used to (start of row two); YOY moves to the very last position. With 11 buttons wrapping 5-per-row, YOY landing 11th means it naturally falls alone onto its own third row — giving it the standalone visual grouping that makes sense for a genuinely different kind of comparison chart, without needing any special-case layout code.
+
+**Also fixed: WDR and HIOT were using the identical icon (✦)** — a collision from when WDR was added last version. WDR now uses a distinct symbol (✷).
+
+## v4.0.2
+
+**Fixed: Scatter view rendered completely blank.** Root cause found via direct verification: the date adapter added for scatter's time-based axis used `chartjs-adapter-date-fns.bundle.min.js` from cdnjs — but cdnjs doesn't host that "bundle" filename, only jsDelivr does. The script likely 404'd silently, leaving the scatter chart's time scale with no adapter to work with, so Chart.js failed to render anything rather than throwing a visible error. Switched to jsDelivr's actual bundle URL, which is the officially documented way to load this library.
+
+**Fixed: Wind Rose became completely unreachable — a real regression from v4.0.1.** Making the Prevailing Wind snapshot tile stop hijacking the shared chart (previous release) accidentally removed the *only* path to the wind rose chart, since it never had its own button in Charts. Added a proper **WDR** button alongside TOT/POT/HOT/etc. — same permanent, discoverable home every other chart type already has.
+
 ## v4.0.1
 
 **Removed the "Peak Feels Like" tile from Trends → Insights** — duplicated Personal Records' "Hottest logged." Insights now shows two cards (Temp/Humidity Correlation, Comfort Threshold), both confirmed genuinely unique — nothing else in the app computes either. A second overlap was found and flagged during the audit (Alert Coverage vs. Snapshots' Alert Summary) but kept as-is, deliberately.

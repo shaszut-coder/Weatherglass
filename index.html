@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Weatherglass — personal weather station & log
-  Version: 4.0.1
+  Version: 4.1.0
 
   Single-file app: no build step, no backend. Data lives in the
   visitor's own browser via localStorage.
@@ -22,7 +22,7 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-adapter-date-fns/3.0.0/chartjs-adapter-date-fns.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exif-js/2.3.0/exif.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
@@ -1336,8 +1336,8 @@
       <button class="btn secondary" id="chartHeatRateBtn" title="Heating rate per day" style="display:flex; flex-direction:column; align-items:center; gap:2px; padding:8px 12px; font-size:10px; min-width:52px;">
         <span style="font-size:18px; font-family:'Playfair Display',serif; color:var(--brass); line-height:1;">▲</span>HRC
       </button>
-      <button class="btn secondary" id="chartYoyBtn" title="Year-over-year temperature comparison" style="display:flex; flex-direction:column; align-items:center; gap:2px; padding:8px 12px; font-size:10px; min-width:52px;">
-        <span style="font-size:18px; font-family:'Playfair Display',serif; color:var(--brass); line-height:1;">⟳</span>YOY
+      <button class="btn secondary" id="chartWdrBtn" title="Wind direction rose" style="display:flex; flex-direction:column; align-items:center; gap:2px; padding:8px 12px; font-size:10px; min-width:52px;">
+        <span style="font-size:18px; font-family:'Playfair Display',serif; color:var(--brass); line-height:1;">✷</span>WDR
       </button>
       <button class="btn secondary" id="chartTransectBtn" title="Atmospheric transect — readings plotted by distance traveled" style="display:flex; flex-direction:column; align-items:center; gap:2px; padding:8px 12px; font-size:10px; min-width:52px;">
         <span style="font-size:18px; font-family:'Playfair Display',serif; color:var(--brass); line-height:1;">↔</span>ATX
@@ -1350,6 +1350,9 @@
       </button>
       <button class="btn secondary" id="chartTphBtn" title="Temperature, Pressure &amp; Humidity compared" style="display:flex; flex-direction:column; align-items:center; gap:2px; padding:8px 12px; font-size:10px; min-width:52px;">
         <span style="font-size:18px; font-family:'Playfair Display',serif; color:var(--brass); line-height:1;">⬡</span>TPH
+      </button>
+      <button class="btn secondary" id="chartYoyBtn" title="Year-over-year temperature comparison" style="display:flex; flex-direction:column; align-items:center; gap:2px; padding:8px 12px; font-size:10px; min-width:52px;">
+        <span style="font-size:18px; font-family:'Playfair Display',serif; color:var(--brass); line-height:1;">⟳</span>YOY
       </button>
     </div>
     <div style="display:flex; justify-content:center; gap:6px; margin-bottom:14px;">
@@ -1392,7 +1395,7 @@
       <button class="btn secondary active" id="mapModeStation" style="font-size:11px; padding:5px 14px;">📍 Station</button>
       <button class="btn secondary" id="mapModeRoute" style="font-size:11px; padding:5px 14px;">🛣 Route</button>
     </div>
-    <div id="mapDateStrip" style="display:flex; gap:6px; overflow-x:auto; padding-bottom:8px; margin-bottom:10px; -webkit-overflow-scrolling:touch; scrollbar-width:none;"></div>
+    <div id="mapDateCalendar" style="margin-bottom:14px;"></div>
     <div id="mapStatsBar" style="display:flex; gap:12px; margin-bottom:14px; flex-wrap:wrap;"></div>
     <div id="map"></div>
     <p class="sub" style="margin-top:10px; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft);">
@@ -1548,7 +1551,7 @@
 (function(){
   "use strict";
 
-  const APP_VERSION = "4.0.1";
+  const APP_VERSION = "4.1.0";
   const STORAGE_KEY = "weatherglass.entries.v1";
 
   function showToast(message, kind){
@@ -1818,7 +1821,7 @@
       document.querySelectorAll(".panel").forEach(p=>p.classList.remove("active"));
       btn.classList.add("active");
       document.getElementById("panel-"+btn.dataset.tab).classList.add("active");
-      if(btn.dataset.tab === "map"){ setTimeout(()=>{ if(map) map.invalidateSize(); renderMapDateStrip(); renderMap(); }, 50); }
+      if(btn.dataset.tab === "map"){ setTimeout(()=>{ if(map) map.invalidateSize(); renderMapDateCalendar(); renderMap(); }, 50); }
       if(btn.dataset.tab === "trends"){ populateTrendsLocationFilter(); populateTrendsRegionFilter(); renderRecords(); renderInsights(); renderPatternTiles(); renderPressureWatch(); renderChart(currentChartMode); }
       if(btn.dataset.tab === "log"){
         renderOnThisDay();
@@ -5136,7 +5139,7 @@
 
     // Final full render with updated names
     renderAll();
-    renderMapDateStrip();
+    renderMapDateCalendar();
     refreshStorageIndicator();
     btn.disabled = false;
     statusEl.style.display = "none";
@@ -5463,6 +5466,7 @@
   document.getElementById("chartUvBtn").addEventListener("click", ()=>renderChart("uv"));
   document.getElementById("chartPm25Btn").addEventListener("click", ()=>renderChart("pm25"));
   document.getElementById("chartTphBtn").addEventListener("click", ()=>renderChart("tph"));
+  document.getElementById("chartWdrBtn").addEventListener("click", ()=>renderChart("windrose"));
 
   // Time range filter — how many days back to show in the main chart
   let chartRangeDays = 7;
@@ -6060,34 +6064,98 @@
   let mapAvailable = false;
   let mapMode = "station"; // "station" or "route"
   let mapSelectedDate = null; // null = All, or "YYYY-MM-DD" string
+  let mapCalendarMonth = null; // Date (first-of-month) currently displayed; null = not yet initialized
 
-  function renderMapDateStrip(){
-    const strip = document.getElementById("mapDateStrip");
-    if(!strip) return;
+  function renderMapDateCalendar(){
+    const el = document.getElementById("mapDateCalendar");
+    if(!el) return;
     const allPts = entries.filter(e=>e.location && isFinite(e.location.lat) && isFinite(e.location.lng));
-    // Get unique dates that have GPS entries, sorted chronologically
-    const dates = [...new Set(
-      allPts.map(e=>new Date(e.timestamp).toLocaleDateString("en-CA")) // YYYY-MM-DD
-    )].sort();
-
-    if(dates.length <= 1){
-      strip.innerHTML = "";
+    if(allPts.length <= 1){
+      el.innerHTML = "";
       return; // not useful with only one date
     }
 
-    strip.innerHTML = `<button class="map-date-chip all${!mapSelectedDate?" active":""}" data-date="">All</button>` +
-      dates.map(d=>{
-        const display = new Date(d+"T12:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"});
-        const count = allPts.filter(e=>new Date(e.timestamp).toLocaleDateString("en-CA")===d).length;
-        const active = mapSelectedDate===d?" active":"";
-        return `<button class="map-date-chip${active}" data-date="${d}" title="${count} entries">${display}</button>`;
-      }).join("");
+    const countByDate = {};
+    allPts.forEach(e=>{
+      const d = new Date(e.timestamp).toLocaleDateString("en-CA"); // YYYY-MM-DD
+      countByDate[d] = (countByDate[d]||0) + 1;
+    });
+    const allDateKeys = Object.keys(countByDate).sort();
+    const minParsed = new Date(allDateKeys[0]+"T12:00:00");
+    const maxParsed = new Date(allDateKeys[allDateKeys.length-1]+"T12:00:00");
+    // Constructed via (year, month, 1) rather than setDate(1) on the parsed
+    // dates — setDate() would keep the original noon time-of-day, while
+    // mapCalendarMonth below is built at local midnight. Comparing a noon
+    // timestamp against a midnight one for "same month" made atMax/atMin
+    // wrong by half a day even when the month was actually identical.
+    const minMonth = new Date(minParsed.getFullYear(), minParsed.getMonth(), 1);
+    const maxMonth = new Date(maxParsed.getFullYear(), maxParsed.getMonth(), 1);
 
-    strip.querySelectorAll(".map-date-chip").forEach(chip=>{
-      chip.addEventListener("click", ()=>{
-        mapSelectedDate = chip.dataset.date || null;
-        strip.querySelectorAll(".map-date-chip").forEach(c=>c.classList.remove("active"));
-        chip.classList.add("active");
+    // Default to the month of the most recent entry, or the selected
+    // date's month if one's already active (e.g. after a re-render)
+    if(!mapCalendarMonth){
+      const base = mapSelectedDate ? new Date(mapSelectedDate+"T12:00:00") : maxMonth;
+      mapCalendarMonth = new Date(base.getFullYear(), base.getMonth(), 1);
+    }
+
+    const year = mapCalendarMonth.getFullYear(), month = mapCalendarMonth.getMonth();
+    const monthLabel = mapCalendarMonth.toLocaleDateString(undefined, { month:"long", year:"numeric" });
+    const atMin = mapCalendarMonth <= minMonth;
+    const atMax = mapCalendarMonth >= maxMonth;
+    const firstDow = new Date(year, month, 1).getDay(); // 0 = Sunday
+    const daysInMonth = new Date(year, month+1, 0).getDate();
+
+    let cells = "";
+    for(let i=0; i<firstDow; i++) cells += `<div></div>`;
+    for(let day=1; day<=daysInMonth; day++){
+      const key = `${year}-${String(month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+      const hasData = !!countByDate[key];
+      const active = mapSelectedDate === key;
+      cells += `<button type="button" class="map-cal-day${hasData?" has-data":""}" data-date="${key}" ${hasData?"":"disabled"}
+        title="${countByDate[key]||0} entries"
+        style="aspect-ratio:1; border:1px solid ${active?"var(--brass)":"var(--line)"}; border-radius:6px;
+          background:${active?"rgba(138,106,61,0.15)":hasData?"var(--glass)":"transparent"};
+          color:${hasData?"var(--ink)":"var(--line)"}; font-family:'IBM Plex Mono',monospace; font-size:11px;
+          cursor:${hasData?"pointer":"default"}; position:relative; padding:0;">
+          ${day}
+          ${hasData?`<span style="position:absolute; bottom:3px; left:50%; transform:translateX(-50%); width:4px; height:4px; border-radius:50%; background:${active?"var(--brass)":"var(--steel)"};"></span>`:""}
+        </button>`;
+    }
+
+    el.innerHTML = `
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+        <button type="button" id="mapCalPrevBtn" ${atMin?"disabled":""} style="background:none; border:1px solid var(--line); border-radius:4px; padding:4px 10px; cursor:${atMin?"default":"pointer"}; opacity:${atMin?"0.3":"1"};">‹</button>
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span style="font-family:'Playfair Display',serif; font-style:italic; font-size:15px;">${monthLabel}</span>
+          <button type="button" id="mapCalAllBtn" class="btn secondary" style="font-size:10px; padding:3px 10px; ${!mapSelectedDate?"background:rgba(138,106,61,0.15); border-color:var(--brass); color:var(--brass);":""}">All</button>
+        </div>
+        <button type="button" id="mapCalNextBtn" ${atMax?"disabled":""} style="background:none; border:1px solid var(--line); border-radius:4px; padding:4px 10px; cursor:${atMax?"default":"pointer"}; opacity:${atMax?"0.3":"1"};">›</button>
+      </div>
+      <div style="display:grid; grid-template-columns:repeat(7,1fr); gap:3px; font-family:'IBM Plex Mono',monospace; font-size:9px; text-align:center; color:var(--ink-soft); margin-bottom:4px;">
+        <div>S</div><div>M</div><div>T</div><div>W</div><div>T</div><div>F</div><div>S</div>
+      </div>
+      <div style="display:grid; grid-template-columns:repeat(7,1fr); gap:3px;">${cells}</div>
+    `;
+
+    document.getElementById("mapCalPrevBtn").addEventListener("click", ()=>{
+      if(atMin) return;
+      mapCalendarMonth = new Date(year, month-1, 1);
+      renderMapDateCalendar();
+    });
+    document.getElementById("mapCalNextBtn").addEventListener("click", ()=>{
+      if(atMax) return;
+      mapCalendarMonth = new Date(year, month+1, 1);
+      renderMapDateCalendar();
+    });
+    document.getElementById("mapCalAllBtn").addEventListener("click", ()=>{
+      mapSelectedDate = null;
+      renderMapDateCalendar();
+      renderMap();
+    });
+    el.querySelectorAll(".map-cal-day.has-data").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        mapSelectedDate = mapSelectedDate === btn.dataset.date ? null : btn.dataset.date;
+        renderMapDateCalendar();
         renderMap();
       });
     });
@@ -6369,7 +6437,7 @@
     renderPressureWatch();
     renderOnThisDay();
     renderTable();
-    renderMapDateStrip();
+    renderMapDateCalendar();
     renderMap();
     renderSkyTab();
     renderActiveNotebookBanner();
