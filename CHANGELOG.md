@@ -2,6 +2,78 @@
 
 All notable changes to Weatherglass are documented here, newest first.
 
+## v4.6.0
+
+**YOY, MOM, and DOD now have a "Relationship" view** — a **Compare / Relationship** toggle appears above the chart when any of the three are active. Compare is the existing behavior (temperature overlaid across years/months/days). Relationship is new: pick one specific period from a dropdown (a year, a month, or a day), and see that period's own Pressure-vs-Humidity-colored-by-Temperature scatter — the same relationship TPH already shows for your whole dataset, now scoped to just that one period, so you can ask things like "did the pressure/humidity/temperature relationship look different in July 2026 than July 2025."
+
+**Built as a genuine extraction, not a duplicate:** the scatter logic itself was pulled out of TPH into one shared `renderRelationshipScatter()` function, which both TPH and the new per-period view call — TPH's behavior is completely unchanged, just now sourced from the same function this feature uses. Verified the period-filtering logic directly (correctly separating 2025 from 2026, and July from August) before shipping.
+
+## v4.5.0
+
+**Two new chart tiles: MOM (Month-over-Month) and DOD (Day-over-Day)**, built as genuine companions to the existing YOY — same overlay-and-compare idea, one and two granularities finer:
+
+- **YOY**: years overlaid on a day-of-year axis
+- **MOM**: individual months overlaid on a day-of-month axis (e.g. compare how April, May, and June each progressed)
+- **DOD**: individual days overlaid on an hour-of-day axis (e.g. compare Tuesday's temperature curve against Wednesday's)
+
+Both cap at the 6 most recent months/days to keep the overlay readable — same reasoning YOY already used for its 6-color palette. Verified the grouping logic directly (May/June/July entries correctly separated into distinct series; two same-day readings correctly averaged into one point) before shipping.
+
+## v4.4.0
+
+**Fixed for real this time: unequal gaps between Search → Category → Sort.** The screenshot made clear what the actual problem was — Category and Sort were stacking vertically (not side-by-side, which the previous fix incorrectly assumed), and the gap above Category didn't match the gap between Category and Sort, both governed by flex-wrap's automatic line-wrapping rather than anything explicit. Rebuilt with deterministic spacing instead of relying on wrap behavior: search has an explicit 14px margin below it, and Category/Sort sit in their own column with an explicit 14px gap between them — same visual arrangement already showing, just guaranteed equal now instead of left to browser wrapping math. Settings sits beside this column, sized and positioned as before.
+
+**Under the hood:** this required retiring the `.table-toolbar` class (its `display:flex` was fighting the new deterministic layout) in favor of a lighter `.toolbar-field` class carrying just the visual styling (padding, border, font) — verified no other part of the app referenced the old class before removing it.
+
+## v4.3.2
+
+**Fixed: horizontal gap between Category and Sort read as much larger than the vertical gap above them**, even though both were numerically the same 14px in CSS. Likely cause: iOS Safari's native `<select>` rendering adds its own internal spacing around the dropdown arrow that sits on top of the CSS gap, so equal gap values didn't produce equal visual results between a horizontal (select-to-select) and vertical (row-to-row) gap. Reduced the horizontal gap specifically (14px → 4px) to compensate, without touching the vertical spacing.
+
+## v4.3.1
+
+**Reverted v4.3.0's two-row split** — back to v4.2.2's single-row toolbar (search, category, sort, and settings flowing together with natural wrapping, settings pushed right via `margin-left:auto`, 76px button / 48px icon).
+
+## v4.3.0
+
+**Journal toolbar split into two rows again**, rebuilt around the specific problems with the layout that got reverted: search sits alone on its own row (14px margin below), then Category and Sort keep their natural width on the row beneath it — not stretched to fill space this time — with Settings occupying whatever room is left to their right, truly centered (both directions) within that leftover space via `flex:1` + `justify-content:center` on its own wrapper, rather than pinned to the edge.
+
+**Spacing is now provably equal everywhere**: search-row to picklist-row is 14px (explicit margin), and picklist to picklist to settings-wrapper is 14px (`column-gap`) — same number, not just visually close.
+
+## v4.2.2
+
+**Settings icon doubled in size** (24px → 48px icon, 44px → 76px button) and pushed to the right edge of its row via `margin-left:auto` — a lighter-touch way to move it right than v4.2.0's forced two-row layout, without reintroducing the rigid structure that got reverted.
+
+**Toolbar spacing made explicitly equal** — `row-gap` and `column-gap` set to the same value (14px) individually rather than relying on the `gap` shorthand's implicit equality, so search-to-picklist and picklist-to-picklist spacing are guaranteed identical.
+
+## v4.2.1
+
+**Reverted v4.2.0's toolbar restructure** — back to the previous layout (search/category/sort/settings flowing together, wrapping naturally) at v4.1.5's sizing (44px button, 24px icon). The two-row forced-layout didn't work in practice.
+
+## v4.2.0
+
+**Journal toolbar restructured into two deliberate rows**, instead of relying on flex-wrap to arrange things based on available width (which is what put Category and Sort on separate lines in the first place). Search now sits alone, full-width, on its own row. Below it: Category and Sort share the row equally, with Settings fixed to the right of both — guaranteed by `flex-wrap:nowrap` rather than left to chance.
+
+**Settings icon enlarged again** (44px → 52px button, 24px → 30px icon) per feedback that it should be a little bigger still.
+
+## v4.1.5
+
+**Fixed: settings icon wasn't centered in its button** — `justify-content:center` was missing (only vertical centering was set), so the icon drifted toward the top-left. Button is now a fixed 44×44 square with the icon properly centered both ways, plus a small "Settings" caption underneath, matching the label style already used under Quick Log/Quick Photo Log.
+
+## v4.1.4
+
+**Fixed for real this time: the settings icon wasn't changing color.** Root cause was different from what v4.1.3 assumed — this is a documented iOS Safari quirk where certain Unicode characters render as colorful emoji even *without* the emoji variation selector, silently ignoring CSS `color`. Relying on Unicode text-vs-emoji presentation rules wasn't reliable enough. Replaced the character entirely with a small inline SVG gear icon using `currentColor`, which respects CSS color unconditionally on every platform — no font or emoji-rendering ambiguity possible.
+
+## v4.1.3
+
+Journal settings icon enlarged (17px → 24px) and recolored to the same burnt-orange used elsewhere (Quick Photo Log, date/time header). Switched from the color emoji gear (⚙️) to the plain text glyph (⚙) — the emoji version ignores CSS color entirely, so that swap was required for the orange to actually apply. Already vertically centered against the category/sort dropdowns via the toolbar's existing flex alignment.
+
+## v4.1.2
+
+Bumped Insights and Latest Conditions text from 12px to 13.5px — a small readability increase, not a redesign.
+
+## v4.1.1
+
+**Fixed: Personal Records dates were getting cut off, hiding the year.** The title/date line under each record (Hottest logged, Coldest logged, etc.) was set to truncate with an ellipsis on a single line — fine for short text, but cut off anything longer, which included the year most of the time. Now wraps to as many lines as needed instead of truncating, so the full date is always visible.
+
 ## v4.1.0
 
 **Map tab date navigation replaced — a real month calendar instead of a flat scrolling strip of every date.** With 300+ entries, scrolling through dozens of individual date chips to find one day stopped being practical. Now: a proper month grid, days with entries marked with a small dot, tap a day to filter the map to it (tap again to clear), prev/next arrows to move between months, and an **All** button to see everything at once. Navigation is bounded to the actual range of your data — you can't page into a month with nothing in it.

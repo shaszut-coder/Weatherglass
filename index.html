@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Weatherglass — personal weather station & log
-  Version: 4.1.0
+  Version: 4.6.0
 
   Single-file app: no build step, no backend. Data lives in the
   visitor's own browser via localStorage.
@@ -391,9 +391,8 @@
     font-size:10.5px;
     color:var(--ink-soft);
     margin-top:3px;
-    white-space:nowrap;
-    overflow:hidden;
-    text-overflow:ellipsis;
+    white-space:normal;
+    line-height:1.4;
   }
 
   /* table */
@@ -418,15 +417,11 @@
   }
   tbody tr:hover{background:rgba(62,96,121,0.06);}
   .mono{font-family:'IBM Plex Mono', monospace; font-size:12.5px;}
-  .table-toolbar{
-    display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap; align-items:center;
-  }
-  .table-toolbar input, .table-toolbar select{
+  .toolbar-field{
     font-family:'Source Serif 4', serif;
     padding:8px 10px; border:1px solid var(--line); border-radius:4px;
-    background:var(--glass); min-width:160px;
+    background:var(--glass); box-sizing:border-box;
   }
-  .table-toolbar input{ flex:1; }
   .icon-btn{
     background:none; border:none; cursor:pointer; color:var(--brass);
     font-family:'IBM Plex Mono', monospace; font-size:12px;
@@ -699,8 +694,8 @@
     </div>
   </header>
 
-  <div style="font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--ink); line-height:1.7; margin-bottom:6px;" id="insightsLine"></div>
-  <div style="font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--ink); line-height:1.7; margin-bottom:16px;" id="latestConditionsLine"></div>
+  <div style="font-family:'IBM Plex Mono', monospace; font-size:13.5px; color:var(--ink); line-height:1.7; margin-bottom:6px;" id="insightsLine"></div>
+  <div style="font-family:'IBM Plex Mono', monospace; font-size:13.5px; color:var(--ink); line-height:1.7; margin-bottom:16px;" id="latestConditionsLine"></div>
 
   <div id="storageWarningBanner" style="display:none; align-items:flex-start; gap:10px; border:1.5px solid var(--brass); border-radius:6px; padding:12px 14px; margin-bottom:18px; background:rgba(138,106,61,0.08); font-family:'IBM Plex Mono', monospace; font-size:12.5px; color:var(--ink);">
     <span id="storageWarningText" style="flex:1;"></span>
@@ -1094,23 +1089,45 @@
       </div>
       <div id="onThisDayEntries"></div>
     </div>
-    <div class="table-toolbar">
-      <input type="text" id="searchInput" placeholder="Search title, location, notes, mood...">
-      <select id="filterCategory">
-        <option value="">All categories</option>
-        <option>Temperature</option>
-        <option>Precipitation</option>
-        <option>Wind</option>
-        <option>Pressure</option>
-        <option>Sky</option>
-        <option>Storm</option>
-      </select>
-      <select id="sortOrder">
-        <option value="desc">Newest first</option>
-        <option value="asc">Oldest first</option>
-      </select>
-      <button type="button" id="settingsToggleBtn" title="Settings" style="background:none; border:1.5px solid var(--line); border-radius:4px; padding:7px 10px; cursor:pointer; font-size:17px; color:var(--ink-soft); flex-shrink:0;">⚙️</button>
+    <div>
+      <input type="text" id="searchInput" class="toolbar-field" placeholder="Search title, location, notes, mood..." style="width:100%; box-sizing:border-box; margin-bottom:14px; display:block;">
+      <div style="display:flex; align-items:stretch; gap:14px;">
+        <div style="flex:1; display:flex; flex-direction:column; gap:14px; min-width:0;">
+          <select id="filterCategory" class="toolbar-field" style="width:100%; box-sizing:border-box;">
+            <option value="">All categories</option>
+            <option>Temperature</option>
+            <option>Precipitation</option>
+            <option>Wind</option>
+            <option>Pressure</option>
+            <option>Sky</option>
+            <option>Storm</option>
+          </select>
+          <select id="sortOrder" class="toolbar-field" style="width:100%; box-sizing:border-box;">
+            <option value="desc">Newest first</option>
+            <option value="asc">Oldest first</option>
+          </select>
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; flex-shrink:0;">
+          <button type="button" id="settingsToggleBtn" title="Settings" style="background:none; border:1.5px solid var(--line); border-radius:4px; width:76px; height:76px; cursor:pointer; color:var(--burnt-orange); flex-shrink:0; display:flex; align-items:center; justify-content:center;">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" style="display:block;">
+              <circle cx="12" cy="12" r="3.2" stroke="currentColor" stroke-width="2"/>
+              <g stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <line x1="12" y1="2" x2="12" y2="5"/>
+                <line x1="12" y1="19" x2="12" y2="22"/>
+                <line x1="2" y1="12" x2="5" y2="12"/>
+                <line x1="19" y1="12" x2="22" y2="12"/>
+                <line x1="4.9" y1="4.9" x2="7" y2="7"/>
+                <line x1="17" y1="17" x2="19.1" y2="19.1"/>
+                <line x1="4.9" y1="19.1" x2="7" y2="17"/>
+                <line x1="17" y1="7" x2="19.1" y2="4.9"/>
+              </g>
+            </svg>
+          </button>
+          <span style="font-family:'IBM Plex Mono', monospace; font-size:9px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-soft);">Settings</span>
+        </div>
+      </div>
     </div>
+    <div style="margin-bottom:14px;"></div>
     <!-- Settings drawer — toggled by ⚙️ gear icon in toolbar above -->
     <div id="settingsDrawer" style="display:none; background:var(--sky-card); border:1px solid var(--line); border-radius:6px; padding:20px; margin-bottom:18px;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
@@ -1354,6 +1371,12 @@
       <button class="btn secondary" id="chartYoyBtn" title="Year-over-year temperature comparison" style="display:flex; flex-direction:column; align-items:center; gap:2px; padding:8px 12px; font-size:10px; min-width:52px;">
         <span style="font-size:18px; font-family:'Playfair Display',serif; color:var(--brass); line-height:1;">⟳</span>YOY
       </button>
+      <button class="btn secondary" id="chartMomBtn" title="Month-over-month temperature comparison" style="display:flex; flex-direction:column; align-items:center; gap:2px; padding:8px 12px; font-size:10px; min-width:52px;">
+        <span style="font-size:18px; font-family:'Playfair Display',serif; color:var(--brass); line-height:1;">◐</span>MOM
+      </button>
+      <button class="btn secondary" id="chartDodBtn" title="Day-over-day temperature comparison" style="display:flex; flex-direction:column; align-items:center; gap:2px; padding:8px 12px; font-size:10px; min-width:52px;">
+        <span style="font-size:18px; font-family:'Playfair Display',serif; color:var(--brass); line-height:1;">◑</span>DOD
+      </button>
     </div>
     <div style="display:flex; justify-content:center; gap:6px; margin-bottom:14px;">
       <button class="btn secondary" id="chartRange1" style="font-size:10.5px; padding:5px 14px;">1d</button>
@@ -1369,6 +1392,11 @@
         <div id="chartViewToggle" style="display:none; gap:6px;">
           <button type="button" class="btn secondary" id="chartViewTrendBtn" style="font-size:10px; padding:4px 12px;">Trend</button>
           <button type="button" class="btn secondary" id="chartViewScatterBtn" style="font-size:10px; padding:4px 12px;">Scatter</button>
+        </div>
+        <div id="periodViewToggle" style="display:none; gap:6px; align-items:center;">
+          <button type="button" class="btn secondary" id="periodViewCompareBtn" style="font-size:10px; padding:4px 12px;">Compare</button>
+          <button type="button" class="btn secondary" id="periodViewRelationshipBtn" style="font-size:10px; padding:4px 12px;">Relationship</button>
+          <select id="periodPicker" style="display:none; font-family:'IBM Plex Mono',monospace; font-size:11px; padding:5px 8px; border:1px solid var(--line); border-radius:4px; background:var(--glass);"></select>
         </div>
       </div>
       <canvas id="trendChart" height="220"></canvas>
@@ -1551,7 +1579,7 @@
 (function(){
   "use strict";
 
-  const APP_VERSION = "4.1.0";
+  const APP_VERSION = "4.6.0";
   const STORAGE_KEY = "weatherglass.entries.v1";
 
   function showToast(message, kind){
@@ -5462,6 +5490,8 @@
   document.getElementById("chartHeatIdxBtn").addEventListener("click", ()=>renderChart("heatidx"));
   document.getElementById("chartHeatRateBtn").addEventListener("click", ()=>renderChart("heatrate"));
   document.getElementById("chartYoyBtn").addEventListener("click", ()=>renderChart("yoy"));
+  document.getElementById("chartMomBtn").addEventListener("click", ()=>renderChart("mom"));
+  document.getElementById("chartDodBtn").addEventListener("click", ()=>renderChart("dod"));
   document.getElementById("chartTransectBtn").addEventListener("click", ()=>renderChart("transect"));
   document.getElementById("chartUvBtn").addEventListener("click", ()=>renderChart("uv"));
   document.getElementById("chartPm25Btn").addEventListener("click", ()=>renderChart("pm25"));
@@ -5557,6 +5587,121 @@
   document.getElementById("chartViewScatterBtn").addEventListener("click", ()=>setChartViewType("scatter"));
   document.getElementById("chartViewTrendBtn").classList.add("active");
 
+  // Pressure (x) vs Humidity (y), each point colored by Temperature — the
+  // TPH scatter's actual logic, extracted so YOY/MOM/DOD's "Relationship"
+  // view can reuse it scoped to just one period instead of the whole
+  // dataset. Color is a simple two-stop blue-to-red gradient scaled to
+  // whatever subset of entries is passed in, not a fixed global range —
+  // each period's scatter recolors itself to its own min/max temp.
+  function renderRelationshipScatter(entriesSubset, titleText){
+    const ctx = document.getElementById("trendChart");
+    const titleEl = document.getElementById("chartTitle");
+    const withAll = entriesSubset.filter(e=>isFinite(e.tempF) && isFinite(e.pressureInHg) && isFinite(e.humidity));
+    if(withAll.length < 3){
+      if(titleEl) titleEl.textContent = `${titleText} — need at least 3 entries with all three logged`;
+      return;
+    }
+    const temps = withAll.map(e=>e.tempF);
+    const tMin = Math.min(...temps), tMax = Math.max(...temps);
+    const colorForTemp = (t)=>{
+      const frac = tMax > tMin ? (t - tMin) / (tMax - tMin) : 0.5;
+      const cool = [62,96,121], hot = [166,49,32];
+      const mix = (a,b,f)=> Math.round(a + (b-a)*f);
+      const rgb = [mix(cool[0],hot[0],frac), mix(cool[1],hot[1],frac), mix(cool[2],hot[2],frac)];
+      return `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.75)`;
+    };
+    if(chartInstance) chartInstance.destroy();
+    chartInstance = new Chart(ctx, {
+      type:"scatter",
+      data:{ datasets:[{
+        label:"Pressure vs Humidity (color = Temp)",
+        data: withAll.map(e=>({ x:e.pressureInHg, y:e.humidity, _t:e.tempF })),
+        backgroundColor: withAll.map(e=>colorForTemp(e.tempF)),
+        borderColor:"#2C3A47",
+        borderWidth:0.5,
+        pointRadius:5,
+        pointHoverRadius:7
+      }]},
+      options:{
+        responsive:true,
+        plugins:{
+          legend:{ display:false },
+          tooltip:{ callbacks:{ label:(c)=> `${c.raw.x.toFixed(2)} inHg, ${c.raw.y}% RH, ${c.raw._t.toFixed(1)}°F` } }
+        },
+        scales:{
+          x:{ title:{ display:true, text:"Pressure (inHg)", font:{ size:10 } } },
+          y:{ title:{ display:true, text:"Humidity (%)", font:{ size:10 } } }
+        }
+      }
+    });
+    if(titleEl) titleEl.textContent = `${titleText} — blue ${tMin.toFixed(0)}°F to red ${tMax.toFixed(0)}°F`;
+  }
+
+  // ---------- YOY/MOM/DOD period selection for the "Relationship" view ----------
+  let periodViewType = "compare"; // "compare" | "relationship"
+  let selectedPeriodKey = null;
+
+  function getYoyPeriods(){
+    return [...new Set(trendsEntries().filter(e=>isFinite(e.tempF)).map(e=>String(new Date(e.timestamp).getFullYear())))].sort();
+  }
+  function getMomPeriods(){
+    return [...new Set(trendsEntries().filter(e=>isFinite(e.tempF)).map(e=>{
+      const d = new Date(e.timestamp);
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+    }))].sort();
+  }
+  function getDodPeriods(){
+    return [...new Set(trendsEntries().filter(e=>isFinite(e.tempF)).map(e=> new Date(e.timestamp).toLocaleDateString("en-CA")))].sort();
+  }
+  function periodLabel(mode, key){
+    if(mode === "yoy") return key;
+    if(mode === "mom"){
+      const [y,m] = key.split("-").map(Number);
+      return new Date(y, m-1, 1).toLocaleDateString(undefined,{month:"long",year:"numeric"});
+    }
+    if(mode === "dod") return new Date(key+"T12:00:00").toLocaleDateString(undefined,{month:"long",day:"numeric",year:"numeric"});
+    return key;
+  }
+  function entriesForPeriod(mode, key){
+    if(mode === "yoy") return trendsEntries().filter(e=> String(new Date(e.timestamp).getFullYear()) === key);
+    if(mode === "mom") return trendsEntries().filter(e=>{
+      const d = new Date(e.timestamp);
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}` === key;
+    });
+    if(mode === "dod") return trendsEntries().filter(e=> new Date(e.timestamp).toLocaleDateString("en-CA") === key);
+    return [];
+  }
+  function getPeriodsForMode(mode){
+    if(mode === "yoy") return getYoyPeriods();
+    if(mode === "mom") return getMomPeriods();
+    if(mode === "dod") return getDodPeriods();
+    return [];
+  }
+  function populatePeriodPicker(mode){
+    const picker = document.getElementById("periodPicker");
+    const periods = getPeriodsForMode(mode);
+    if(!selectedPeriodKey || !periods.includes(selectedPeriodKey)){
+      selectedPeriodKey = periods.length ? periods[periods.length-1] : null; // default to most recent
+    }
+    picker.innerHTML = periods.slice().reverse().map(key=>
+      `<option value="${key}" ${key===selectedPeriodKey?"selected":""}>${escapeHtml(periodLabel(mode, key))}</option>`
+    ).join("");
+  }
+  document.getElementById("periodPicker").addEventListener("change", (e)=>{
+    selectedPeriodKey = e.target.value;
+    renderChart(currentChartMode);
+  });
+  function setPeriodViewType(type){
+    periodViewType = type;
+    document.getElementById("periodViewCompareBtn").classList.toggle("active", type==="compare");
+    document.getElementById("periodViewRelationshipBtn").classList.toggle("active", type==="relationship");
+    document.getElementById("periodPicker").style.display = type==="relationship" ? "inline-block" : "none";
+    renderChart(currentChartMode);
+  }
+  document.getElementById("periodViewCompareBtn").addEventListener("click", ()=>setPeriodViewType("compare"));
+  document.getElementById("periodViewRelationshipBtn").addEventListener("click", ()=>setPeriodViewType("relationship"));
+  document.getElementById("periodViewCompareBtn").classList.add("active");
+
   function renderChart(mode){
     currentChartMode = mode;
     const ctx = document.getElementById("trendChart");
@@ -5564,6 +5709,14 @@
 
     const toggle = document.getElementById("chartViewToggle");
     if(toggle) toggle.style.display = SINGLE_METRIC_MODES[mode] ? "flex" : "none";
+
+    const PERIOD_MODES = ["yoy","mom","dod"];
+    const pToggle = document.getElementById("periodViewToggle");
+    if(pToggle) pToggle.style.display = PERIOD_MODES.includes(mode) ? "flex" : "none";
+    if(PERIOD_MODES.includes(mode)){
+      document.getElementById("periodPicker").style.display = periodViewType==="relationship" ? "inline-block" : "none";
+      if(periodViewType === "relationship") populatePeriodPicker(mode);
+    }
 
     // Shared x-axis config: fewer labels and 45° rotation so they don't
     // collide at larger dataset sizes
@@ -5581,6 +5734,7 @@
       humidity:"Humidity Over Time", heatidx:"Heat Index Over Time (Feels Like)",
       daily:"Daily Min / Avg / Max Temperature", alert:"Alert Severity Over Time",
       windrose:"Wind Direction Rose", heatrate:"Heating Rate — Morning to Afternoon", yoy:"Year-over-Year Temperature", transect:"Atmospheric Transect — Temperature & Humidity by Distance",
+      mom:"Month-over-Month Temperature", dod:"Day-over-Day Temperature",
       tod:"Entries by Time of Day", cat:"Entries by Category",
       uv:"UV Index Over Time", pm25:"PM2.5 Over Time",
       tph:"Temperature, Pressure & Humidity"
@@ -5721,52 +5875,7 @@
           scales:{ y:{ title:{ display:true, text:"µg/m³", font:{ size:10 } } } } }
       });
     } else if(mode === "tph"){
-      // Pressure (x) vs Humidity (y), each point colored by Temperature —
-      // same three-variable relationship explored in chat analysis earlier,
-      // now tied into the app's real filters/date-range instead of a
-      // one-off export. Color is a simple two-stop blue-to-red gradient
-      // scaled to this dataset's own min/max temp (matplotlib's "coolwarm"
-      // does the same kind of per-dataset scaling).
-      const withAll = trendsEntriesForRange()
-        .filter(e=>isFinite(e.tempF) && isFinite(e.pressureInHg) && isFinite(e.humidity));
-      if(withAll.length < 3){
-        if(titleEl) titleEl.textContent = "Temperature, Pressure & Humidity — need at least 3 entries with all three logged";
-        return;
-      }
-      const temps = withAll.map(e=>e.tempF);
-      const tMin = Math.min(...temps), tMax = Math.max(...temps);
-      const colorForTemp = (t)=>{
-        const frac = tMax > tMin ? (t - tMin) / (tMax - tMin) : 0.5; // 0 = coolest, 1 = hottest
-        // blue (cool) -> pale grey (mid) -> red (hot), matching the earlier analysis chart
-        const cool = [62,96,121], hot = [166,49,32];
-        const mix = (a,b,f)=> Math.round(a + (b-a)*f);
-        const rgb = [mix(cool[0],hot[0],frac), mix(cool[1],hot[1],frac), mix(cool[2],hot[2],frac)];
-        return `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.75)`;
-      };
-      chartInstance = new Chart(ctx, {
-        type:"scatter",
-        data:{ datasets:[{
-          label:"Pressure vs Humidity (color = Temp)",
-          data: withAll.map(e=>({ x:e.pressureInHg, y:e.humidity, _t:e.tempF })),
-          backgroundColor: withAll.map(e=>colorForTemp(e.tempF)),
-          borderColor:"#2C3A47",
-          borderWidth:0.5,
-          pointRadius:5,
-          pointHoverRadius:7
-        }]},
-        options:{
-          responsive:true,
-          plugins:{
-            legend:{ display:false },
-            tooltip:{ callbacks:{ label:(c)=> `${c.raw.x.toFixed(2)} inHg, ${c.raw.y}% RH, ${c.raw._t.toFixed(1)}°F` } }
-          },
-          scales:{
-            x:{ title:{ display:true, text:"Pressure (inHg)", font:{ size:10 } } },
-            y:{ title:{ display:true, text:"Humidity (%)", font:{ size:10 } } }
-          }
-        }
-      });
-      if(titleEl) titleEl.textContent = `Temperature, Pressure & Humidity — blue ${tMin.toFixed(0)}°F to red ${tMax.toFixed(0)}°F`;
+      renderRelationshipScatter(trendsEntriesForRange(), "Temperature, Pressure & Humidity");
     } else if(mode === "windrose"){
       // Bucket wind readings into 16 compass directions, weighted by speed
       const DIRS = ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
@@ -5900,6 +6009,11 @@
       });
 
     } else if(mode === "yoy"){
+      if(periodViewType === "relationship"){
+        if(!selectedPeriodKey){ if(titleEl) titleEl.textContent = "Year — no data yet"; return; }
+        renderRelationshipScatter(entriesForPeriod("yoy", selectedPeriodKey), periodLabel("yoy", selectedPeriodKey));
+        return;
+      }
       // Group temp entries by year and day-of-year, overlay years on one chart
       const byYear = {};
       trendsEntries().filter(e=>isFinite(e.tempF)).forEach(e=>{
@@ -5956,6 +6070,129 @@
           scales:{
             x:xAxis,
             y:{title:{display:true,text:"°F",font:{size:10}}}
+          }
+        }
+      });
+
+    } else if(mode === "mom"){
+      if(periodViewType === "relationship"){
+        if(!selectedPeriodKey){ if(titleEl) titleEl.textContent = "Month — no data yet"; return; }
+        renderRelationshipScatter(entriesForPeriod("mom", selectedPeriodKey), periodLabel("mom", selectedPeriodKey));
+        return;
+      }
+      // Same overlay idea as YOY, one granularity finer: group by
+      // calendar month instead of year, day-of-month instead of day-of-year
+      const byMonth = {};
+      trendsEntries().filter(e=>isFinite(e.tempF)).forEach(e=>{
+        const d = new Date(e.timestamp);
+        const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`; // e.g. "2026-07"
+        const dom = d.getDate(); // 1-31
+        if(!byMonth[key]) byMonth[key] = {};
+        if(!byMonth[key][dom]) byMonth[key][dom] = [];
+        byMonth[key][dom].push(e.tempF);
+      });
+      let months = Object.keys(byMonth).sort();
+      if(months.length < 2){
+        if(titleEl) titleEl.textContent = "Month-over-Month — need data from at least 2 different months";
+        return;
+      }
+      // Cap to the 6 most recent months so the overlay stays readable —
+      // same reasoning as YOY's color list only having 6 entries
+      if(months.length > 6) months = months.slice(-6);
+
+      const allDoms = [...new Set(
+        months.flatMap(m=>Object.keys(byMonth[m]).map(Number))
+      )].sort((a,b)=>a-b);
+
+      const COLORS = ["#3E6079","#8A6A3D","#46606E","#6E4F4F","#2E7D32","#5C6E7C"];
+      const monthLabel = (key)=>{
+        const [y,m] = key.split("-").map(Number);
+        return new Date(y, m-1, 1).toLocaleDateString(undefined,{month:"short",year:"numeric"});
+      };
+      const datasets = months.map((key,i)=>({
+        label: monthLabel(key),
+        data: allDoms.map(dom=>{
+          const vals = byMonth[key][dom];
+          return vals ? parseFloat((vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1)) : null;
+        }),
+        borderColor: COLORS[i % COLORS.length],
+        backgroundColor: COLORS[i % COLORS.length] + "22",
+        tension:0.3,
+        fill:false,
+        pointRadius:2,
+        spanGaps:true
+      }));
+
+      chartInstance = new Chart(ctx, {
+        type:"line",
+        data:{ labels: allDoms.map(d=>String(d)), datasets },
+        options:{
+          responsive:true,
+          interaction:{mode:"index"},
+          plugins:{ legend:{ display:true, labels:{boxWidth:10,font:{size:10}} } },
+          scales:{
+            x:{ ...xAxis, title:{ display:true, text:"Day of month", font:{ size:10 } } },
+            y:{ title:{ display:true, text:"°F", font:{ size:10 } } }
+          }
+        }
+      });
+
+    } else if(mode === "dod"){
+      if(periodViewType === "relationship"){
+        if(!selectedPeriodKey){ if(titleEl) titleEl.textContent = "Day — no data yet"; return; }
+        renderRelationshipScatter(entriesForPeriod("dod", selectedPeriodKey), periodLabel("dod", selectedPeriodKey));
+        return;
+      }
+      // One granularity finer again — group by calendar day, hour-of-day
+      // as the shared axis, so you can compare how a handful of individual
+      // days actually progressed against each other
+      const byDay = {};
+      trendsEntries().filter(e=>isFinite(e.tempF)).forEach(e=>{
+        const d = new Date(e.timestamp);
+        const key = d.toLocaleDateString("en-CA"); // YYYY-MM-DD
+        const hour = d.getHours();
+        if(!byDay[key]) byDay[key] = {};
+        if(!byDay[key][hour]) byDay[key][hour] = [];
+        byDay[key][hour].push(e.tempF);
+      });
+      let days = Object.keys(byDay).sort();
+      if(days.length < 2){
+        if(titleEl) titleEl.textContent = "Day-over-Day — need data from at least 2 different days";
+        return;
+      }
+      // Cap to the 6 most recent days for the same readability reason as MOM/YOY
+      if(days.length > 6) days = days.slice(-6);
+
+      const allHours = [...new Set(
+        days.flatMap(d=>Object.keys(byDay[d]).map(Number))
+      )].sort((a,b)=>a-b);
+
+      const COLORS = ["#3E6079","#8A6A3D","#46606E","#6E4F4F","#2E7D32","#5C6E7C"];
+      const dayLabel = (key)=> new Date(key+"T12:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric"});
+      const datasets = days.map((key,i)=>({
+        label: dayLabel(key),
+        data: allHours.map(hr=>{
+          const vals = byDay[key][hr];
+          return vals ? parseFloat((vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1)) : null;
+        }),
+        borderColor: COLORS[i % COLORS.length],
+        backgroundColor: COLORS[i % COLORS.length] + "22",
+        tension:0.3,
+        fill:false,
+        pointRadius:2,
+        spanGaps:true
+      }));
+
+      chartInstance = new Chart(ctx, {
+        type:"line",
+        data:{ labels: allHours.map(h=>`${h}:00`), datasets },
+        options:{
+          responsive:true,
+          interaction:{mode:"index"},
+          plugins:{ legend:{ display:true, labels:{boxWidth:10,font:{size:10}} } },
+          scales:{
+            x:{ ...xAxis, title:{ display:true, text:"Hour of day", font:{ size:10 } } },
+            y:{ title:{ display:true, text:"°F", font:{ size:10 } } }
           }
         }
       });
