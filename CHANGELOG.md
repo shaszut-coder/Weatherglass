@@ -2,6 +2,20 @@
 
 All notable changes to Weatherglass are documented here, newest first.
 
+## v4.8.0
+
+**Swipe through entries in the detail view** — open any entry, swipe left for the next one, right for the previous, no need to close and reopen from the list each time. A small position indicator ("3 of 47") with ‹ › buttons appears too, both as a discoverable fallback for anyone who doesn't think to swipe and as a way to confirm where you are in the list.
+
+Navigation follows whatever's currently filtered and sorted in Journal (respects your search, category filter, and sort order) — swiping moves through entries in the same order you'd see scrolling the list itself, not raw creation order. Stops at the first/last entry rather than wrapping around. Swipe detection requires the gesture to be clearly more horizontal than vertical, so it doesn't interfere with normal scrolling inside a longer entry.
+
+One known limitation, not built out yet: opening an entry from inside a notebook's list still navigates through the *whole* Journal when you swipe, not just that notebook's entries.
+
+## v4.7.0
+
+**"Create Notebook from Date Range"** — Settings → Notebooks, right below View All Notebooks. Built for exactly the scenario that prompted it: a real storm gets logged in the moment, and only afterward does it become obvious it should've been a notebook. Name it, pick a start and end time, and every matching entry in that window gets grouped in one action — no need to have thought "start a notebook" before the event happened.
+
+Entries already belonging to a *different* notebook are left alone, not reassigned — the tool reports how many were skipped for this reason so it's never a silent surprise. Verified the date-range matching handles timezones correctly (a local noon–9pm selection correctly captures entries stored in UTC) before shipping, since getting that wrong would have silently included or excluded the wrong entries.
+
 ## v4.6.0
 
 **YOY, MOM, and DOD now have a "Relationship" view** — a **Compare / Relationship** toggle appears above the chart when any of the three are active. Compare is the existing behavior (temperature overlaid across years/months/days). Relationship is new: pick one specific period from a dropdown (a year, a month, or a day), and see that period's own Pressure-vs-Humidity-colored-by-Temperature scatter — the same relationship TPH already shows for your whole dataset, now scoped to just that one period, so you can ask things like "did the pressure/humidity/temperature relationship look different in July 2026 than July 2025."

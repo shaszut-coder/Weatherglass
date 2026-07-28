@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Weatherglass — personal weather station & log
-  Version: 4.6.0
+  Version: 4.8.0
 
   Single-file app: no build step, no backend. Data lives in the
   visitor's own browser via localStorage.
@@ -1234,6 +1234,24 @@
       <button type="button" class="btn secondary" id="notebookIndexBtn">View All Notebooks</button>
       <div id="notebookIndexOutput" style="margin-top:14px;"></div>
     </div>
+    <div style="border:1px dashed var(--line); border-radius:6px; padding:12px 14px; margin-bottom:18px;">
+      <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:10px;">
+        Already logged a storm before thinking to start a notebook? Group everything from a date/time range into one, after the fact. Entries already in a different notebook are left untouched.
+      </div>
+      <div class="field wide" style="margin-bottom:10px;">
+        <input id="retroNotebookName" type="text" placeholder="e.g. July 27 tornado warning" style="width:100%; box-sizing:border-box; padding:8px 10px; border:1px solid var(--line); border-radius:4px; font-family:inherit;">
+      </div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
+        <label style="font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--ink-soft); flex:1; min-width:140px;">
+          From<br><input id="retroNotebookStart" type="datetime-local" style="width:100%; box-sizing:border-box; padding:6px; border:1px solid var(--line); border-radius:4px; font-family:inherit;">
+        </label>
+        <label style="font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--ink-soft); flex:1; min-width:140px;">
+          To<br><input id="retroNotebookEnd" type="datetime-local" style="width:100%; box-sizing:border-box; padding:6px; border:1px solid var(--line); border-radius:4px; font-family:inherit;">
+        </label>
+      </div>
+      <button type="button" class="btn secondary" id="retroNotebookCreateBtn" style="width:100%;">Create Notebook from Date Range</button>
+      <div id="retroNotebookStatus" style="display:none; margin-top:10px; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft);"></div>
+    </div>
 
     <h3 class="records-title">Speaker Mode</h3>
     <div style="border:1px dashed var(--line); border-radius:6px; padding:12px 14px; margin-bottom:18px;">
@@ -1497,6 +1515,11 @@
       <div>
         <span class="stamp" id="sheetLevel"></span>
         <h3 class="sheet-title" id="sheetTitle"></h3>
+        <div id="sheetPositionIndicator" style="display:none; align-items:center; gap:10px; margin-top:4px;">
+          <button type="button" id="sheetPrevEntryBtn" aria-label="Previous entry" style="background:none; border:1px solid var(--line); border-radius:4px; width:26px; height:26px; font-size:13px; color:var(--ink-soft); cursor:pointer;">‹</button>
+          <span id="sheetPositionText" style="font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--ink-soft);"></span>
+          <button type="button" id="sheetNextEntryBtn" aria-label="Next entry" style="background:none; border:1px solid var(--line); border-radius:4px; width:26px; height:26px; font-size:13px; color:var(--ink-soft); cursor:pointer;">›</button>
+        </div>
       </div>
       <button type="button" class="sheet-close" id="sheetCloseBtn" aria-label="Close">✕</button>
     </div>
@@ -1579,7 +1602,7 @@
 (function(){
   "use strict";
 
-  const APP_VERSION = "4.6.0";
+  const APP_VERSION = "4.8.0";
   const STORAGE_KEY = "weatherglass.entries.v1";
 
   function showToast(message, kind){
@@ -4288,6 +4311,22 @@
     if(!e) return;
     detailId = id;
 
+    // Position within whatever list is currently filtered/sorted in
+    // Journal — lets swipe/prev/next move through entries in the same
+    // order you'd see scrolling the list itself, not just insertion order.
+    const posIndicator = document.getElementById("sheetPositionIndicator");
+    const idx = vlistRows.findIndex(x=>x.id === id);
+    if(idx !== -1 && vlistRows.length > 1){
+      posIndicator.style.display = "flex";
+      document.getElementById("sheetPositionText").textContent = `${idx+1} of ${vlistRows.length}`;
+      document.getElementById("sheetPrevEntryBtn").disabled = idx === 0;
+      document.getElementById("sheetPrevEntryBtn").style.opacity = idx === 0 ? "0.3" : "1";
+      document.getElementById("sheetNextEntryBtn").disabled = idx === vlistRows.length-1;
+      document.getElementById("sheetNextEntryBtn").style.opacity = idx === vlistRows.length-1 ? "0.3" : "1";
+    } else {
+      posIndicator.style.display = "none";
+    }
+
     document.getElementById("sheetTitle").textContent = e.title;
     const levelEl = document.getElementById("sheetLevel");
     levelEl.textContent = e.level;
@@ -4365,6 +4404,43 @@
   document.getElementById("entrySheet").addEventListener("click", (e)=>{
     if(e.target.id === "entrySheet") closeEntryDetail();
   });
+
+  // Move to the previous/next entry in whatever list is currently
+  // filtered/sorted in Journal (vlistRows) — same order as scrolling
+  // through it. delta: -1 = previous, +1 = next.
+  function navigateEntryDetail(delta){
+    const idx = vlistRows.findIndex(x=>x.id === detailId);
+    if(idx === -1) return;
+    const nextIdx = idx + delta;
+    if(nextIdx < 0 || nextIdx >= vlistRows.length) return; // stop at the ends, no wraparound
+    openEntryDetail(vlistRows[nextIdx].id);
+  }
+  document.getElementById("sheetPrevEntryBtn").addEventListener("click", ()=> navigateEntryDetail(-1));
+  document.getElementById("sheetNextEntryBtn").addEventListener("click", ()=> navigateEntryDetail(1));
+
+  // Swipe left/right on the sheet itself does the same thing. Only counts
+  // as a swipe if it's clearly more horizontal than vertical, so it
+  // doesn't fight normal up/down scrolling within a long entry.
+  (function setupEntrySheetSwipe(){
+    const sheet = document.getElementById("entrySheet");
+    let touchStartX = 0, touchStartY = 0, tracking = false;
+    sheet.addEventListener("touchstart", (e)=>{
+      if(e.touches.length !== 1) return;
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+      tracking = true;
+    }, { passive:true });
+    sheet.addEventListener("touchend", (e)=>{
+      if(!tracking) return;
+      tracking = false;
+      const dx = e.changedTouches[0].clientX - touchStartX;
+      const dy = e.changedTouches[0].clientY - touchStartY;
+      const SWIPE_THRESHOLD = 60;
+      if(Math.abs(dx) > SWIPE_THRESHOLD && Math.abs(dx) > Math.abs(dy) * 1.5){
+        navigateEntryDetail(dx < 0 ? 1 : -1); // swipe left = next, swipe right = previous
+      }
+    }, { passive:true });
+  })();
   document.getElementById("sheetEditBtn").addEventListener("click", ()=>{
     const id = detailId;
     closeEntryDetail();
@@ -4624,6 +4700,61 @@
     });
   }
   document.getElementById("notebookIndexBtn").addEventListener("click", renderNotebookIndex);
+
+  // Retroactively group an already-logged stretch of entries into a new
+  // notebook — for exactly the case that prompted this: a real storm
+  // logged in the moment, before anyone thought "I should start a
+  // notebook." Entries already belonging to a different notebook are
+  // skipped, not reassigned — this only fills in ungrouped entries.
+  document.getElementById("retroNotebookCreateBtn").addEventListener("click", async ()=>{
+    const name = document.getElementById("retroNotebookName").value.trim();
+    const startVal = document.getElementById("retroNotebookStart").value;
+    const endVal = document.getElementById("retroNotebookEnd").value;
+    const statusEl = document.getElementById("retroNotebookStatus");
+    statusEl.style.display = "block";
+
+    if(!name){ statusEl.textContent = "Give the notebook a name first."; return; }
+    if(!startVal || !endVal){ statusEl.textContent = "Pick both a start and end time."; return; }
+    const start = new Date(startVal);
+    const end = new Date(endVal);
+    if(end <= start){ statusEl.textContent = "End time needs to be after the start time."; return; }
+
+    const inRange = entries.filter(e=>{
+      const t = new Date(e.timestamp);
+      return t >= start && t <= end;
+    });
+    const eligible = inRange.filter(e=> !e.eventId);
+    const skipped = inRange.length - eligible.length;
+
+    if(!eligible.length){
+      statusEl.textContent = skipped
+        ? `All ${skipped} entries in that range already belong to another notebook — nothing to group.`
+        : "No entries found in that date range.";
+      return;
+    }
+
+    const eventId = cryptoId();
+    eligible.sort((a,b)=> new Date(a.timestamp)-new Date(b.timestamp));
+    eligible.forEach((e,i)=>{
+      e.eventId = eventId;
+      e.eventName = name;
+      if(i===0) e.eventAnchor = true;
+    });
+
+    try{
+      await persistChange({ bulkEntries: eligible }, entries);
+      renderActiveNotebookBanner();
+      showToast(`"${name}" created — ${eligible.length} ${eligible.length===1?"entry":"entries"} grouped.`, "success");
+      statusEl.textContent = skipped
+        ? `Done. ${eligible.length} grouped, ${skipped} already belonged to another notebook and were left alone.`
+        : `Done. ${eligible.length} entries grouped into "${name}".`;
+      document.getElementById("retroNotebookName").value = "";
+      document.getElementById("retroNotebookStart").value = "";
+      document.getElementById("retroNotebookEnd").value = "";
+    }catch(err){
+      statusEl.textContent = "Could not create the notebook — try again.";
+    }
+  });
 
   function renderActiveNotebookBanner(){
     const banner = document.getElementById("activeNotebookBanner");
