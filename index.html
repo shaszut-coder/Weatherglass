@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Weatherglass — personal weather station & log
-  Version: 4.8.0
+  Version: 4.8.1
 
   Single-file app: no build step, no backend. Data lives in the
   visitor's own browser via localStorage.
@@ -1515,13 +1515,16 @@
       <div>
         <span class="stamp" id="sheetLevel"></span>
         <h3 class="sheet-title" id="sheetTitle"></h3>
-        <div id="sheetPositionIndicator" style="display:none; align-items:center; gap:10px; margin-top:4px;">
-          <button type="button" id="sheetPrevEntryBtn" aria-label="Previous entry" style="background:none; border:1px solid var(--line); border-radius:4px; width:26px; height:26px; font-size:13px; color:var(--ink-soft); cursor:pointer;">‹</button>
-          <span id="sheetPositionText" style="font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--ink-soft);"></span>
-          <button type="button" id="sheetNextEntryBtn" aria-label="Next entry" style="background:none; border:1px solid var(--line); border-radius:4px; width:26px; height:26px; font-size:13px; color:var(--ink-soft); cursor:pointer;">›</button>
-        </div>
       </div>
       <button type="button" class="sheet-close" id="sheetCloseBtn" aria-label="Close">✕</button>
+    </div>
+    <div id="sheetPositionIndicator" style="display:none; flex-direction:column; align-items:center; gap:6px; margin:10px 0 16px;">
+      <div style="display:flex; align-items:center; justify-content:center; gap:20px;">
+        <button type="button" id="sheetPrevEntryBtn" aria-label="Previous entry" style="background:none; border:1.5px solid var(--line); border-radius:6px; width:48px; height:48px; font-size:22px; color:var(--burnt-orange); cursor:pointer; display:flex; align-items:center; justify-content:center;">‹</button>
+        <span id="sheetPositionText" style="font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--ink-soft); min-width:60px; text-align:center;"></span>
+        <button type="button" id="sheetNextEntryBtn" aria-label="Next entry" style="background:none; border:1.5px solid var(--line); border-radius:6px; width:48px; height:48px; font-size:22px; color:var(--burnt-orange); cursor:pointer; display:flex; align-items:center; justify-content:center;">›</button>
+      </div>
+      <span style="font-family:'IBM Plex Mono', monospace; font-size:9px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-soft);">Swipe or tap to browse entries</span>
     </div>
     <img id="sheetPhoto" class="sheet-photo" style="display:none;" alt="Entry photo">
     <div class="sheet-meta-grid" id="sheetMetaGrid"></div>
@@ -1602,7 +1605,7 @@
 (function(){
   "use strict";
 
-  const APP_VERSION = "4.8.0";
+  const APP_VERSION = "4.8.1";
   const STORAGE_KEY = "weatherglass.entries.v1";
 
   function showToast(message, kind){

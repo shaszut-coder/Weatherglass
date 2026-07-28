@@ -2,6 +2,10 @@
 
 All notable changes to Weatherglass are documented here, newest first.
 
+## v4.8.1
+
+**Entry navigation buttons redesigned** — moved out of the cramped title row into their own centered block below the header, doubled in size (26px → 48px), recolored to burnt-orange to match the app's other action buttons, and labeled with "Swipe or tap to browse entries" underneath. The "N of M" position count stays between the two buttons.
+
 ## v4.8.0
 
 **Swipe through entries in the detail view** — open any entry, swipe left for the next one, right for the previous, no need to close and reopen from the list each time. A small position indicator ("3 of 47") with ‹ › buttons appears too, both as a discoverable fallback for anyone who doesn't think to swipe and as a way to confirm where you are in the list.
