@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Weatherglass — personal weather station & log
-  Version: 4.8.1
+  Version: 4.9.0
 
   Single-file app: no build step, no backend. Data lives in the
   visitor's own browser via localStorage.
@@ -1205,6 +1205,14 @@
       </div>
     </div>
 
+    <h3 class="records-title">Cloud Classification</h3>
+    <div style="border:1px dashed var(--line); border-radius:6px; padding:12px 14px; margin-bottom:18px;">
+      <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:8px;" id="cloudClassifyCountText">
+        Scan through your photos one at a time and classify the cloud type — a few quick taps per photo, no dropdown digging.
+      </div>
+      <button type="button" class="btn secondary" id="cloudClassifyStartBtn" style="width:100%;">Classify Cloud Photos</button>
+    </div>
+
     <h3 class="records-title">Location Tools</h3>
     <div style="border:1px dashed var(--line); border-radius:6px; padding:12px 14px; margin-bottom:18px;">
       <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:8px;">
@@ -1574,6 +1582,28 @@
   </div>
 </div>
 
+<!-- Cloud Classification review queue — scan through unclassified photo
+     entries one at a time, using either the guided picker or a manual
+     fallback. Built together, since a review queue without a fast way to
+     classify wouldn't actually be faster than editing entries one by one. -->
+<div id="cloudClassifyOverlay" style="display:none; position:fixed; inset:0; z-index:88; background:var(--sky-card); overflow-y:auto;">
+  <div style="max-width:600px; margin:0 auto; padding:20px 20px 60px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+      <span id="cloudClassifyProgress" style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--ink-soft);"></span>
+      <button type="button" id="cloudClassifyCloseBtn" aria-label="Close" style="background:none; border:1.5px solid var(--line); border-radius:50%; width:34px; height:34px; font-size:16px; cursor:pointer; color:var(--ink-soft);">✕</button>
+    </div>
+    <img id="cloudClassifyPhoto" style="width:100%; border-radius:8px; margin-bottom:10px; max-height:50vh; object-fit:cover;" alt="Entry photo">
+    <div id="cloudClassifyMeta" style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--ink-soft); margin-bottom:18px; text-align:center;"></div>
+
+    <div id="cloudPickerWidget"></div>
+
+    <div style="display:flex; justify-content:center; gap:14px; margin-top:18px;">
+      <button type="button" id="cloudClassifySkipBtn" class="btn secondary" style="font-size:11.5px; padding:8px 18px;">Skip for now</button>
+      <button type="button" id="cloudClassifyManualBtn" class="btn secondary" style="font-size:11.5px; padding:8px 18px;">I already know — use dropdown</button>
+    </div>
+  </div>
+</div>
+
 <!-- Speaker Mode: fullscreen presentation overlay, built dynamically by renderSpeakerSlide() -->
 <div id="speakerOverlay" style="display:none; position:fixed; inset:0; z-index:80; background:#1B2530; color:#F4EFE6; flex-direction:column;">
   <div style="display:flex; justify-content:space-between; align-items:center; padding:16px 20px;">
@@ -1605,7 +1635,7 @@
 (function(){
   "use strict";
 
-  const APP_VERSION = "4.8.1";
+  const APP_VERSION = "4.9.0";
   const STORAGE_KEY = "weatherglass.entries.v1";
 
   function showToast(message, kind){
@@ -4399,6 +4429,178 @@
     renderSheetNotebookArea(e);
     document.getElementById("entrySheet").classList.add("open");
   }
+  // ---------- Cloud Classification: guided picker + review queue ----------
+  // A texture-first dichotomous key — the same shape discussed and never
+  // built earlier: 2 taps resolves most of the 10 WMO genera, a 3rd only
+  // where the branch genuinely needs it (the "layered" family, which has
+  // four real candidates instead of two or three).
+  const CLOUD_KEY = {
+    start: {
+      question: "What's its texture?",
+      options: [
+        { label:"Flat, layered, covers the sky like a sheet", next:"layered" },
+        { label:"Many small individual puffs or clumps, in rows or patches", next:"clumped" },
+        { label:"One or more heaping, cauliflower-like towers", next:"towers" },
+        { label:"Wispy, streaky, feathery, thin", genus:"Cirrus" }
+      ]
+    },
+    layered: {
+      question:"Dark and heavy, pale and thin, or low and uniform?",
+      options: [
+        { label:"Dark and heavy — might be raining", genus:"Nimbostratus" },
+        { label:"Pale, thin, high up, wispy-looking", genus:"Cirrostratus" },
+        { label:"Pale, uniform gray, fairly high up", genus:"Altostratus" },
+        { label:"Low, flat, featureless — like fog overhead", genus:"Stratus" }
+      ]
+    },
+    clumped: {
+      question:"How big are the individual puffs, held at arm's length?",
+      options: [
+        { label:"Bigger than your fist", genus:"Stratocumulus" },
+        { label:"Smaller than your fist, fairly low", genus:"Altocumulus" },
+        { label:"Tiny, high up, rippled like fish scales", genus:"Cirrocumulus" }
+      ]
+    },
+    towers: {
+      question:"Small and puffy, or a tall dark tower?",
+      options: [
+        { label:"Small and puffy, like cotton", genus:"Cumulus" },
+        { label:"Tall, dark, maybe flat-topped — looks serious", genus:"Cumulonimbus" }
+      ]
+    }
+  };
+
+  let cloudClassifyQueue = [];
+  let cloudClassifyIndex = 0;
+  let cloudPickerStep = "start";
+
+  function getUnclassifiedPhotoEntries(){
+    return entries.filter(e=> e.photo && !e.cloudGenus)
+      .slice().sort((a,b)=> new Date(b.timestamp)-new Date(a.timestamp)); // most recent first
+  }
+
+  function startCloudClassify(){
+    cloudClassifyQueue = getUnclassifiedPhotoEntries();
+    if(!cloudClassifyQueue.length){
+      showToast("No unclassified photos right now — everything with a photo already has a cloud type, or has no photo.", "success");
+      return;
+    }
+    cloudClassifyIndex = 0;
+    document.getElementById("cloudClassifyOverlay").style.display = "block";
+    showCloudClassifyEntry();
+  }
+  function closeCloudClassify(){
+    document.getElementById("cloudClassifyOverlay").style.display = "none";
+    renderCloudClassifyCount();
+  }
+  document.getElementById("cloudClassifyStartBtn").addEventListener("click", startCloudClassify);
+  document.getElementById("cloudClassifyCloseBtn").addEventListener("click", closeCloudClassify);
+
+  function renderCloudClassifyCount(){
+    const el = document.getElementById("cloudClassifyCountText");
+    if(!el) return;
+    const n = getUnclassifiedPhotoEntries().length;
+    el.textContent = n
+      ? `${n} photo${n===1?"":"s"} without a cloud type yet. Scan through them one at a time and classify — a few quick taps per photo, no dropdown digging.`
+      : `Every photo entry already has a cloud type. Nothing to classify right now.`;
+  }
+
+  function showCloudClassifyEntry(){
+    if(cloudClassifyIndex >= cloudClassifyQueue.length){
+      showToast("All caught up — every photo in the queue is classified.", "success");
+      closeCloudClassify();
+      return;
+    }
+    const e = cloudClassifyQueue[cloudClassifyIndex];
+    document.getElementById("cloudClassifyProgress").textContent = `${cloudClassifyIndex+1} of ${cloudClassifyQueue.length}`;
+    document.getElementById("cloudClassifyPhoto").src = e.photo;
+    document.getElementById("cloudClassifyMeta").textContent = `${formatTs(e.timestamp)}${e.location?.name ? " · "+e.location.name : ""}`;
+    cloudPickerStep = "start";
+    renderCloudPickerStep();
+  }
+
+  function renderCloudPickerStep(){
+    const widget = document.getElementById("cloudPickerWidget");
+    const step = CLOUD_KEY[cloudPickerStep];
+    widget.innerHTML = `
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-soft); text-align:center; margin-bottom:10px;">${escapeHtml(step.question)}</div>
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        ${step.options.map((opt,i)=>`
+          <button type="button" class="btn secondary" data-opt-idx="${i}" style="text-align:left; padding:12px 14px; font-size:13px;">${escapeHtml(opt.label)}</button>
+        `).join("")}
+      </div>
+      ${cloudPickerStep !== "start" ? `<button type="button" id="cloudPickerBackBtn" style="background:none; border:none; color:var(--ink-soft); font-family:'IBM Plex Mono',monospace; font-size:10.5px; margin-top:10px; cursor:pointer; text-decoration:underline;">‹ Back</button>` : ""}
+    `;
+    widget.querySelectorAll("[data-opt-idx]").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        const opt = step.options[Number(btn.dataset.optIdx)];
+        if(opt.genus) showCloudPickerResult(opt.genus);
+        else { cloudPickerStep = opt.next; renderCloudPickerStep(); }
+      });
+    });
+    const backBtn = document.getElementById("cloudPickerBackBtn");
+    if(backBtn) backBtn.addEventListener("click", ()=>{ cloudPickerStep = "start"; renderCloudPickerStep(); });
+  }
+
+  function showCloudPickerResult(genus){
+    const widget = document.getElementById("cloudPickerWidget");
+    widget.innerHTML = `
+      <div style="text-align:center; padding:16px; border:1.5px solid var(--brass); border-radius:8px;">
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-soft); margin-bottom:6px;">This looks like</div>
+        <div style="font-family:'Playfair Display',serif; font-style:italic; font-weight:600; font-size:24px; color:var(--ink); margin-bottom:14px;">${escapeHtml(genus)}</div>
+        <div style="display:flex; justify-content:center; gap:10px;">
+          <button type="button" id="cloudPickerRestartBtn" class="btn secondary" style="font-size:11px; padding:7px 14px;">Not quite</button>
+          <button type="button" id="cloudPickerSaveBtn" class="btn" style="font-size:11px; padding:7px 16px;">Save &amp; Next</button>
+        </div>
+      </div>
+    `;
+    document.getElementById("cloudPickerRestartBtn").addEventListener("click", ()=>{ cloudPickerStep = "start"; renderCloudPickerStep(); });
+    document.getElementById("cloudPickerSaveBtn").addEventListener("click", ()=> saveCloudClassification(genus));
+  }
+
+  async function saveCloudClassification(genus){
+    const e = cloudClassifyQueue[cloudClassifyIndex];
+    e.cloudGenus = genus;
+    try{
+      await persistChange({ putEntry: e }, entries);
+      renderAll();
+    }catch(err){
+      showToast("Could not save — try again.", "error");
+      return;
+    }
+    cloudClassifyIndex++;
+    showCloudClassifyEntry();
+  }
+
+  document.getElementById("cloudClassifySkipBtn").addEventListener("click", ()=>{
+    cloudClassifyIndex++;
+    showCloudClassifyEntry();
+  });
+  document.getElementById("cloudClassifyManualBtn").addEventListener("click", ()=>{
+    const widget = document.getElementById("cloudPickerWidget");
+    widget.innerHTML = `
+      <select id="cloudPickerManualSelect" style="width:100%; box-sizing:border-box; padding:10px; border:1px solid var(--line); border-radius:6px; font-family:inherit; font-size:14px; margin-bottom:12px;">
+        <option value="">— select —</option>
+        <option>Cumulus</option>
+        <option>Cumulonimbus</option>
+        <option>Stratus</option>
+        <option>Stratocumulus</option>
+        <option>Altocumulus</option>
+        <option>Altostratus</option>
+        <option>Nimbostratus</option>
+        <option>Cirrus</option>
+        <option>Cirrocumulus</option>
+        <option>Cirrostratus</option>
+      </select>
+      <button type="button" id="cloudPickerManualSaveBtn" class="btn" style="width:100%;">Save &amp; Next</button>
+    `;
+    document.getElementById("cloudPickerManualSaveBtn").addEventListener("click", ()=>{
+      const val = document.getElementById("cloudPickerManualSelect").value;
+      if(!val){ showToast("Pick a cloud type first, or use Skip.", "error"); return; }
+      saveCloudClassification(val);
+    });
+  });
+
   function closeEntryDetail(){
     document.getElementById("entrySheet").classList.remove("open");
     detailId = null;
@@ -4967,7 +5169,7 @@
     const isOpen = drawer.style.display !== "none";
     const shouldOpen = forceOpen !== undefined ? forceOpen : !isOpen;
     drawer.style.display = shouldOpen ? "block" : "none";
-    if(shouldOpen){ refreshStorageIndicator(); renderExportNudge(); }
+    if(shouldOpen){ refreshStorageIndicator(); renderExportNudge(); renderCloudClassifyCount(); }
   }
   document.getElementById("settingsToggleBtn").addEventListener("click", ()=> toggleSettingsDrawer());
   document.getElementById("settingsCloseBtn").addEventListener("click", ()=> toggleSettingsDrawer(false));

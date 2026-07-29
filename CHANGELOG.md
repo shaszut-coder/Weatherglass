@@ -2,6 +2,12 @@
 
 All notable changes to Weatherglass are documented here, newest first.
 
+## v4.9.0
+
+**Classify Cloud Photos** — Settings → Cloud Classification. The guided picker designed weeks ago and never built, finally shipped, paired with the review workflow that actually makes it useful: scans for every entry with a photo but no cloud type set, and lets you page through them one at a time.
+
+For each photo, a texture-first guided picker resolves most cloud types in 2 taps ("what's its texture — layered, clumped puffs, heaping towers, or wispy?" then one follow-up), rather than digging through a 10-option dropdown. Save & Next advances automatically; Skip moves on without saving; "I already know" swaps in the plain dropdown for anyone confident enough to skip the questions. Verified the decision tree reaches all 10 WMO genera with no typos or dead ends before shipping.
+
 ## v4.8.1
 
 **Entry navigation buttons redesigned** — moved out of the cramped title row into their own centered block below the header, doubled in size (26px → 48px), recolored to burnt-orange to match the app's other action buttons, and labeled with "Swipe or tap to browse entries" underneath. The "N of M" position count stays between the two buttons.
