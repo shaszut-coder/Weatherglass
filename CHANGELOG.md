@@ -2,7 +2,17 @@
 
 All notable changes to Weatherglass are documented here, newest first.
 
-> **Deployment status note (as of this entry):** **v4.9.0 is the version currently in live use.** v4.10.0 (AI cloud classification via a self-hosted Worker) is built and ready but deliberately not yet deployed — on hold pending a decision on the Anthropic API account/cost setup. If picking this back up later: v4.10.0 and everything after it in this file describes code that exists but has not been pushed live, until this note is removed or updated.
+> **Deployment status note (as of this entry):** **v4.9.0 is the version currently in live use** — v5.0.0 was briefly deployed, found to have a fatal startup bug (see v5.0.1 below), and rolled back via GitHub history. **v5.0.1 fixes that specific bug** and has been verified clean by the same systematic check that found the original problem (zero dangling element references anywhere in the script), but it has **not been redeployed yet** — that's a deliberate choice to make when ready, not an oversight. v4.10.0's AI Worker feature remains a separate, still-undeployed decision on top of this, pending the Anthropic API account/cost setup.
+
+## v5.0.1 — CRITICAL HOTFIX
+
+**v5.0.0 had a fatal, app-breaking bug — one line survived the Category removal that shouldn't have.** `document.getElementById("filterCategory").addEventListener(...)` was still wiring up the Category filter dropdown, which had already been removed from the HTML in the same version. Since that element no longer existed, `getElementById` returned `null`, and calling `.addEventListener` on `null` threw immediately — during the app's main synchronous startup sequence, before entries were loaded and before the Settings button's click handler got wired up. One uncaught error there was enough to silently halt everything after it.
+
+**This explains all three reported symptoms as one single root cause, not three separate problems:** entries appeared "gone" because the app crashed before it could load and display them from storage (not because they were deleted — they were never touched), new captures appeared "not saved" for the same reason (rendering never happened, so nothing looked different, though the save itself may have partially completed), and Settings couldn't open because its click listener was registered after the crash point and never ran.
+
+**Found by systematically cross-referencing every `getElementById()` call in the script against every actual `id` in the HTML** — the same category of bug (a leftover reference to a removed element) that caused the Journal-list scroll bug much earlier in this app's history, this time in a more severe form since it broke startup entirely instead of just one view. Confirmed this was the *only* dangling reference before shipping, not just the first one found.
+
+`node --check`, used throughout this project to validate changes, only checks JavaScript *syntax* — it cannot catch a runtime error like this, where the code is syntactically valid but crashes the moment it actually executes against real DOM elements. Worth remembering as a real limitation of that check, not a guarantee of correctness.
 
 ## v5.0.0
 
