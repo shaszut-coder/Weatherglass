@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Weatherglass — personal weather station & log
-  Version: 5.1.0
+  Version: 5.2.0
 
   Single-file app: no build step, no backend. Data lives in the
   visitor's own browser via localStorage.
@@ -1285,7 +1285,8 @@
     <div class="version-tag" id="versionTag" style="margin-top:10px;"></div>
     </div><!-- end settingsDrawer -->
 
-    <div id="tableWrap"></div>
+    <div id="journalCalendarView" style="margin-bottom:14px;"></div>
+    <div id="tableWrap" style="display:none;"></div>
   </section>
 
   <!-- TRENDS -->
@@ -1578,6 +1579,21 @@
   </div>
 </div>
 
+<!-- Journal calendar day-view — a single day's entries, deliberately a
+     plain non-virtualized list (never more than a handful of entries for
+     one day, so the virtualization risk that's bitten this app twice
+     tonight doesn't apply here at all). -->
+<div id="journalDayViewSheet" style="display:none; position:fixed; inset:0; z-index:90; background:rgba(44,58,71,0.45); align-items:flex-end; justify-content:center;">
+  <div class="sheet-content" style="max-width:640px; max-height:80vh; overflow-y:auto;">
+    <div class="sheet-handle"></div>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+      <h3 class="sheet-title" id="journalDayViewTitle" style="margin:0;"></h3>
+      <button type="button" class="sheet-close" id="journalDayViewCloseBtn" aria-label="Close">✕</button>
+    </div>
+    <ul class="log-list" id="journalDayViewList"></ul>
+  </div>
+</div>
+
 <!-- Cloud Classification review queue — scan through unclassified photo
      entries one at a time, using either the guided picker or a manual
      fallback. Built together, since a review queue without a fast way to
@@ -1635,7 +1651,7 @@
 (function(){
   "use strict";
 
-  const APP_VERSION = "5.1.0";
+  const APP_VERSION = "5.2.0";
   const STORAGE_KEY = "weatherglass.entries.v1";
 
   function showToast(message, kind){
@@ -4368,28 +4384,185 @@
   function resetJournalPageAndRender(){
     renderTable();
   }
-  document.getElementById("searchInput").addEventListener("input", resetJournalPageAndRender);
+  document.getElementById("searchInput").addEventListener("input", ()=>{
+    resetJournalPageAndRender();
+    renderJournalToggle();
+  });
   document.getElementById("sortOrder").addEventListener("change", resetJournalPageAndRender);
+
+  // ---------- Journal calendar — default view when search is empty ----------
+  // A flat list stopped working on its own once the journal grew large
+  // enough that scrolling to find one day's entries became the norm, not
+  // the exception. Search still gives the exact same flat-list experience
+  // it always has; this only changes what shows when you're just browsing.
+  let journalCalendarMonth = null;
+
+  function renderJournalToggle(){
+    const hasSearch = document.getElementById("searchInput").value.trim().length > 0;
+    document.getElementById("journalCalendarView").style.display = hasSearch ? "none" : "block";
+    document.getElementById("tableWrap").style.display = hasSearch ? "block" : "none";
+    if(!hasSearch) renderJournalCalendar();
+  }
+
+  function dayColorAndIcon(dayEntries){
+    let color = null; // null = no entries, no color
+    let hasNotable = false;
+    let hasSevere = false, hasOtherAlert = false;
+    dayEntries.forEach(e=>{
+      if(e.level === "Notable") hasNotable = true;
+      if(e.alertActive === "yes"){
+        if(e.alertSeverity === "Severe" || e.alertSeverity === "Extreme") hasSevere = true;
+        else hasOtherAlert = true;
+      }
+    });
+    if(dayEntries.length){
+      color = hasSevere ? "#B5482E" : hasOtherAlert ? "#C4713D" : "#5B9279"; // red / orange / green
+    }
+    return { color, hasNotable };
+  }
+
+  function renderJournalCalendar(){
+    const el = document.getElementById("journalCalendarView");
+    if(!el) return;
+    if(!entries.length){
+      el.innerHTML = `<div class="empty-state">No entries yet. Record your first reading in the "Record" tab.</div>`;
+      return;
+    }
+
+    const byDate = {};
+    entries.forEach(e=>{
+      const key = new Date(e.timestamp).toLocaleDateString("en-CA");
+      if(!byDate[key]) byDate[key] = [];
+      byDate[key].push(e);
+    });
+    const allKeys = Object.keys(byDate).sort();
+    const minParsed = new Date(allKeys[0]+"T12:00:00");
+    const maxParsed = new Date(allKeys[allKeys.length-1]+"T12:00:00");
+    const minMonth = new Date(minParsed.getFullYear(), minParsed.getMonth(), 1);
+    const maxMonth = new Date(maxParsed.getFullYear(), maxParsed.getMonth(), 1);
+
+    if(!journalCalendarMonth) journalCalendarMonth = new Date(maxMonth.getFullYear(), maxMonth.getMonth(), 1);
+
+    const year = journalCalendarMonth.getFullYear(), month = journalCalendarMonth.getMonth();
+    const monthLabel = journalCalendarMonth.toLocaleDateString(undefined, { month:"long", year:"numeric" });
+    const atMin = journalCalendarMonth <= minMonth;
+    const atMax = journalCalendarMonth >= maxMonth;
+    const firstDow = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month+1, 0).getDate();
+
+    let cells = "";
+    for(let i=0; i<firstDow; i++) cells += `<div></div>`;
+    for(let day=1; day<=daysInMonth; day++){
+      const key = `${year}-${String(month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+      const dayEntries = byDate[key] || [];
+      const { color, hasNotable } = dayColorAndIcon(dayEntries);
+      const hasData = dayEntries.length > 0;
+      cells += `<button type="button" class="journal-cal-day" data-date="${key}" ${hasData?"":"disabled"}
+        title="${dayEntries.length} entries"
+        style="aspect-ratio:1; border:1px solid ${color || "var(--line)"}; border-radius:6px;
+          background:${color ? color+"33" : "transparent"};
+          color:var(--ink); font-family:'IBM Plex Mono',monospace; font-size:11px;
+          cursor:${hasData?"pointer":"default"}; position:relative; padding:0;">
+          ${day}
+          ${hasNotable?`<span style="position:absolute; top:2px; right:3px; font-size:9px;">👁</span>`:""}
+          ${color?`<span style="position:absolute; bottom:3px; left:50%; transform:translateX(-50%); width:5px; height:5px; border-radius:50%; background:${color};"></span>`:""}
+        </button>`;
+    }
+
+    el.innerHTML = `
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+        <button type="button" id="journalCalPrevBtn" ${atMin?"disabled":""} style="background:none; border:1px solid var(--line); border-radius:4px; padding:4px 10px; cursor:${atMin?"default":"pointer"}; opacity:${atMin?"0.3":"1"};">‹</button>
+        <span style="font-family:'Playfair Display',serif; font-style:italic; font-size:15px;">${monthLabel}</span>
+        <button type="button" id="journalCalNextBtn" ${atMax?"disabled":""} style="background:none; border:1px solid var(--line); border-radius:4px; padding:4px 10px; cursor:${atMax?"default":"pointer"}; opacity:${atMax?"0.3":"1"};">›</button>
+      </div>
+      <div style="display:grid; grid-template-columns:repeat(7,1fr); gap:3px; font-family:'IBM Plex Mono',monospace; font-size:9px; text-align:center; color:var(--ink-soft); margin-bottom:4px;">
+        <div>S</div><div>M</div><div>T</div><div>W</div><div>T</div><div>F</div><div>S</div>
+      </div>
+      <div style="display:grid; grid-template-columns:repeat(7,1fr); gap:3px; margin-bottom:10px;">${cells}</div>
+      <div style="display:flex; justify-content:center; gap:14px; font-family:'IBM Plex Mono',monospace; font-size:9.5px; color:var(--ink-soft); flex-wrap:wrap;">
+        <span><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#5B9279; margin-right:4px;"></span>No alert</span>
+        <span><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#C4713D; margin-right:4px;"></span>Alert</span>
+        <span><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#B5482E; margin-right:4px;"></span>Severe</span>
+        <span>👁 Notable</span>
+      </div>
+    `;
+
+    document.getElementById("journalCalPrevBtn").addEventListener("click", ()=>{
+      if(atMin) return;
+      journalCalendarMonth = new Date(year, month-1, 1);
+      renderJournalCalendar();
+    });
+    document.getElementById("journalCalNextBtn").addEventListener("click", ()=>{
+      if(atMax) return;
+      journalCalendarMonth = new Date(year, month+1, 1);
+      renderJournalCalendar();
+    });
+    el.querySelectorAll(".journal-cal-day:not([disabled])").forEach(btn=>{
+      btn.addEventListener("click", ()=> openJournalDayView(btn.dataset.date, byDate[btn.dataset.date]));
+    });
+  }
+
+  function openJournalDayView(dateKey, dayEntries){
+    const sorted = dayEntries.slice().sort((a,b)=> new Date(a.timestamp)-new Date(b.timestamp));
+    const label = new Date(dateKey+"T12:00:00").toLocaleDateString(undefined, { weekday:"long", month:"long", day:"numeric", year:"numeric" });
+    document.getElementById("journalDayViewTitle").textContent = label;
+    document.getElementById("journalDayViewList").innerHTML = sorted.map(e=>`
+      <li>
+        <button type="button" class="log-row" data-open="${e.id}">
+          ${e.photo
+            ? `<img class="log-row-thumb" src="${e.photo}" alt="">`
+            : `<span class="log-row-thumb placeholder">·</span>`}
+          <span class="log-row-main">
+            <span class="log-row-title">${escapeHtml(e.title)}</span>
+            <span class="log-row-meta">${metaLine(e)}</span>
+          </span>
+          <span class="log-row-chevron">›</span>
+        </button>
+      </li>`).join("");
+    document.getElementById("journalDayViewList").querySelectorAll("[data-open]").forEach(row=>{
+      row.addEventListener("click", ()=>{
+        document.getElementById("journalDayViewSheet").style.display = "none";
+        openEntryDetail(row.dataset.open, sorted); // scoped to this day's entries
+      });
+    });
+    document.getElementById("journalDayViewSheet").style.display = "flex";
+  }
+  document.getElementById("journalDayViewCloseBtn").addEventListener("click", ()=>{
+    document.getElementById("journalDayViewSheet").style.display = "none";
+  });
 
   /* ---------- entry detail sheet ---------- */
   let detailId = null;
-  function openEntryDetail(id){
+  // Normally navigation moves through vlistRows (whatever's filtered/sorted
+  // in Journal's flat list). Opening an entry with a scopedList instead
+  // (from a calendar day, or a notebook) sets this to just that list, so
+  // swipe/arrows stay scoped to it rather than jumping into the whole
+  // journal. Passed explicitly per call rather than a global that needs
+  // manual resetting — every entry point either opts in or automatically
+  // falls back to global, with no risk of stale scoping leaking in.
+  let entryDayNavList = null;
+  function currentNavList(){
+    return entryDayNavList || vlistRows;
+  }
+  function openEntryDetail(id, scopedList){
     const e = entries.find(x=>x.id === id);
     if(!e) return;
     detailId = id;
+    entryDayNavList = scopedList || null;
 
-    // Position within whatever list is currently filtered/sorted in
-    // Journal — lets swipe/prev/next move through entries in the same
-    // order you'd see scrolling the list itself, not just insertion order.
+    // Position within whatever list actually led here — the day view's
+    // entries if opened from a calendar day, otherwise Journal's normal
+    // filtered/sorted list — so swipe/prev/next stays scoped correctly.
+    const navList = currentNavList();
     const posIndicator = document.getElementById("sheetPositionIndicator");
-    const idx = vlistRows.findIndex(x=>x.id === id);
-    if(idx !== -1 && vlistRows.length > 1){
+    const idx = navList.findIndex(x=>x.id === id);
+    if(idx !== -1 && navList.length > 1){
       posIndicator.style.display = "flex";
-      document.getElementById("sheetPositionText").textContent = `${idx+1} of ${vlistRows.length}`;
+      document.getElementById("sheetPositionText").textContent = `${idx+1} of ${navList.length}`;
       document.getElementById("sheetPrevEntryBtn").disabled = idx === 0;
       document.getElementById("sheetPrevEntryBtn").style.opacity = idx === 0 ? "0.3" : "1";
-      document.getElementById("sheetNextEntryBtn").disabled = idx === vlistRows.length-1;
-      document.getElementById("sheetNextEntryBtn").style.opacity = idx === vlistRows.length-1 ? "0.3" : "1";
+      document.getElementById("sheetNextEntryBtn").disabled = idx === navList.length-1;
+      document.getElementById("sheetNextEntryBtn").style.opacity = idx === navList.length-1 ? "0.3" : "1";
     } else {
       posIndicator.style.display = "none";
     }
@@ -4725,11 +4898,12 @@
   // filtered/sorted in Journal (vlistRows) — same order as scrolling
   // through it. delta: -1 = previous, +1 = next.
   function navigateEntryDetail(delta){
-    const idx = vlistRows.findIndex(x=>x.id === detailId);
+    const navList = currentNavList();
+    const idx = navList.findIndex(x=>x.id === detailId);
     if(idx === -1) return;
     const nextIdx = idx + delta;
-    if(nextIdx < 0 || nextIdx >= vlistRows.length) return; // stop at the ends, no wraparound
-    openEntryDetail(vlistRows[nextIdx].id);
+    if(nextIdx < 0 || nextIdx >= navList.length) return; // stop at the ends, no wraparound
+    openEntryDetail(navList[nextIdx].id, entryDayNavList); // preserve current scoping, if any
   }
   document.getElementById("sheetPrevEntryBtn").addEventListener("click", ()=> navigateEntryDetail(-1));
   document.getElementById("sheetNextEntryBtn").addEventListener("click", ()=> navigateEntryDetail(1));
@@ -7103,6 +7277,7 @@
     renderPressureWatch();
     renderOnThisDay();
     renderTable();
+    renderJournalToggle();
     renderMapDateCalendar();
     renderMap();
     renderSkyTab();

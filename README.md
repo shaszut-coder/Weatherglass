@@ -3,7 +3,7 @@
 A personal weather journal. Log conditions by hand or pull them live, track clouds and pressure trends, watch severe weather alerts, and build a searchable history of what the sky was doing wherever you were.
 
 **Live app:** https://weatherglass.shaszut.workers.dev/
-**Current version:** v5.1.0
+**Current version:** v5.2.0
 **Philosophy:** see [PHILOSOPHY.md](./PHILOSOPHY.md) — this is a personal weather observation journal, not a forecast app
 
 ## What it does
@@ -11,7 +11,7 @@ A personal weather journal. Log conditions by hand or pull them live, track clou
 - **Record** — log a reading manually, auto-fill current conditions with Quick Log, or use Quick Photo Log (camera-first — take a photo and conditions fill in automatically) for your GPS location
 - **Notebooks** — link several entries together into one ongoing moment (e.g. a storm as it rolls through), rather than flattening changing conditions into a single reading. Manage them (rename, present in Speaker Mode, delete the grouping) from Settings → View All Notebooks
 - **Cloud Classification** — Settings → Classify Cloud Photos scans for photos without a cloud type and lets you tag them one at a time with a guided, texture-first picker (2 taps for most types) instead of hunting through a raw dropdown. Optionally connect a self-hosted AI Worker (your own Cloudflare + Anthropic API key, see `worker/DEPLOYMENT.md`) for an AI-suggested classification instead of answering the questions yourself
-- **Journal** — a searchable, filterable log of every entry, with photos
+- **Journal** — a color-coded month calendar by default (green/orange/red by alert severity, with a 👁 icon for personally-flagged Notable days) — tap a day to see its entries. Search replaces the calendar with the classic flat searchable list
 - **Trends** — charts (temp, pressure, humidity, heat index, pressure rate-of-change, year-over-year, transect, UV, PM2.5) over 1d/7d/30d/All windows, plus computed Insights (temp/humidity correlation, personal comfort threshold, peak heat index, alert coverage), Pattern Tiles, and a Pressure Watch rapid-change indicator
 - **Map** — station view or a chronological route view of everywhere you've logged, color-coded by temperature, with a month-calendar picker to jump to any date's entries
 - **Gallery** — cloud photos organized by genus, with a built-in cloud atlas reference (Cloudspotter's Guide classifications)

@@ -4,6 +4,22 @@ All notable changes to Weatherglass are documented here, newest first.
 
 > **Deployment status note (as of this entry):** **v5.0.1 is confirmed live and working**, with all existing data verified intact after the v5.0.0 rollback/hotfix — see that entry below for the full story if picking this up later. v5.1.0 (this entry) is a Speaker Mode overhaul, built on top of the confirmed-stable v5.0.1. v4.10.0's AI Worker feature remains a separate, still-undeployed decision, pending the Anthropic API account/cost setup.
 
+## v5.2.0
+
+**Journal's default view is now a calendar, not a flat list.** As the journal grew past a few hundred entries, scrolling to find one day stopped being the exception and became the norm — this replaces that with a month grid, color-coded per day:
+
+- 🟢 **Green** — entries logged, no alert active
+- 🟠 **Orange** — at least one entry under a non-severe active alert
+- 🔴 **Red** — at least one entry under a Severe/Extreme alert (always wins if a day has both)
+- **No color** — no entries that day
+- **👁 eye icon** — layered on top of any color, independent of it, whenever a day has at least one entry manually marked Notable — so a calm, alert-free day you flagged as personally worth remembering still stands out, without fighting the alert-severity color scale for a slot
+
+**Search is untouched** — type anything, and the calendar is replaced by the exact same flat list Journal has always used; clear the search box and the calendar comes back. No new interaction to learn for the workflow that already works.
+
+**Tap a colored day → a simple list of just that day's entries → tap one to open it**, with swipe/arrow navigation now correctly scoped to *that day* rather than jumping into the whole journal — verified directly, including that navigating with the arrows preserves the day-scoping rather than silently resetting to the global list on the second tap (a real bug caught and fixed during the build, not just a passed-by-luck test).
+
+**Built deliberately without touching the flat list's virtualization at all** — the day view is a plain, non-virtualized list, safe because a single day is always a small, bounded number of entries. Given that virtualization has been the single most fragile part of this app across two real bugs tonight already, this was worth the small extra restraint rather than routing the new feature through it.
+
 ## v5.1.0
 
 **Speaker Mode overhaul — six changes, all from direct feedback after actually presenting with it:**
