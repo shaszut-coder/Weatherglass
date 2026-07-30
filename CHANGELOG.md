@@ -2,7 +2,18 @@
 
 All notable changes to Weatherglass are documented here, newest first.
 
-> **Deployment status note (as of this entry):** **v4.9.0 is the version currently in live use** — v5.0.0 was briefly deployed, found to have a fatal startup bug (see v5.0.1 below), and rolled back via GitHub history. **v5.0.1 fixes that specific bug** and has been verified clean by the same systematic check that found the original problem (zero dangling element references anywhere in the script), but it has **not been redeployed yet** — that's a deliberate choice to make when ready, not an oversight. v4.10.0's AI Worker feature remains a separate, still-undeployed decision on top of this, pending the Anthropic API account/cost setup.
+> **Deployment status note (as of this entry):** **v5.0.1 is confirmed live and working**, with all existing data verified intact after the v5.0.0 rollback/hotfix — see that entry below for the full story if picking this up later. v5.1.0 (this entry) is a Speaker Mode overhaul, built on top of the confirmed-stable v5.0.1. v4.10.0's AI Worker feature remains a separate, still-undeployed decision, pending the Anthropic API account/cost setup.
+
+## v5.1.0
+
+**Speaker Mode overhaul — six changes, all from direct feedback after actually presenting with it:**
+
+- **Removed the "Overall, so far" all-time tiles slide** — Speaker Mode now stays focused entirely on the chosen date range, not a mix of range-specific and lifetime stats.
+- **"By the Numbers" now includes Humidity range**, completing the Temperature/Pressure/Humidity trio (TOT/POT/HOT) alongside the existing peak feels-like and alert-coverage stats.
+- **Alert timeline rebuilt as an escalation narrative, not a flat list.** Consecutive entries sharing the same alert are the same ongoing event, not separate ones — now collapsed to just the moments the situation actually changed, with the timeline's left-border color shifting by severity (Extreme/Severe/Moderate) so the escalation is visible at a glance. Verified directly: 6 raw alert-active entries (with duplicates from rapid captures) correctly collapse to the 3 real state changes, in order.
+- **Photo slides now show that entry's own weather data** — temperature, pressure, humidity, and active alert (if any) as a row of chips beneath the photo, not just the picture and a caption.
+- **The route slide is a real map now**, using the same colored-polyline-and-markers visualization already built for the Map tab's Route mode — temperature-colored route line, tappable markers with popups, auto-fit bounds. Previously deferred as "would need its own Leaflet instance"; built this time. Gets its own map instance (separate from the Map tab's), properly torn down when navigating away or closing Speaker Mode, so it can't leak or conflict with a fresh one on the next view.
+- **Rotation mid-presentation (landscape for data, portrait for photos) — confirmed unbroken**, and the route map specifically gets a resize nudge both when its slide is first shown and if you rotate while already looking at it, so the map doesn't end up measured wrong for whichever orientation you're actually in.
 
 ## v5.0.1 — CRITICAL HOTFIX
 

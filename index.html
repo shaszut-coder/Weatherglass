@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Weatherglass — personal weather station & log
-  Version: 5.0.1
+  Version: 5.1.0
 
   Single-file app: no build step, no backend. Data lives in the
   visitor's own browser via localStorage.
@@ -1635,7 +1635,7 @@
 (function(){
   "use strict";
 
-  const APP_VERSION = "5.0.1";
+  const APP_VERSION = "5.1.0";
   const STORAGE_KEY = "weatherglass.entries.v1";
 
   function showToast(message, kind){
@@ -7116,6 +7116,7 @@
   /* ---------- Speaker Mode: presentation-mode slide builder ---------- */
   let speakerSlides = [];
   let speakerSlideIndex = 0;
+  let speakerMapInstance = null; // Leaflet instance for the route slide — separate from the main Map tab's, created/destroyed per slide view since it lives in dynamically-swapped HTML
 
   function speakerEntriesInRange(startStr, endStr){
     const start = startStr ? new Date(startStr + "T00:00:00") : null;
@@ -7171,7 +7172,9 @@
     });
 
     // 2. Range overview tiles — same tile look as the home screen, but
-    // scoped to just the entries in this presentation's date range.
+    // scoped to just the entries in this presentation's date range. The
+    // separate all-time "Overall, so far" slide that used to follow this
+    // was removed — Speaker Mode stays focused on the chosen range only.
     const rangeTemps = rangeEntries.filter(e=>isFinite(e.tempF)).map(e=>e.tempF);
     const rangeAvgTemp = rangeTemps.length ? (rangeTemps.reduce((a,b)=>a+b,0)/rangeTemps.length).toFixed(1) : "—";
     const rangeSevere = rangeEntries.filter(e=>e.level==="Severe").length;
@@ -7183,18 +7186,16 @@
       { label:"Locations", value: locNames.length, note: locNames.length ? locNames.slice(0,2).join(", ") + (locNames.length>2 ? "…" : "") : "—" },
     ])});
 
-    // 3. App-wide overview tiles — the same six tiles as the home screen
-    // (Total Observations, This Month, This Week, Streak, Avg Temp, Severe
-    // Events), computed across your ENTIRE journal, not just this range.
-    slides.push({ kind:"tiles", html: speakerTileSlideHtml("Overall, so far", computeOverviewCards()) });
-
-    // 4. Stats slide
+    // 3. Stats slide — Temperature, Pressure, and Humidity together now
+    // (the "big three" — TOT/POT/HOT — matching how the rest of the app
+    // treats these three as a set; Humidity was missing before).
     const temps = rangeEntries.filter(e=>isFinite(e.tempF)).map(e=>e.tempF);
     const pressures = rangeEntries.filter(e=>isFinite(e.pressureInHg)).map(e=>e.pressureInHg);
+    const humidities = rangeEntries.filter(e=>isFinite(e.humidity)).map(e=>e.humidity);
     const heatPeaks = rangeEntries.filter(e=>isFinite(e.tempF)&&isFinite(e.humidity))
       .map(e=>calcHeatIndex(e.tempF,e.humidity)).filter(v=>v!=null);
     const alertCount = rangeEntries.filter(e=>e.alertActive==="yes").length;
-    if(temps.length || pressures.length || alertCount){
+    if(temps.length || pressures.length || humidities.length || alertCount){
       const statRow = (label, value)=> value==null ? "" : `
         <div style="margin-bottom:22px;">
           <div style="font-family:'IBM Plex Mono',monospace; font-size:13px; opacity:0.65; text-transform:uppercase; letter-spacing:0.5px;">${escapeHtml(label)}</div>
@@ -7206,21 +7207,37 @@
           ${statRow("Temperature range", temps.length ? `${Math.min(...temps).toFixed(0)}° – ${Math.max(...temps).toFixed(0)}°F` : null)}
           ${statRow("Peak feels-like", heatPeaks.length ? `${Math.max(...heatPeaks)}°F` : null)}
           ${statRow("Pressure range", pressures.length ? `${Math.min(...pressures).toFixed(2)} – ${Math.max(...pressures).toFixed(2)} inHg` : null)}
+          ${statRow("Humidity range", humidities.length ? `${Math.min(...humidities)}% – ${Math.max(...humidities)}%` : null)}
           ${statRow("Entries under an active alert", alertCount ? `${alertCount} of ${rangeEntries.length}` : null)}
         </div>`
       });
     }
 
-    // 5. Alert timeline slide
-    const alertEntries = rangeEntries.filter(e=>e.alertActive==="yes" && e.alertSummary);
-    if(alertEntries.length){
+    // 4. Alert timeline slide — an escalation narrative, not a flat list of
+    // every alert-active entry. Consecutive entries sharing the same
+    // alertSummary are the same ongoing alert, not new events — collapsed
+    // down to just the moments the situation actually changed (a new
+    // alert joins, escalates, or clears), which tells the real story of
+    // how a storm unfolded rather than repeating the same line dozens of
+    // times for entries logged minutes apart during one alert.
+    const alertEntriesChrono = rangeEntries.filter(e=>e.alertActive==="yes" && e.alertSummary)
+      .slice().sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
+    const escalationPoints = [];
+    alertEntriesChrono.forEach(e=>{
+      const last = escalationPoints[escalationPoints.length-1];
+      if(!last || last.alertSummary !== e.alertSummary){
+        escalationPoints.push({ timestamp:e.timestamp, alertSummary:e.alertSummary, alertSeverity:e.alertSeverity, location:e.location });
+      }
+    });
+    if(escalationPoints.length){
+      const severityColor = (sev)=> sev==="Extreme" ? "#8B2E2E" : sev==="Severe" ? "#C4713D" : sev==="Moderate" ? "#B08968" : "#8A9BA8";
       slides.push({ kind:"alerts", html:`
         <div>
           <div style="font-family:'IBM Plex Mono',monospace; font-size:13px; opacity:0.6; text-transform:uppercase; letter-spacing:1px; margin-bottom:20px;">Alert timeline</div>
           <div style="display:flex; flex-direction:column; gap:16px; font-size:clamp(15px,2.2vw,19px);">
-            ${alertEntries.map(e=>`
-              <div style="border-left:3px solid #C4713D; padding-left:14px;">
-                <div style="font-family:'IBM Plex Mono',monospace; font-size:12px; opacity:0.65;">${escapeHtml(formatTs(e.timestamp))}${e.location?.name ? " · "+escapeHtml(e.location.name) : ""}</div>
+            ${escalationPoints.map(e=>`
+              <div style="border-left:3px solid ${severityColor(e.alertSeverity)}; padding-left:14px;">
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:12px; opacity:0.65;">${escapeHtml(formatTs(e.timestamp))}${e.location?.name ? " · "+escapeHtml(e.location.name) : ""}${e.alertSeverity ? " · "+escapeHtml(e.alertSeverity) : ""}</div>
                 <div>${escapeHtml(e.alertSummary)}</div>
               </div>`).join("")}
           </div>
@@ -7228,17 +7245,25 @@
       });
     }
 
-    // 6. Photo slides (capped)
+    // 5. Photo slides (capped) — now shown with that entry's own weather
+    // data (temp/pressure/humidity/alert), not just the photo and caption.
     const withPhotos = rangeEntries.filter(e=>e.photo);
     const photoSet = withPhotos.length > SPEAKER_MAX_PHOTO_SLIDES
       ? withPhotos.filter((_,i)=> i % Math.ceil(withPhotos.length / SPEAKER_MAX_PHOTO_SLIDES) === 0)
       : withPhotos;
     photoSet.forEach(e=>{
+      const dataChips = [
+        isFinite(e.tempF) ? `${e.tempF}°F` : null,
+        isFinite(e.pressureInHg) ? `${e.pressureInHg} inHg` : null,
+        isFinite(e.humidity) ? `${e.humidity}% RH` : null,
+        e.alertActive==="yes" && e.alertSummary ? e.alertSummary : null
+      ].filter(Boolean);
       slides.push({ kind:"photo", html:`
         <div style="text-align:center;">
-          <img src="${e.photo}" style="max-width:100%; max-height:60vh; border-radius:6px; object-fit:contain; margin-bottom:18px;">
+          <img src="${e.photo}" style="max-width:100%; max-height:55vh; border-radius:6px; object-fit:contain; margin-bottom:14px;">
           <div style="font-family:'Playfair Display',serif; font-style:italic; font-size:clamp(20px,3.5vw,30px); margin-bottom:8px;">${escapeHtml(e.title)}</div>
-          <div style="font-family:'IBM Plex Mono',monospace; font-size:13px; opacity:0.7;">${escapeHtml(formatTs(e.timestamp))}${e.location?.name ? " · "+escapeHtml(e.location.name) : ""}</div>
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:13px; opacity:0.7; margin-bottom:10px;">${escapeHtml(formatTs(e.timestamp))}${e.location?.name ? " · "+escapeHtml(e.location.name) : ""}</div>
+          ${dataChips.length ? `<div style="display:flex; justify-content:center; flex-wrap:wrap; gap:8px;">${dataChips.map(c=>`<span style="font-family:'IBM Plex Mono',monospace; font-size:12px; padding:4px 10px; border:1px solid rgba(244,239,230,0.35); border-radius:999px; opacity:0.85;">${escapeHtml(c)}</span>`).join("")}</div>` : ""}
         </div>`
       });
     });
@@ -7246,29 +7271,21 @@
       slides[slides.length-1].html += `<div style="text-align:center; font-family:'IBM Plex Mono',monospace; font-size:11px; opacity:0.5; margin-top:14px;">Showing ${photoSet.length} of ${withPhotos.length} photos in this range</div>`;
     }
 
-    // 7. Route/stops slide — chronological list of named locations.
-    // (A live interactive map here would need its own Leaflet instance
-    // separate from the Map tab's; deferred rather than rushed — see
-    // changelog. This still gives the "where did I go, in order" view.)
-    const stops = [];
-    rangeEntries.forEach(e=>{
-      const name = e.location?.name;
-      if(name && stops[stops.length-1]?.name !== name){
-        stops.push({ name, timestamp: e.timestamp });
-      }
-    });
-    if(stops.length){
-      slides.push({ kind:"stops", html:`
-        <div>
-          <div style="font-family:'IBM Plex Mono',monospace; font-size:13px; opacity:0.6; text-transform:uppercase; letter-spacing:1px; margin-bottom:20px;">Route</div>
-          <div style="display:flex; flex-direction:column; gap:10px; font-size:clamp(15px,2.2vw,19px);">
-            ${stops.map((s,i)=>`
-              <div>
-                <span style="font-family:'IBM Plex Mono',monospace; opacity:0.5; margin-right:10px;">${i+1}.</span>
-                ${escapeHtml(s.name)}
-                <span style="font-family:'IBM Plex Mono',monospace; font-size:12px; opacity:0.6; margin-left:8px;">${escapeHtml(formatTs(s.timestamp))}</span>
-              </div>`).join("")}
-          </div>
+    // 6. Route slide — a real map now, using the same colored-polyline
+    // route visualization already built for the main Map tab's Route
+    // mode, rather than a text list of stops. Needs its own Leaflet
+    // instance (separate from the Map tab's), initialized when this slide
+    // is actually displayed — see renderSpeakerSlide's route-slide
+    // handling below, since a map can't be built from an HTML string
+    // alone the way every other slide here is.
+    const routePts = rangeEntries
+      .filter(e=>e.location && isFinite(e.location.lat) && isFinite(e.location.lng))
+      .slice().sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
+    if(routePts.length){
+      slides.push({ kind:"route", points: routePts, html:`
+        <div style="height:100%; display:flex; flex-direction:column;">
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:13px; opacity:0.6; text-transform:uppercase; letter-spacing:1px; margin-bottom:14px; text-align:center;">Route — ${routePts.length} location${routePts.length===1?"":"s"}</div>
+          <div id="speakerRouteMapContainer" style="flex:1; min-height:300px; border-radius:8px; overflow:hidden;"></div>
         </div>`
       });
     }
@@ -7279,16 +7296,62 @@
   function renderSpeakerSlide(){
     const content = document.getElementById("speakerSlideContent");
     const counter = document.getElementById("speakerSlideCounter");
+
+    // Any previous route map needs tearing down before its container is
+    // replaced by innerHTML below — Leaflet doesn't clean itself up when
+    // its DOM node just disappears, and reusing a stale instance against a
+    // brand-new container (even one with the same id) throws.
+    if(speakerMapInstance){
+      speakerMapInstance.remove();
+      speakerMapInstance = null;
+    }
+
     if(!speakerSlides.length){
       content.innerHTML = `<div style="text-align:center; font-family:'IBM Plex Mono',monospace; opacity:0.7;">No entries in this date range.</div>`;
       counter.textContent = "";
       return;
     }
     speakerSlideIndex = Math.max(0, Math.min(speakerSlideIndex, speakerSlides.length-1));
-    content.innerHTML = speakerSlides[speakerSlideIndex].html;
+    const slide = speakerSlides[speakerSlideIndex];
+    content.innerHTML = slide.html;
     counter.textContent = `${speakerSlideIndex+1} / ${speakerSlides.length}`;
     document.getElementById("speakerPrevBtn").disabled = speakerSlideIndex === 0;
     document.getElementById("speakerNextBtn").disabled = speakerSlideIndex === speakerSlides.length-1;
+
+    if(slide.kind === "route" && slide.points && slide.points.length){
+      const mapEl = document.getElementById("speakerRouteMapContainer");
+      if(mapEl){
+        speakerMapInstance = L.map(mapEl, { scrollWheelZoom:false }).setView(
+          [slide.points[0].location.lat, slide.points[0].location.lng], 10
+        );
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '© OpenStreetMap contributors', maxZoom: 18
+        }).addTo(speakerMapInstance);
+
+        for(let i=0; i<slide.points.length-1; i++){
+          const a = slide.points[i], b = slide.points[i+1];
+          const color = tempToColor(isFinite(a.tempF) ? a.tempF : null);
+          L.polyline(
+            [[a.location.lat, a.location.lng],[b.location.lat, b.location.lng]],
+            { color, weight:3, opacity:0.85 }
+          ).addTo(speakerMapInstance);
+        }
+        slide.points.forEach(e=>{
+          const color = tempToColor(isFinite(e.tempF) ? e.tempF : null);
+          const tempStr = isFinite(e.tempF) ? `${e.tempF}°F` : "—";
+          L.circleMarker([e.location.lat, e.location.lng], {
+            radius:6, fillColor:color, color:"#2C3A47", weight:1, fillOpacity:0.9
+          }).bindPopup(`<strong>${escapeHtml(e.title)}</strong><br>${escapeHtml(formatTs(e.timestamp))}<br>${tempStr}${e.location.name ? "<br>"+escapeHtml(e.location.name) : ""}`)
+            .addTo(speakerMapInstance);
+        });
+        const bounds = L.latLngBounds(slide.points.map(e=>[e.location.lat, e.location.lng]));
+        speakerMapInstance.fitBounds(bounds, { padding:[30,30], maxZoom:12 });
+        // Route slides can be viewed in either orientation (landscape for
+        // most slides, portrait for photos) — the map needs a resize nudge
+        // if Leaflet measured its container before a rotation settled.
+        setTimeout(()=>{ if(speakerMapInstance) speakerMapInstance.invalidateSize(); }, 100);
+      }
+    }
   }
   function speakerGoTo(delta){
     speakerSlideIndex += delta;
@@ -7304,7 +7367,19 @@
   function closeSpeakerMode(){
     document.getElementById("speakerOverlay").style.display = "none";
     if(document.fullscreenElement) document.exitFullscreen().catch(()=>{});
+    if(speakerMapInstance){
+      speakerMapInstance.remove();
+      speakerMapInstance = null;
+    }
   }
+  // Rotating the phone mid-presentation is a real, deliberate part of how
+  // this gets used (landscape for data slides, portrait for photos) — if
+  // that happens while the route map is on screen, it needs a resize nudge
+  // too, not just when the slide is first entered.
+  window.addEventListener("resize", ()=>{
+    if(speakerMapInstance) speakerMapInstance.invalidateSize();
+  });
+
   document.getElementById("speakerModeStartBtn").addEventListener("click", ()=>{
     const startStr = document.getElementById("speakerStartDate").value;
     const endStr = document.getElementById("speakerEndDate").value;
