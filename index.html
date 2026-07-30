@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Weatherglass — personal weather station & log
-  Version: 4.9.0
+  Version: 5.0.0
 
   Single-file app: no build step, no backend. Data lives in the
   visitor's own browser via localStorage.
@@ -792,17 +792,6 @@
           </select>
         </div>
         <div class="field">
-          <label for="f-category">Category</label>
-          <select id="f-category">
-            <option>Temperature</option>
-            <option>Precipitation</option>
-            <option>Wind</option>
-            <option>Pressure</option>
-            <option>Sky</option>
-            <option>Storm</option>
-          </select>
-        </div>
-        <div class="field">
           <label for="f-title">Title</label>
           <input id="f-title" type="text" placeholder="e.g. Morning frost, or Squall line passing">
         </div>
@@ -905,7 +894,7 @@
           <label for="f-sky">Sky conditions</label>
           <input id="f-sky" type="text" placeholder="e.g. Overcast, light wind NW">
         </div>
-        <div class="field wide" id="cloudClassificationBlock" style="display:none; border:1px dashed var(--line); border-radius:6px; padding:14px;">
+        <div class="field wide" id="cloudClassificationBlock" style="border:1px dashed var(--line); border-radius:6px; padding:14px;">
           <label style="margin-bottom:10px;">Cloud Classification (optional)</label>
           <div style="font-family:'Source Serif 4', serif; font-style:italic; font-size:12px; color:var(--ink-soft); margin:-4px 0 10px;">
             Classification system from <em>The Cloudspotter's Guide</em> by Gavin Pretor-Pinney
@@ -1093,15 +1082,6 @@
       <input type="text" id="searchInput" class="toolbar-field" placeholder="Search title, location, notes, mood..." style="width:100%; box-sizing:border-box; margin-bottom:14px; display:block;">
       <div style="display:flex; align-items:stretch; gap:14px;">
         <div style="flex:1; display:flex; flex-direction:column; gap:14px; min-width:0;">
-          <select id="filterCategory" class="toolbar-field" style="width:100%; box-sizing:border-box;">
-            <option value="">All categories</option>
-            <option>Temperature</option>
-            <option>Precipitation</option>
-            <option>Wind</option>
-            <option>Pressure</option>
-            <option>Sky</option>
-            <option>Storm</option>
-          </select>
           <select id="sortOrder" class="toolbar-field" style="width:100%; box-sizing:border-box;">
             <option value="desc">Newest first</option>
             <option value="asc">Oldest first</option>
@@ -1210,7 +1190,23 @@
       <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:8px;" id="cloudClassifyCountText">
         Scan through your photos one at a time and classify the cloud type — a few quick taps per photo, no dropdown digging.
       </div>
-      <button type="button" class="btn secondary" id="cloudClassifyStartBtn" style="width:100%;">Classify Cloud Photos</button>
+      <button type="button" class="btn secondary" id="cloudClassifyStartBtn" style="width:100%; margin-bottom:14px;">Classify Cloud Photos</button>
+      <div style="border-top:1px dashed var(--line); padding-top:12px;">
+        <div style="font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--ink-soft); margin-bottom:8px;">
+          Optional: connect an AI Worker (self-hosted, your own API key) to get a suggested cloud type for each photo instead of answering the guided questions yourself. See the deployment guide for setup.
+        </div>
+        <input id="cloudAiWorkerUrl" type="text" placeholder="https://your-worker.your-subdomain.workers.dev" style="width:100%; box-sizing:border-box; padding:8px 10px; border:1px solid var(--line); border-radius:4px; font-family:inherit; font-size:12px; margin-bottom:8px;">
+        <button type="button" class="btn secondary" id="cloudAiWorkerSaveBtn" style="width:100%; font-size:11px; padding:7px;">Save Worker URL</button>
+      </div>
+    </div>
+
+    <h3 class="records-title">Data Cleanup</h3>
+    <div style="border:1px dashed var(--line); border-radius:6px; padding:12px 14px; margin-bottom:18px;">
+      <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:8px;">
+        Quick Log and Quick Photo Log used to always save as "Routine," regardless of real alert conditions, and always tagged a now-removed "Category" field. This re-derives severity from each entry's own stored alert data (Severe/Extreme alert → Severe, any other active alert → Notable, no alert → Routine) and clears the old category field — only on quick-capture entries, identified by their title. Anything you set manually is left exactly as you set it.
+      </div>
+      <button type="button" class="btn secondary" id="dataCleanupBtn" style="width:100%;">Fix Severity &amp; Clear Old Category Field</button>
+      <div id="dataCleanupStatus" style="display:none; margin-top:10px; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft);"></div>
     </div>
 
     <h3 class="records-title">Location Tools</h3>
@@ -1593,7 +1589,11 @@
       <button type="button" id="cloudClassifyCloseBtn" aria-label="Close" style="background:none; border:1.5px solid var(--line); border-radius:50%; width:34px; height:34px; font-size:16px; cursor:pointer; color:var(--ink-soft);">✕</button>
     </div>
     <img id="cloudClassifyPhoto" style="width:100%; border-radius:8px; margin-bottom:10px; max-height:50vh; object-fit:cover;" alt="Entry photo">
-    <div id="cloudClassifyMeta" style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--ink-soft); margin-bottom:18px; text-align:center;"></div>
+    <div id="cloudClassifyMeta" style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--ink-soft); margin-bottom:14px; text-align:center;"></div>
+
+    <div id="cloudAskAiRow" style="display:none; margin-bottom:18px;">
+      <button type="button" id="cloudAskAiBtn" style="width:100%; background:rgba(138,106,61,0.12); border:1.5px solid var(--brass); color:var(--brass); border-radius:8px; padding:12px; font-size:13px; font-weight:600; cursor:pointer;">✨ Ask AI to identify this cloud</button>
+    </div>
 
     <div id="cloudPickerWidget"></div>
 
@@ -1635,7 +1635,7 @@
 (function(){
   "use strict";
 
-  const APP_VERSION = "4.9.0";
+  const APP_VERSION = "5.0.0";
   const STORAGE_KEY = "weatherglass.entries.v1";
 
   function showToast(message, kind){
@@ -1840,7 +1840,6 @@
         id: cryptoId(),
         timestamp: new Date(now - 2*day).toISOString(),
         level: "Routine",
-        category: "Temperature",
         title: "Morning frost",
         location: { name: "Home weather station", lat: 30.4795, lng: -86.1574 },
         tempF: 38.5, humidity: 78, pressureInHg: 30.12, windMph: 3.2, windDirDeg: 320,
@@ -1853,7 +1852,6 @@
         id: cryptoId(),
         timestamp: new Date(now - 1.5*day).toISOString(),
         level: "Routine",
-        category: "Pressure",
         title: "Pressure holding steady",
         location: { name: "Home weather station", lat: 30.4795, lng: -86.1574 },
         tempF: 66.0, humidity: 55, pressureInHg: 30.05, windMph: 5.0, windDirDeg: 200,
@@ -1866,7 +1864,6 @@
         id: cryptoId(),
         timestamp: new Date(now - 1*day).toISOString(),
         level: "Severe",
-        category: "Storm",
         title: "Squall line passing",
         location: { name: "Scenic overlook", lat: 30.3935, lng: -86.1255 },
         tempF: 71.5, humidity: 88, pressureInHg: 29.71, windMph: 28.0, windDirDeg: 210,
@@ -1880,7 +1877,6 @@
         id: cryptoId(),
         timestamp: new Date(now - 0.2*day).toISOString(),
         level: "Notable",
-        category: "Sky",
         title: "Unusual halo around moon",
         location: { name: "Backyard", lat: 30.4795, lng: -86.1574 },
         tempF: 58.0, humidity: 70, pressureInHg: 30.00, windMph: 4.0, windDirDeg: 90,
@@ -2401,15 +2397,6 @@
          <div class="sub-value">Most logged time · ${topTod[1]} entries</div>`
       : `<div class="value" style="font-size:16px;">—</div>`;
 
-    // EBC — most logged category
-    const catCounts = {};
-    data.forEach(e=>{ catCounts[e.category]=(catCounts[e.category]||0)+1; });
-    const topCat = Object.entries(catCounts).sort((a,b)=>b[1]-a[1])[0];
-    const ebcHtml = topCat
-      ? `<div class="value" style="font-size:18px;">${escapeHtml(topCat[0])}</div>
-         <div class="sub-value">Top category · ${topCat[1]} entries</div>`
-      : `<div class="value" style="font-size:16px;">—</div>`;
-
     const tiles = [
       {
         id:"tile-dmm", label:"Daily Min / Max", content:dmmHtml,
@@ -2437,13 +2424,6 @@
         chart:null,
         detail: Object.keys(todCounts).length > 1
           ? `<div style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--ink-soft); margin-top:8px; border-top:1px solid var(--line); padding-top:8px;">${Object.entries(todCounts).sort((a,b)=>b[1]-a[1]).map(([t,c])=>`${escapeHtml(t)}: ${c}`).join(" · ")}</div>`
-          : ""
-      },
-      {
-        id:"tile-ebc", label:"Top Category", content:ebcHtml,
-        chart:null,
-        detail: Object.keys(catCounts).length > 1
-          ? `<div style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--ink-soft); margin-top:8px; border-top:1px solid var(--line); padding-top:8px;">${Object.entries(catCounts).sort((a,b)=>b[1]-a[1]).map(([c,n])=>`${escapeHtml(c)}: ${n}`).join(" · ")}</div>`
           : ""
       },
     ];
@@ -2752,7 +2732,7 @@
     const grid = document.getElementById("cloudJournalGrid");
     if(!grid) return;
     const skyEntries = entries
-      .filter(e=> galleryShowAll ? !!e.photo : e.category==="Sky")
+      .filter(e=> galleryShowAll ? !!e.photo : !!e.cloudGenus)
       .slice().sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp))
       .slice(0,60); // cap to avoid memory issues
 
@@ -2918,7 +2898,7 @@
   function renderSkyStats(){
     const el = document.getElementById("skyStatsContent");
     if(!el) return;
-    const skyEntries = entries.filter(e=>e.category==="Sky");
+    const skyEntries = entries.filter(e=>e.cloudGenus);
     if(!skyEntries.length){
       el.innerHTML = `<div class="empty-state">Log some sky observations to see stats here.</div>`;
       return;
@@ -3029,16 +3009,6 @@
   document.getElementById("f-cloud-genus").addEventListener("change", function(){
     populateCloudSpeciesAndVarieties(this.value);
   });
-  function toggleCloudClassificationBlock(){
-    const isSkyCloud = document.getElementById("f-category").value === "Sky";
-    const block = document.getElementById("cloudClassificationBlock");
-    block.style.display = isSkyCloud ? "block" : "none";
-    if(!isSkyCloud){
-      document.getElementById("f-cloud-genus").value = "";
-      populateCloudSpeciesAndVarieties("");
-    }
-  }
-  document.getElementById("f-category").addEventListener("change", toggleCloudClassificationBlock);
 
   function readPhotoMetadata(file){
     const statusEl = document.getElementById("photoMetaStatus");
@@ -3389,6 +3359,76 @@
   // weather, active alerts, and a reverse-geocoded place name. Used to be
   // duplicated inline in the Quick Log handler; extracted so both capture
   // flows share one implementation instead of two copies to keep in sync.
+  // Quick Log/Quick Photo Log used to hardcode level:"Routine" unconditionally,
+  // regardless of real alert data fetched moments earlier in the same save —
+  // meaning even entries captured during an active tornado warning got
+  // silently marked Routine. Derived automatically now, from data the app
+  // already has reliably on every entry: no active alert = Routine, an
+  // active but non-severe alert = Notable, an active Severe/Extreme alert =
+  // Severe. Manual entry still sets Level as a fully deliberate choice —
+  // this derivation is specifically for the two paths that were previously
+  // guessing wrong every single time.
+  function deriveLevelFromAlert(alertFields){
+    if(alertFields.alertActive === "yes"){
+      if(alertFields.alertSeverity === "Severe" || alertFields.alertSeverity === "Extreme") return "Severe";
+      return "Notable";
+    }
+    return "Routine";
+  }
+  // Quick capture titles used to be a plain timestamp with no way to tell
+  // entries apart in a list at a glance. Location name (when it's a real
+  // place, not the "Current location" fallback) makes the title itself
+  // scannable without opening the entry.
+  function titleLocationSuffix(locationName){
+    return (locationName && locationName !== "Current location") ? ` — ${locationName}` : "";
+  }
+
+  // Retroactive cleanup for the same skew that deriveLevelFromAlert fixes
+  // going forward — explicit, user-triggered, and scoped to quick-capture
+  // entries only (identified by title prefix). Manual entries represent a
+  // deliberate choice and are never touched here, even if this logic would
+  // disagree with what was chosen.
+  document.getElementById("dataCleanupBtn").addEventListener("click", async ()=>{
+    const statusEl = document.getElementById("dataCleanupStatus");
+    statusEl.style.display = "block";
+    statusEl.textContent = "Checking entries…";
+
+    const isQuickCapture = (e) => e.title && (e.title.startsWith("Quick log") || e.title.startsWith("Quick photo log"));
+    let levelFixed = 0, categoryCleared = 0;
+    const toUpdate = [];
+
+    entries.forEach(e=>{
+      if(!isQuickCapture(e)) return;
+      let changed = false;
+      const correctLevel = deriveLevelFromAlert({ alertActive: e.alertActive, alertSeverity: e.alertSeverity });
+      if(e.level !== correctLevel){
+        e.level = correctLevel;
+        levelFixed++;
+        changed = true;
+      }
+      if(e.category !== undefined){
+        delete e.category;
+        categoryCleared++;
+        changed = true;
+      }
+      if(changed) toUpdate.push(e);
+    });
+
+    if(!toUpdate.length){
+      statusEl.textContent = "Nothing to clean up — quick-capture entries already look correct.";
+      return;
+    }
+
+    try{
+      await persistChange({ bulkEntries: toUpdate }, entries);
+      renderAll();
+      statusEl.textContent = `Done — ${toUpdate.length} entries updated (${levelFixed} had severity corrected, ${categoryCleared} had the old category field cleared).`;
+      showToast("Data cleanup complete.", "success");
+    }catch(err){
+      statusEl.textContent = "Cleanup failed — try again.";
+    }
+  });
+
   async function gatherCurrentConditions(statusEl){
     let lat = null, lng = null;
 
@@ -3518,9 +3558,8 @@
     const entry = {
       id: cryptoId(),
       timestamp: now.toISOString(),
-      level: "Routine",
-      category: "Temperature",
-      title: "Quick log — " + now.toLocaleString(undefined, { month:"short", day:"numeric", year:"numeric", hour:"2-digit", minute:"2-digit" }),
+      level: deriveLevelFromAlert(alertFields),
+      title: "Quick log" + titleLocationSuffix(locationName) + " — " + now.toLocaleString(undefined, { month:"short", day:"numeric", year:"numeric", hour:"2-digit", minute:"2-digit" }),
       location: {
         name: locationName,
         lat: lat,
@@ -3613,9 +3652,8 @@
       const entry = {
         id: cryptoId(),
         timestamp: now.toISOString(),
-        level: "Routine",
-        category: "Temperature",
-        title: "Quick photo log — " + now.toLocaleString(undefined, { month:"short", day:"numeric", year:"numeric", hour:"2-digit", minute:"2-digit" }),
+        level: deriveLevelFromAlert(alertFields),
+        title: "Quick photo log" + titleLocationSuffix(locationName) + " — " + now.toLocaleString(undefined, { month:"short", day:"numeric", year:"numeric", hour:"2-digit", minute:"2-digit" }),
         location: { name: locationName, lat: lat, lng: lng },
         tempF: weatherFields.tempF ?? null,
         humidity: weatherFields.humidity ?? null,
@@ -3919,7 +3957,6 @@
     editingId = id;
 
     document.getElementById("f-level").value = entry.level;
-    document.getElementById("f-category").value = entry.category;
     document.getElementById("f-title").value = entry.title || "";
     setLocationName(entry.location?.name || "");
     document.getElementById("f-lat").value = entry.location?.lat ?? "";
@@ -3934,7 +3971,6 @@
     document.getElementById("f-uv-index").value = entry.uvIndex ?? "";
     document.getElementById("f-pm25").value = entry.pm25 ?? "";
     document.getElementById("f-sky").value = entry.sky || "";
-    toggleCloudClassificationBlock();
     document.getElementById("f-cloud-genus").value = entry.cloudGenus || "";
     populateCloudSpeciesAndVarieties(entry.cloudGenus || "", entry.cloudSpecies || "", entry.cloudVarieties || []);
     document.getElementById("f-alert-active").value = entry.alertActive || "";
@@ -3977,7 +4013,6 @@
     exifCapturedDate = null;
     document.getElementById("entryForm").reset();
     document.getElementById("f-equipment-custom").style.display = "none";
-    toggleCloudClassificationBlock();
     pendingPhoto = null;
     document.getElementById("photoPreviewWrap").style.display = "none";
     document.getElementById("photoMetaStatus").style.display = "none";
@@ -4056,7 +4091,6 @@
       id: editingId || cryptoId(),
       timestamp: timestamp,
       level: document.getElementById("f-level").value,
-      category: document.getElementById("f-category").value,
       title: title,
       location: {
         name: getLocationName(),
@@ -4140,9 +4174,7 @@
   }
   function getFiltered(){
     const q = document.getElementById("searchInput").value.trim().toLowerCase();
-    const cat = document.getElementById("filterCategory").value;
     return entries.filter(e=>{
-      if(cat && e.category !== cat) return false;
       if(!q) return true;
       const hay = [e.title, e.location?.name, e.notes, e.sky, e.equipment, e.impression, e.level].join(" ").toLowerCase();
       return hay.includes(q);
@@ -4158,7 +4190,10 @@
   }
 
   function metaLine(e){
-    const bits = [escapeHtml(e.category), formatTs(e.timestamp)];
+    // Category used to fill this slot; now shows the classified cloud
+    // genus when there is one — more specific and more often actually
+    // meaningful than the old category ever was.
+    const bits = e.cloudGenus ? [escapeHtml(e.cloudGenus), formatTs(e.timestamp)] : [formatTs(e.timestamp)];
     return bits.join(" · ");
   }
 
@@ -4376,7 +4411,6 @@
 
     const meta = [
       ["Time", formatTs(e.timestamp)],
-      ["Category", e.category],
     ];
     if(e.location?.name) meta.push(["Location", e.location.name]);
     if(e.location?.lat != null && e.location?.lng != null){
@@ -4447,10 +4481,25 @@
     layered: {
       question:"Dark and heavy, pale and thin, or low and uniform?",
       options: [
-        { label:"Dark and heavy — might be raining", genus:"Nimbostratus" },
+        { label:"Dark and heavy — might be raining", next:"darkHeavyCheck" },
         { label:"Pale, thin, high up, wispy-looking", genus:"Cirrostratus" },
         { label:"Pale, uniform gray, fairly high up", genus:"Altostratus" },
         { label:"Low, flat, featureless — like fog overhead", genus:"Stratus" }
+      ]
+    },
+    // Standing directly under a shelf cloud (the underside of a
+    // Cumulonimbus during an active storm), the texture genuinely reads as
+    // "flat, dark, layered" — the towering structure that would otherwise
+    // give it away is invisible from directly beneath it. This question is
+    // the actual real-world diagnostic meteorologists use in exactly this
+    // ambiguous case: Nimbostratus produces steady, non-convective rain;
+    // Cumulonimbus produces real thunderstorms. Thunder/lightning presence
+    // resolves what the silhouette alone can't.
+    darkHeavyCheck: {
+      question:"Is there thunder, lightning, or clearly severe weather happening right now?",
+      options: [
+        { label:"Yes — this is an active thunderstorm", genus:"Cumulonimbus" },
+        { label:"No — just steady, gentle rain or overcast", genus:"Nimbostratus" }
       ]
     },
     clumped: {
@@ -4474,6 +4523,23 @@
   let cloudClassifyIndex = 0;
   let cloudPickerStep = "start";
 
+  // AI Worker connection — entirely optional, off by default. The URL
+  // itself isn't sensitive (it's just an endpoint you control), so
+  // localStorage is fine; the actual API key never touches the browser at
+  // all, it lives only as a secret on the Worker itself.
+  const AI_WORKER_URL_KEY = "weatherglass_ai_worker_url";
+  function getAiWorkerUrl(){
+    try{ return localStorage.getItem(AI_WORKER_URL_KEY) || ""; }catch(e){ return ""; }
+  }
+  function setAiWorkerUrl(url){
+    try{ localStorage.setItem(AI_WORKER_URL_KEY, url); }catch(e){}
+  }
+  document.getElementById("cloudAiWorkerSaveBtn").addEventListener("click", ()=>{
+    const url = document.getElementById("cloudAiWorkerUrl").value.trim();
+    setAiWorkerUrl(url);
+    showToast(url ? "Worker URL saved." : "Worker URL cleared — Ask AI will be hidden until one's set.", "success");
+  });
+
   function getUnclassifiedPhotoEntries(){
     return entries.filter(e=> e.photo && !e.cloudGenus)
       .slice().sort((a,b)=> new Date(b.timestamp)-new Date(a.timestamp)); // most recent first
@@ -4487,6 +4553,7 @@
     }
     cloudClassifyIndex = 0;
     document.getElementById("cloudClassifyOverlay").style.display = "block";
+    document.getElementById("cloudAiWorkerUrl").value = getAiWorkerUrl();
     showCloudClassifyEntry();
   }
   function closeCloudClassify(){
@@ -4515,9 +4582,49 @@
     document.getElementById("cloudClassifyProgress").textContent = `${cloudClassifyIndex+1} of ${cloudClassifyQueue.length}`;
     document.getElementById("cloudClassifyPhoto").src = e.photo;
     document.getElementById("cloudClassifyMeta").textContent = `${formatTs(e.timestamp)}${e.location?.name ? " · "+e.location.name : ""}`;
+    document.getElementById("cloudAskAiRow").style.display = getAiWorkerUrl() ? "block" : "none";
+    document.getElementById("cloudAskAiBtn").disabled = false;
+    document.getElementById("cloudAskAiBtn").textContent = "✨ Ask AI to identify this cloud";
     cloudPickerStep = "start";
     renderCloudPickerStep();
   }
+
+  async function askAiForClassification(){
+    const workerUrl = getAiWorkerUrl();
+    if(!workerUrl) return;
+    const e = cloudClassifyQueue[cloudClassifyIndex];
+    const btn = document.getElementById("cloudAskAiBtn");
+    btn.disabled = true;
+    btn.textContent = "Asking AI…";
+    try{
+      const res = await fetch(workerUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageBase64: e.photo })
+      });
+      const result = await res.json();
+      if(!res.ok || result.error){
+        showToast(`AI request failed: ${result.error || res.statusText}`, "error");
+        btn.disabled = false;
+        btn.textContent = "✨ Ask AI to identify this cloud";
+        return;
+      }
+      if(!result.genus){
+        showToast(`AI couldn't identify a cloud in this photo${result.reasoning ? ": "+result.reasoning : "."}`, "error");
+        btn.disabled = false;
+        btn.textContent = "✨ Ask AI to identify this cloud";
+        return;
+      }
+      showCloudPickerResult(result.genus, { aiConfidence: result.confidence, aiReasoning: result.reasoning });
+    }catch(err){
+      showToast(`Could not reach the AI Worker: ${err.message}`, "error");
+      btn.disabled = false;
+      btn.textContent = "✨ Ask AI to identify this cloud";
+    }
+  }
+  document.getElementById("cloudAskAiBtn").addEventListener("click", askAiForClassification);
+
+
 
   function renderCloudPickerStep(){
     const widget = document.getElementById("cloudPickerWidget");
@@ -4542,12 +4649,17 @@
     if(backBtn) backBtn.addEventListener("click", ()=>{ cloudPickerStep = "start"; renderCloudPickerStep(); });
   }
 
-  function showCloudPickerResult(genus){
+  function showCloudPickerResult(genus, aiInfo){
     const widget = document.getElementById("cloudPickerWidget");
+    const sourceLabel = aiInfo ? `AI suggests <span style="color:var(--brass); text-transform:capitalize;">(${escapeHtml(aiInfo.aiConfidence||"")} confidence)</span>` : "This looks like";
+    const reasoningHtml = aiInfo?.aiReasoning
+      ? `<div style="font-family:'Source Serif 4',serif; font-size:12.5px; color:var(--ink-soft); font-style:italic; margin-bottom:14px; padding:0 10px;">"${escapeHtml(aiInfo.aiReasoning)}"</div>`
+      : "";
     widget.innerHTML = `
       <div style="text-align:center; padding:16px; border:1.5px solid var(--brass); border-radius:8px;">
-        <div style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-soft); margin-bottom:6px;">This looks like</div>
-        <div style="font-family:'Playfair Display',serif; font-style:italic; font-weight:600; font-size:24px; color:var(--ink); margin-bottom:14px;">${escapeHtml(genus)}</div>
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-soft); margin-bottom:6px;">${sourceLabel}</div>
+        <div style="font-family:'Playfair Display',serif; font-style:italic; font-weight:600; font-size:24px; color:var(--ink); margin-bottom:10px;">${escapeHtml(genus)}</div>
+        ${reasoningHtml}
         <div style="display:flex; justify-content:center; gap:10px;">
           <button type="button" id="cloudPickerRestartBtn" class="btn secondary" style="font-size:11px; padding:7px 14px;">Not quite</button>
           <button type="button" id="cloudPickerSaveBtn" class="btn" style="font-size:11px; padding:7px 16px;">Save &amp; Next</button>
@@ -5180,7 +5292,7 @@
 
   /* ---------- export CSV (for spreadsheets / amateur analysis) ---------- */
   const CSV_FIELDS = [
-    "id", "timestamp", "level", "category", "title",
+    "id", "timestamp", "level", "title",
     "location_name", "latitude", "longitude",
     "tempF", "humidity", "heatIndex", "pressureInHg", "windMph", "windDirDeg",
     "cloudPct", "precipIn", "uvIndex", "pm25", "sky",
@@ -5206,7 +5318,6 @@
       id: e.id || "",
       timestamp: e.timestamp || "",
       level: e.level || "",
-      category: e.category || "",
       title: e.title || "",
       location_name: loc.name || "",
       latitude: loc.lat ?? "",
@@ -5650,8 +5761,7 @@
       const avgTemp = temps.length ? (temps.reduce((a,b)=>a+b,0)/temps.length).toFixed(1)+"°F avg" : "";
       const alerts = es.filter(e=>e.alertActive==="yes").length;
       const severe = es.filter(e=>e.level==="Severe").length;
-      const storms = es.filter(e=>e.category==="Storm").length;
-      const skyObs = es.filter(e=>e.category==="Sky").length;
+      const skyObs = es.filter(e=>e.cloudGenus).length;
 
       // Get unique place names
       const places = [...new Set(es.map(e=>e.location.name).filter(n=>n&&n!=="Current location"&&n!=="Unknown"))].slice(0,5);
@@ -5674,9 +5784,8 @@
           <div class="card" style="padding:8px 12px;"><div class="label">Max distance</div><div class="value" style="font-size:16px;">${trip.maxDist.toFixed(0)} mi</div></div>
         </div>
         ${places.length ? `<div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--ink-soft); margin-bottom:6px;">📍 ${escapeHtml(places.join(" → "))}</div>` : ""}
-        ${(severe||storms||skyObs) ? `<div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--ink-soft);">
+        ${(severe||skyObs) ? `<div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--ink-soft);">
           ${severe?`⚡ ${severe} severe entr${severe===1?"y":"ies"}`:""} 
-          ${storms?`🌩 ${storms} storm event${storms===1?"":"s"}`:""} 
           ${skyObs?`☁ ${skyObs} sky observation${skyObs===1?"":"s"}`:""}
         </div>` : ""}
       </div>`;
@@ -6613,21 +6722,6 @@
         }
       });
 
-    } else if(mode === "cat"){
-      const cats = ["Temperature","Precipitation","Wind","Pressure","Sky","Storm"];
-      const counts = cats.map(c=>trendsEntries().filter(e=>e.category===c).length);
-      chartInstance = new Chart(ctx, {
-        type:"bar",
-        data:{
-          labels: cats,
-          datasets:[{
-            label:"Entries",
-            data: counts,
-            backgroundColor:["#3E6079","#5C8AA3","#46606E","#8A6A3D","#7C95A1","#6E4F4F"]
-          }]
-        },
-        options:{ responsive:true, plugins:{ legend:{ display:false } } }
-      });
     }
   }
 
@@ -6941,7 +7035,7 @@
 
         if(c.entries.length === 1){
           const e = c.entries[0];
-          marker.bindPopup(`<strong>${escapeHtml(e.title)}</strong><br>${escapeHtml(e.category)} — ${escapeHtml(e.level)}<br>${escapeHtml(formatTs(e.timestamp))}<br>${escapeHtml(e.notes || "")}${e.photo ? `<br><span class="map-popup-photo-slot" style="display:block;margin-top:6px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#5C6E7C;">(loading photo…)</span>` : ""}`);
+          marker.bindPopup(`<strong>${escapeHtml(e.title)}</strong><br>${escapeHtml(e.level)}<br>${escapeHtml(formatTs(e.timestamp))}<br>${escapeHtml(e.notes || "")}${e.photo ? `<br><span class="map-popup-photo-slot" style="display:block;margin-top:6px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#5C6E7C;">(loading photo…)</span>` : ""}`);
           if(e.photo){
             marker.on("popupopen", function(ev){
               const el = ev.popup.getElement();
@@ -7255,19 +7349,6 @@
     }catch(e){
       console.warn("Failed to load entries on startup:", e.message || e);
       entries = [];
-    }
-
-    // Silent one-time migration: rename "Sky & Cloud" category → "Sky"
-    // so existing entries show up in the Gallery tab and new Sky filter
-    const toMigrate = entries.filter(e=>e.category === "Sky & Cloud");
-    if(toMigrate.length){
-      toMigrate.forEach(e=>{ e.category = "Sky"; });
-      try{
-        await idbPutEntries(toMigrate);
-        console.log(`Migrated ${toMigrate.length} entries from "Sky & Cloud" → "Sky"`);
-      }catch(err){
-        console.warn("Category migration failed:", err.message || err);
-      }
     }
 
     renderAll();
