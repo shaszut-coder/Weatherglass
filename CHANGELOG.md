@@ -2,6 +2,36 @@
 
 All notable changes to Weatherglass are documented here, newest first.
 
+> **Deployment status note (as of this entry):** **v4.9.0 is the version currently in live use.** v4.10.0 (AI cloud classification via a self-hosted Worker) is built and ready but deliberately not yet deployed — on hold pending a decision on the Anthropic API account/cost setup. If picking this back up later: v4.10.0 and everything after it in this file describes code that exists but has not been pushed live, until this note is removed or updated.
+
+## v5.0.0
+
+**Category removed entirely, Level auto-derived, Titles enriched — the biggest data-model change this app has had.** Prompted by a real, honest observation: with quick capture as the dominant workflow, "Entry Type" and "Category" were quietly getting worse than useless — not just unfilled, but *actively wrong*, since both fields defaulted to fixed values regardless of real conditions and were never revisited afterward.
+
+**The concrete finding that started this:** Quick Log and Quick Photo Log hardcoded `level: "Routine"` unconditionally — meaning even today's actual tornado warning photos got saved as "Routine," completely disconnected from the real `alertSeverity: "Extreme"` stored on those same entries. The Severe Events count and severe-search feature have likely been undercounting real severe entries this whole time.
+
+**Level is now auto-derived from real alert data on every quick capture:** no active alert → Routine, an active non-severe alert → Notable, an active Severe/Extreme alert → Severe. Manual entry keeps full control over all three — this derivation only replaces what was previously guessing wrong every time, not deliberate human judgment (e.g. marking a beautiful but alert-free sky as Notable is still entirely your call).
+
+**Category is gone as a concept, not just hidden.** There was no honest way to auto-derive Temperature vs. Wind vs. Sky vs. Storm from a quick capture — any guess would just be a different flavor of wrong. Removed from: the manual entry form, the Journal filter, the entry detail view, CSV export, and the cloud-classification fields (previously gated behind Category === "Sky," now always visible in the form). The "Top Category" Pattern Tile is gone. A completely dead, unreachable "Entries by Category" chart was found and removed in the process. Gallery's sky-photo view and Sky Statistics now key off `cloudGenus` instead — more accurate than the old category ever was, since it reflects entries you've actually classified rather than a coarse label.
+
+**Quick capture titles now include location** when a real place name is available ("Quick log — Lockport, Illinois — Jul 27, 5:08 PM"), replacing the previous plain timestamp — a small, free improvement to scannability.
+
+**Retroactive cleanup, not just a going-forward fix:** Settings → Data Cleanup → "Fix Severity & Clear Old Category Field" re-derives Level from each entry's own already-stored alert data and clears the legacy category field — scoped specifically to quick-capture entries (identified by title), leaving anything set manually completely untouched. Verified against a simulated dataset matching today's actual tornado warning before shipping: the real severe entry correctly flips to Severe, a genuinely calm entry stays Routine, a moderate-alert entry becomes Notable, and a manual entry's own choices are left exactly as set.
+
+## v4.10.1
+
+**Fixed a real gap in the guided cloud picker's logic**, found from an actual photo: standing directly under a shelf cloud during a severe storm, the cloud's texture genuinely reads as "flat, dark, layered" — the towering structure that would otherwise identify it as Cumulonimbus is invisible from directly beneath it. The picker would have walked that straight into Nimbostratus, incorrectly.
+
+Fixed with the same question meteorologists actually use to resolve this exact ambiguity in the real world: **is there thunder, lightning, or clearly severe weather happening right now?** Nimbostratus produces steady, non-convective rain; Cumulonimbus produces real thunderstorms — silhouette alone can't always tell them apart, but that question always can. Verified the full tree still reaches all 10 genera with no dead ends, and confirmed the exact shelf-cloud scenario now resolves to Cumulonimbus while true steady-rain Nimbostratus still resolves correctly.
+
+## v4.10.0
+
+**AI cloud identification — the first real backend component Weatherglass has ever had.** Settings → Cloud Classification now has an optional "AI Worker URL" field; once connected, an **"✨ Ask AI to identify this cloud"** button appears in the classification queue, sending the photo to your own self-hosted Cloudflare Worker, which asks Claude (Haiku 4.5) to identify the genus and returns a suggestion with a confidence level and a one-sentence explanation — reviewed and accepted the same way as a guided-picker result, never auto-saved without a look.
+
+**This is a deliberate architecture change, not a small feature.** Every other part of this app runs entirely in the browser, with no server and no ongoing cost. This required stepping outside that: a real Cloudflare Worker (deployed to your own account, not Anthropic's or Weatherglass's), holding your own Anthropic API key as a private server-side secret — the only way to use a real AI without exposing that key to anyone who opens dev tools on the live site. Full Worker source and step-by-step deployment instructions provided separately; nothing was built into the app that could function without you completing that setup yourself.
+
+The guided dichotomous-key picker and manual dropdown both remain fully available — Ask AI is additive, not a replacement, and the button only appears at all once a Worker URL is configured.
+
 ## v4.9.0
 
 **Classify Cloud Photos** — Settings → Cloud Classification. The guided picker designed weeks ago and never built, finally shipped, paired with the review workflow that actually makes it useful: scans for every entry with a photo but no cloud type set, and lets you page through them one at a time.
