@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Weatherglass — personal weather station & log
-  Version: 5.2.0
+  Version: 5.3.0
 
   Single-file app: no build step, no backend. Data lives in the
   visitor's own browser via localStorage.
@@ -1469,8 +1469,8 @@
     </div>
 
     <div style="display:flex; justify-content:center; gap:8px; margin-bottom:14px;">
-      <button class="btn secondary active" id="galleryFilterSky" style="font-size:11px; padding:5px 14px;">Sky only</button>
-      <button class="btn secondary" id="galleryFilterAll" style="font-size:11px; padding:5px 14px;">All photos</button>
+      <button class="btn secondary active" id="galleryViewRecent" style="font-size:11px; padding:5px 14px;">Recent</button>
+      <button class="btn secondary" id="galleryViewGenus" style="font-size:11px; padding:5px 14px;">By Genus</button>
     </div>
 
     <div id="cloudJournalGrid" class="cloud-grid"></div>
@@ -1483,15 +1483,6 @@
       <em>On the Modification of Clouds</em> (1803) by Luke Howard.
     </div>
     <div id="skyCloudAtlasContent"></div>
-
-    <!-- My Cloud Atlas — personal photos organized by genus -->
-    <div id="myCloudAtlasBlock" style="display:none; margin-top:24px;">
-      <h3 class="records-title">My Cloud Atlas</h3>
-      <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:14px;">
-        Your logged sky observations organized by cloud genus.
-      </div>
-      <div id="myCloudAtlasContent"></div>
-    </div>
 
     <!-- Section 4: Sky Stats -->
     <h3 class="records-title" style="margin-top:24px;">Sky Statistics</h3>
@@ -1651,7 +1642,7 @@
 (function(){
   "use strict";
 
-  const APP_VERSION = "5.2.0";
+  const APP_VERSION = "5.3.0";
   const STORAGE_KEY = "weatherglass.entries.v1";
 
   function showToast(message, kind){
@@ -2725,39 +2716,53 @@
   function renderSkyTab(){
     renderCloudJournal();
     renderSkyCloudAtlas();
-    renderMyCloudAtlas();
     renderSkyStats();
   }
 
-  let galleryShowAll = false;
+  // "Recent" = every photo, chronological, regardless of whether it's been
+  // classified — you should always be able to see everything you've shot.
+  // "Genus" = the classification collection, grouped by cloud genus — only
+  // entries that have actually been classified, since grouping unclassified
+  // photos by genus wouldn't mean anything. Both render into the same grid;
+  // this used to be two separate sections (one right after the other, with
+  // the whole Cloud Atlas reference sandwiched between) — now one section,
+  // one toggle, no redundancy.
+  let galleryView = "recent";
 
-  document.getElementById("galleryFilterSky").addEventListener("click", ()=>{
-    galleryShowAll = false;
-    document.getElementById("galleryFilterSky").classList.add("active");
-    document.getElementById("galleryFilterAll").classList.remove("active");
+  document.getElementById("galleryViewRecent").addEventListener("click", ()=>{
+    galleryView = "recent";
+    document.getElementById("galleryViewRecent").classList.add("active");
+    document.getElementById("galleryViewGenus").classList.remove("active");
     renderCloudJournal();
   });
-  document.getElementById("galleryFilterAll").addEventListener("click", ()=>{
-    galleryShowAll = true;
-    document.getElementById("galleryFilterAll").classList.add("active");
-    document.getElementById("galleryFilterSky").classList.remove("active");
+  document.getElementById("galleryViewGenus").addEventListener("click", ()=>{
+    galleryView = "genus";
+    document.getElementById("galleryViewGenus").classList.add("active");
+    document.getElementById("galleryViewRecent").classList.remove("active");
     renderCloudJournal();
   });
 
   function renderCloudJournal(){
     const grid = document.getElementById("cloudJournalGrid");
     if(!grid) return;
-    const skyEntries = entries
-      .filter(e=> galleryShowAll ? !!e.photo : !!e.cloudGenus)
+
+    if(galleryView === "genus"){
+      renderCloudJournalByGenus(grid);
+      return;
+    }
+    grid.style.display = "grid"; // undo the "genus" view's block-layout override, if it was set
+
+    const recentEntries = entries
+      .filter(e=> !!e.photo)
       .slice().sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp))
       .slice(0,60); // cap to avoid memory issues
 
-    if(!skyEntries.length){
-      grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">${galleryShowAll ? "No entries with photos yet." : "No sky observations yet — set Category to \"Sky\" in the Record tab."}</div>`;
+    if(!recentEntries.length){
+      grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">No entries with photos yet.</div>`;
       return;
     }
 
-    grid.innerHTML = skyEntries.map(e=>{
+    grid.innerHTML = recentEntries.map(e=>{
       const ff = entryFairFoul(e);
       const badgeHtml = ff ? `<span class="stamp ${ff.cls}" style="font-size:9.5px;">${ff.icon} ${ff.label}</span>` : "";
       const genus = e.cloudGenus || e.sky || "—";
@@ -2770,6 +2775,59 @@
           <div class="cloud-card-meta">${escapeHtml(formatTs(e.timestamp))}</div>
           <div style="margin-top:4px;">${badgeHtml}</div>
         </div>
+      </div>`;
+    }).join("");
+
+    grid.querySelectorAll("[data-open]").forEach(card=>{
+      card.addEventListener("click", ()=>openEntryDetail(card.dataset.open));
+    });
+  }
+
+  function renderCloudJournalByGenus(grid){
+    const withGenus = entries.filter(e=>e.cloudGenus);
+    if(!withGenus.length){
+      grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">No classified photos yet — use Settings → Classify Cloud Photos to get started.</div>`;
+      return;
+    }
+
+    const byGenus = {};
+    withGenus.forEach(e=>{
+      if(!byGenus[e.cloudGenus]) byGenus[e.cloudGenus] = [];
+      byGenus[e.cloudGenus].push(e);
+    });
+
+    const genera = Object.keys(byGenus).sort();
+    const ff = g => getFairFoulSignal(g, null, []);
+
+    grid.style.display = "block"; // this view isn't a photo grid itself, each genus group contains its own
+    grid.innerHTML = genera.map(genus=>{
+      const genusEntries = byGenus[genus].slice().sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp));
+      const withPhotos = genusEntries.filter(e=>e.photo);
+      const signal = ff(genus);
+      const badge = signal ? `<span class="stamp ${signal.cls}" style="font-size:9.5px;">${signal.icon} ${signal.label}</span>` : "";
+      const symbol = HOWARD_SYMBOLS[genus] || "";
+
+      const photosHtml = withPhotos.length
+        ? `<div class="cloud-grid" style="margin-top:8px;">${
+            withPhotos.slice(0,6).map(e=>`
+              <div class="cloud-card" data-open="${e.id}">
+                <img class="cloud-card-photo" src="${e.photo}" alt="" loading="lazy">
+                <div class="cloud-card-body">
+                  <div class="cloud-card-meta">${escapeHtml(formatTs(e.timestamp))}</div>
+                  ${e.cloudSpecies ? `<div class="cloud-card-meta" style="font-style:italic;">${escapeHtml(e.cloudSpecies)}</div>` : ""}
+                </div>
+              </div>`).join("")
+          }</div>`
+        : `<div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--ink-soft); margin-top:6px;">No photos logged for this genus yet.</div>`;
+
+      return `<div style="border-top:1px solid var(--line); padding-top:14px; margin-bottom:18px;">
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
+          <span style="font-family:'IBM Plex Mono',monospace; font-size:16px; color:var(--brass);">${escapeHtml(symbol)}</span>
+          <span style="font-family:'Playfair Display',serif; font-style:italic; font-weight:700; font-size:17px;">${escapeHtml(genus)}</span>
+          ${badge}
+          <span style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--ink-soft); margin-left:auto;">${genusEntries.length} obs · ${withPhotos.length} photos</span>
+        </div>
+        ${photosHtml}
       </div>`;
     }).join("");
 
@@ -2851,64 +2909,6 @@
         this.textContent = div.classList.contains("open") ? "▾ " + title : "▸ " + title;
       });
     });
-  }
-
-  function renderMyCloudAtlas(){
-    const block = document.getElementById("myCloudAtlasBlock");
-    const el = document.getElementById("myCloudAtlasContent");
-    if(!block || !el) return;
-
-    // Only entries with a cloud genus
-    const withGenus = entries.filter(e=>e.cloudGenus);
-    if(!withGenus.length){ block.style.display = "none"; return; }
-
-    // Group by genus
-    const byGenus = {};
-    withGenus.forEach(e=>{
-      if(!byGenus[e.cloudGenus]) byGenus[e.cloudGenus] = [];
-      byGenus[e.cloudGenus].push(e);
-    });
-
-    const genera = Object.keys(byGenus).sort();
-    const ff = g => getFairFoulSignal(g, null, []);
-
-    el.innerHTML = genera.map(genus=>{
-      const genusEntries = byGenus[genus].slice().sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp));
-      const withPhotos = genusEntries.filter(e=>e.photo);
-      const signal = ff(genus);
-      const badge = signal ? `<span class="stamp ${signal.cls}" style="font-size:9.5px;">${signal.icon} ${signal.label}</span>` : "";
-      const symbol = HOWARD_SYMBOLS[genus] || "";
-
-      const photosHtml = withPhotos.length
-        ? `<div class="cloud-grid" style="margin-top:8px;">${
-            withPhotos.slice(0,6).map(e=>`
-              <div class="cloud-card" data-open="${e.id}">
-                <img class="cloud-card-photo" src="${e.photo}" alt="" loading="lazy">
-                <div class="cloud-card-body">
-                  <div class="cloud-card-meta">${escapeHtml(formatTs(e.timestamp))}</div>
-                  ${e.cloudSpecies ? `<div class="cloud-card-meta" style="font-style:italic;">${escapeHtml(e.cloudSpecies)}</div>` : ""}
-                </div>
-              </div>`).join("")
-          }</div>`
-        : `<div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--ink-soft); margin-top:6px;">No photos logged for this genus yet.</div>`;
-
-      return `<div style="border-top:1px solid var(--line); padding-top:14px; margin-bottom:18px;">
-        <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
-          <span style="font-family:'IBM Plex Mono',monospace; font-size:16px; color:var(--brass);">${escapeHtml(symbol)}</span>
-          <span style="font-family:'Playfair Display',serif; font-style:italic; font-weight:700; font-size:17px;">${escapeHtml(genus)}</span>
-          ${badge}
-          <span style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--ink-soft); margin-left:auto;">${genusEntries.length} obs · ${withPhotos.length} photos</span>
-        </div>
-        ${photosHtml}
-      </div>`;
-    }).join("");
-
-    // Wire photo card clicks
-    el.querySelectorAll("[data-open]").forEach(card=>{
-      card.addEventListener("click", ()=>openEntryDetail(card.dataset.open));
-    });
-
-    block.style.display = "block";
   }
 
   function renderSkyStats(){

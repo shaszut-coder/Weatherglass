@@ -4,6 +4,18 @@ All notable changes to Weatherglass are documented here, newest first.
 
 > **Deployment status note (as of this entry):** **v5.0.1 is confirmed live and working**, with all existing data verified intact after the v5.0.0 rollback/hotfix — see that entry below for the full story if picking this up later. v5.1.0 (this entry) is a Speaker Mode overhaul, built on top of the confirmed-stable v5.0.1. v4.10.0's AI Worker feature remains a separate, still-undeployed decision, pending the Anthropic API account/cost setup.
 
+## v5.3.0
+
+**Gallery's photo redundancy removed.** It used to show your photos twice — once at the top (a flat, chronological grid) and again near the bottom (grouped by genus, as "My Cloud Atlas"), with the entire Cloud Atlas reference guide and Goethe's verses sandwiched between the two. Anyone scrolling straight through hit their own photos, then a wall of reference text, then their own photos again.
+
+**Now it's one photo section, up top, with a toggle:**
+- **Recent** — every photo you've taken, chronological, newest first, regardless of whether it's been classified. This was the actual gap in the old "Sky only" default — it filtered to classified photos even though you might want to see something you just took and haven't classified yet.
+- **By Genus** — the classification collection (what "My Cloud Atlas" used to show separately), grouped by cloud genus, life-list style.
+
+The Cloud Atlas reference (Howard's classification, Goethe's verses) and Sky Statistics are unchanged and still shown exactly once each, right after the photo section.
+
+**Also fixed in passing:** the empty-state message for zero classified photos referenced a "Category" field that hasn't existed since v5.0.0 — leftover text nobody had reason to notice until this section got touched again. Verified with the same systematic check that caught the `filterCategory` crash a few versions back (zero dangling element references anywhere in the script) before shipping this.
+
 ## v5.2.0
 
 **Journal's default view is now a calendar, not a flat list.** As the journal grew past a few hundred entries, scrolling to find one day stopped being the exception and became the norm — this replaces that with a month grid, color-coded per day:
