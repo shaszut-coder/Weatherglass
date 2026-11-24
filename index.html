@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Weatherglass — personal weather station & log
-  Version: 5.3.0
+  Version: 5.4.0
 
   Single-file app: no build step, no backend. Data lives in the
   visitor's own browser via localStorage.
@@ -1226,6 +1226,13 @@
     </div>
     <div style="border:1px dashed var(--line); border-radius:6px; padding:12px 14px; margin-bottom:18px;">
       <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:8px;">
+        Fills in tide state, approximate water level, and next high/low for existing entries logged within 40 km of a NOAA tide station, using NOAA's predictions for each entry's exact time. Inland entries are skipped. Only fills empty tide fields; nothing you've entered by hand is changed.
+      </div>
+      <button type="button" class="btn secondary" id="backfillTidesBtn">Backfill tides</button>
+      <div id="backfillTidesStatus" style="display:none; margin-top:8px; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft);"></div>
+    </div>
+    <div style="border:1px dashed var(--line); border-radius:6px; padding:12px 14px; margin-bottom:18px;">
+      <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:8px;">
         Detects trips from your GPS data and generates a summary card for each one — dates, distance, temperature range, locations visited, notable events and alert count.
       </div>
       <button type="button" class="btn secondary" id="tripSummaryBtn">Generate Trip Summaries</button>
@@ -1642,7 +1649,7 @@
 (function(){
   "use strict";
 
-  const APP_VERSION = "5.3.0";
+  const APP_VERSION = "5.4.0";
   const STORAGE_KEY = "weatherglass.entries.v1";
 
   function showToast(message, kind){
@@ -3461,16 +3468,46 @@
       // Location unavailable — carry on without it
     }
 
+    // v5.4.0: tides were only ever fetched by the manual form's button (and
+    // only once a coastal site type was picked), so quick captures on the
+    // coast never got them. Started here in parallel with everything else;
+    // returns null quickly-ish when no station is within range (inland).
+    // Capped at 8s so a slow NOAA response never holds up the save; the
+    // station list keeps loading in the background and is cached for the
+    // next capture.
+    const tidePromise = (lat != null && lng != null)
+      ? Promise.race([
+          fetchTideInfo(lat, lng, new Date()).catch(()=>null),
+          new Promise(r=>setTimeout(()=>r(null), 8000))
+        ])
+      : Promise.resolve(null);
+
     let weatherFields = {};
     if(lat != null && lng != null){
       statusEl.textContent = "Fetching current weather…";
       try{
         const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,relative_humidity_2m,pressure_msl,wind_speed_10m,wind_direction_10m,cloud_cover,precipitation,weather_code&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch`;
-        const res = await fetch(url);
+        // v5.4.0: Quick Log / Quick Photo Log never fetched air quality —
+        // the only UV/PM2.5 they ever had came from the Settings backfill.
+        // Fetched in parallel with the weather call now, same as the manual
+        // form's auto-fill, and non-fatal if it fails.
+        const aqUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lng}&current=pm2_5,uv_index`;
+        const [res, aqRes] = await Promise.all([
+          fetch(url),
+          fetch(aqUrl, { signal: AbortSignal.timeout(6000) }).catch(()=>null)
+        ]);
+        if(aqRes && aqRes.ok){
+          try{
+            const aq = (await aqRes.json()).current || {};
+            if(isFinite(aq.uv_index)) weatherFields.uvIndex = Math.round(aq.uv_index*10)/10;
+            if(isFinite(aq.pm2_5)) weatherFields.pm25 = Math.round(aq.pm2_5*10)/10;
+          }catch(e){ /* air quality parse failed — non-fatal */ }
+        }
         if(res.ok){
           const data = await res.json();
           const c = data.current || {};
           weatherFields = {
+            ...weatherFields,
             tempF: isFinite(c.temperature_2m) ? c.temperature_2m : null,
             humidity: isFinite(c.relative_humidity_2m) ? c.relative_humidity_2m : null,
             pressureInHg: isFinite(c.pressure_msl) ? parseFloat((c.pressure_msl * 0.0295300).toFixed(2)) : null,
@@ -3543,7 +3580,12 @@
       }
     }
 
-    return { lat, lng, weatherFields, alertFields, locationName };
+    const tide = await tidePromise;
+    const tideFields = tide
+      ? { tideState: tide.state, tideHeightFt: tide.heightFt, tideNext: tide.nextLabel }
+      : {};
+
+    return { lat, lng, weatherFields, alertFields, locationName, tideFields };
   }
 
   document.getElementById("quickLogBtn").addEventListener("click", async function(){
@@ -3565,7 +3607,7 @@
     btn.textContent = "…";
     statusEl.style.display = "block";
 
-    const { lat, lng, weatherFields, alertFields, locationName } = await gatherCurrentConditions(statusEl);
+    const { lat, lng, weatherFields, alertFields, locationName, tideFields } = await gatherCurrentConditions(statusEl);
 
     statusEl.textContent = "Saving…";
     const now = new Date();
@@ -3588,6 +3630,8 @@
       windDirDeg: weatherFields.windDirDeg ?? null,
       cloudPct: weatherFields.cloudPct ?? null,
       precipIn: weatherFields.precipIn ?? null,
+      uvIndex: weatherFields.uvIndex ?? null,
+      pm25: weatherFields.pm25 ?? null,
       sky: weatherFields.sky || "",
       cloudGenus: null, cloudSpecies: null, cloudVarieties: [],
       alertActive: alertFields.alertActive, alertSeverity: alertFields.alertSeverity,
@@ -3600,7 +3644,8 @@
       notes: "",
       photo: null,
       eventId: activeNotebook ? activeNotebook.id : null,
-      eventName: activeNotebook ? activeNotebook.name : null
+      eventName: activeNotebook ? activeNotebook.name : null,
+      ...tideFields
     };
 
     const nextEntries = entries.concat([entry]);
@@ -3659,7 +3704,7 @@
         compressImage(file, 1000, 0.72),
         gatherCurrentConditions(statusEl)
       ]);
-      const { lat, lng, weatherFields, alertFields, locationName } = conditions;
+      const { lat, lng, weatherFields, alertFields, locationName, tideFields } = conditions;
 
       statusEl.textContent = "Saving…";
       const now = new Date();
@@ -3678,6 +3723,8 @@
         windDirDeg: weatherFields.windDirDeg ?? null,
         cloudPct: weatherFields.cloudPct ?? null,
         precipIn: weatherFields.precipIn ?? null,
+        uvIndex: weatherFields.uvIndex ?? null,
+        pm25: weatherFields.pm25 ?? null,
         sky: weatherFields.sky || "",
         cloudGenus: null, cloudSpecies: null, cloudVarieties: [],
         alertActive: alertFields.alertActive, alertSeverity: alertFields.alertSeverity,
@@ -3690,7 +3737,8 @@
         notes: "",
         photo: photo,
         eventId: activeNotebook ? activeNotebook.id : null,
-        eventName: activeNotebook ? activeNotebook.name : null
+        eventName: activeNotebook ? activeNotebook.name : null,
+        ...tideFields
       };
 
       const nextEntries = entries.concat([entry]);
@@ -3712,7 +3760,101 @@
 
 
   /* ---------- NOAA tides ---------- */
+  // v5.4.0 rewrite. Before: tides were only fetched by the manual form's
+  // button, the date was computed in UTC while predictions came back in
+  // station-local time (wrong day every evening after ~7pm Central), only
+  // that one day's highs/lows were requested (so nothing after the last
+  // tide of the day or before the first), and the full ~3,000-station list
+  // was re-downloaded on every press. Now: one shared lookup used by Quick
+  // Log, Quick Photo Log, the manual button and the Settings backfill; a
+  // 72-hour window in GMT around the target time; the station list is cached
+  // for the session; and stations farther than TIDE_STATION_MAX_KM are
+  // ignored so inland entries never pick up a far-off coastal station.
   const COASTAL_SITE_TYPES = new Set(["Coastal / Beach","Dock / Marina","Boat / Watercraft","Lake / River"]);
+  const TIDE_STATION_MAX_KM = 40;
+  let tideStationsPromise = null;
+  const tidePredictionCache = new Map(); // "stationId|YYYYMMDD" -> Promise<predictions[]>
+
+  function loadTideStations(){
+    if(!tideStationsPromise){
+      tideStationsPromise = fetch(
+        "https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations.json?type=tidepredictions&units=english",
+        { signal: AbortSignal.timeout(12000) }
+      ).then(res=>{
+        if(!res.ok) throw new Error("NOAA station list unavailable");
+        return res.json();
+      }).then(data=>(data.stations||[]).map(st=>({
+        id: st.id, name: st.name, lat: parseFloat(st.lat), lng: parseFloat(st.lng)
+      })).filter(st=>st.id && isFinite(st.lat) && isFinite(st.lng)))
+      .catch(err=>{ tideStationsPromise = null; throw err; }); // allow a retry later
+    }
+    return tideStationsPromise;
+  }
+
+  async function findNearestTideStation(lat, lng){
+    const stations = await loadTideStations();
+    let best = null, bestM = Infinity;
+    for(const st of stations){
+      const d = haversineMetres(lat, lng, st.lat, st.lng);
+      if(d < bestM){ bestM = d; best = st; }
+    }
+    if(!best || bestM/1000 > TIDE_STATION_MAX_KM) return null;
+    return { station: best, km: bestM/1000 };
+  }
+
+  function utcYmd(d){
+    return d.toISOString().slice(0,10).replace(/-/g,"");
+  }
+
+  // Predictions for the UTC day of `when` plus the day either side, so a
+  // previous and next high/low always exist. Cached per station + day so the
+  // backfill doesn't re-request the same window for every entry that day.
+  function getTidePredictions(stationId, when){
+    const key = `${stationId}|${utcYmd(when)}`;
+    if(!tidePredictionCache.has(key)){
+      const begin = new Date(when.getTime() - 86400000);
+      const end = new Date(when.getTime() + 86400000);
+      const url = `https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?begin_date=${utcYmd(begin)}&end_date=${utcYmd(end)}&station=${encodeURIComponent(stationId)}&product=predictions&datum=MLLW&time_zone=gmt&interval=hilo&units=english&application=weatherglass&format=json`;
+      const p = fetch(url, { signal: AbortSignal.timeout(10000) })
+        .then(res=>{ if(!res.ok) throw new Error("Tide prediction fetch failed"); return res.json(); })
+        .then(data=>(data.predictions||[]).map(pr=>({
+          time: new Date(pr.t.replace(" ","T") + ":00Z"),
+          type: pr.type === "H" ? "High tide" : "Low tide",
+          height: parseFloat(pr.v)
+        })).filter(pr=>!isNaN(pr.time) && isFinite(pr.height)).sort((a,b)=>a.time-b.time))
+        .catch(err=>{ tidePredictionCache.delete(key); throw err; });
+      tidePredictionCache.set(key, p);
+    }
+    return tidePredictionCache.get(key);
+  }
+
+  // Returns { state, heightFt, nextLabel, station, km } or null when there's
+  // no station in range or no usable predictions.
+  async function fetchTideInfo(lat, lng, when){
+    if(!isFinite(lat) || !isFinite(lng)) return null;
+    const near = await findNearestTideStation(lat, lng);
+    if(!near) return null;
+    const preds = await getTidePredictions(near.station.id, when);
+    let prev = null, next = null;
+    for(const p of preds){
+      if(p.time <= when) prev = p;
+      else { next = p; break; }
+    }
+    if(!next) return null;
+    const state = next.type === "High tide" ? "Rising" : "Falling";
+    let heightFt = null;
+    if(prev){
+      // Tides follow a roughly sinusoidal curve between a high and a low,
+      // so cosine interpolation is closer to reality than a straight line.
+      const frac = (when - prev.time) / (next.time - prev.time);
+      heightFt = parseFloat((prev.height + (next.height - prev.height) * (1 - Math.cos(Math.PI * frac)) / 2).toFixed(2));
+    }
+    const sameDay = next.time.toDateString() === when.toDateString();
+    const timeStr = next.time.toLocaleTimeString(undefined, { hour:"numeric", minute:"2-digit" });
+    const dayStr = sameDay ? "" : next.time.toLocaleDateString(undefined, { month:"short", day:"numeric" }) + " ";
+    const nextLabel = `${next.type} at ${dayStr}${timeStr} (${next.height.toFixed(1)} ft) — ${near.station.name}`;
+    return { state, heightFt, nextLabel, station: near.station, km: near.km };
+  }
 
   function isCoastalLocation(){
     const siteType = document.getElementById("f-site-type");
@@ -3751,74 +3893,93 @@
       }
     }
 
+    // Match the timestamp the entry will actually be saved with: an edited
+    // entry keeps its original time, a photo backfill uses the EXIF time,
+    // anything else is now.
+    let when = new Date();
+    const editing = editingId ? entries.find(x=>x.id===editingId) : null;
+    if(editing && editing.timestamp) when = new Date(editing.timestamp);
+    else if(exifCapturedDate) when = exifCapturedDate;
+
     try{
-      // Step 1: find nearest NOAA tide station
-      const stationUrl = `https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations.json?type=tidepredictions&units=english`;
-      const stRes = await fetch(stationUrl);
-      if(!stRes.ok) throw new Error("NOAA station list unavailable");
-      const stData = await stRes.json();
-      const stations = stData.stations || [];
-
-      // Find closest station by Haversine distance
-      let closest = null, closestDist = Infinity;
-      stations.forEach(st=>{
-        const slat = parseFloat(st.lat), slng = parseFloat(st.lng);
-        if(!isFinite(slat)||!isFinite(slng)) return;
-        const d = haversineMetres(lat,lng,slat,slng);
-        if(d < closestDist){ closestDist=d; closest=st; }
-      });
-      if(!closest) throw new Error("No nearby NOAA tide station found");
-      statusEl.textContent = `Using station: ${closest.name} (${(closestDist/1000).toFixed(0)}km away)…`;
-
-      // Step 2: fetch today's tide predictions
-      const today = new Date();
-      const dateStr = today.toISOString().slice(0,10).replace(/-/g,"");
-      const tideUrl = `https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?begin_date=${dateStr}&end_date=${dateStr}&station=${closest.id}&product=predictions&datum=MLLW&time_zone=lst_ldt&interval=hilo&units=english&application=weatherglass&format=json`;
-      const tRes = await fetch(tideUrl);
-      if(!tRes.ok) throw new Error("Tide prediction fetch failed");
-      const tData = await tRes.json();
-      const predictions = tData.predictions || [];
-      if(!predictions.length) throw new Error("No tide data returned for this station");
-
-      // Step 3: determine current state and next tide from predictions
-      const nowMins = today.getHours()*60 + today.getMinutes();
-      const parsed = predictions.map(p=>{
-        const [h,m] = p.t.split(" ")[1].split(":").map(Number);
-        return { mins:h*60+m, type:p.type==="H"?"High tide":"Low tide", height:parseFloat(p.v), label:p.t.split(" ")[1] };
-      });
-
-      let currentState = "—";
-      let nextTide = null;
-      let currentHeight = null;
-
-      // Find the next upcoming tide
-      for(const p of parsed){
-        if(p.mins > nowMins){ nextTide = p; break; }
+      const tide = await fetchTideInfo(lat, lng, when);
+      if(!tide){
+        statusEl.textContent = `No NOAA tide station within ${TIDE_STATION_MAX_KM} km of this spot — tides only apply on ocean coasts and tidal bays. Fill in manually if you like.`;
+        return;
       }
-      // Determine rising/falling from surrounding tides
-      const prev = parsed.filter(p=>p.mins <= nowMins).pop();
-      if(prev && nextTide){
-        currentState = nextTide.type === "High tide" ? "Rising" : "Falling";
-        // Interpolate approximate current water level
-        const elapsed = nowMins - prev.mins;
-        const total = nextTide.mins - prev.mins;
-        const frac = elapsed / total;
-        currentHeight = parseFloat((prev.height + (nextTide.height - prev.height) * frac).toFixed(2));
-      } else if(nextTide){
-        currentState = nextTide.type === "High tide" ? "Rising" : "Falling";
-      }
-
-      // Fill in fields
-      document.getElementById("f-tide-state").value = currentState;
-      if(currentHeight != null) document.getElementById("f-tide-height").value = currentHeight;
-      if(nextTide) document.getElementById("f-tide-next").value =
-        `${nextTide.type} at ${nextTide.label} (${nextTide.height.toFixed(1)} ft) — ${closest.name}`;
-
-      statusEl.textContent = `Tides loaded from NOAA station: ${closest.name}.`;
+      document.getElementById("f-tide-state").value = tide.state;
+      if(tide.heightFt != null) document.getElementById("f-tide-height").value = tide.heightFt;
+      document.getElementById("f-tide-next").value = tide.nextLabel;
+      statusEl.textContent = `Tides loaded from NOAA station: ${tide.station.name} (${tide.km.toFixed(0)} km away).`;
     }catch(err){
       console.warn("Tides fetch failed:", err.message||err);
-      statusEl.textContent = "Couldn't fetch tide data — NOAA may be temporarily unavailable, or no station nearby. Fill in manually.";
+      statusEl.textContent = "Couldn't fetch tide data — NOAA may be temporarily unavailable. Fill in manually.";
     }
+  });
+
+  /* ---------- backfill tides for existing coastal entries ---------- */
+  document.getElementById("backfillTidesBtn").addEventListener("click", async function(){
+    const btn = this;
+    const statusEl = document.getElementById("backfillTidesStatus");
+    btn.disabled = true;
+    statusEl.style.display = "block";
+    statusEl.textContent = "Loading NOAA tide stations…";
+
+    try{
+      await loadTideStations();
+    }catch(err){
+      statusEl.textContent = "Couldn't reach NOAA — try again later.";
+      btn.disabled = false;
+      return;
+    }
+
+    const candidates = entries.filter(e=>
+      !e.tideState && e.timestamp &&
+      e.location && isFinite(e.location.lat) && isFinite(e.location.lng)
+    );
+    const toFill = [];
+    for(const e of candidates){
+      if(await findNearestTideStation(e.location.lat, e.location.lng)) toFill.push(e);
+    }
+
+    if(!toFill.length){
+      statusEl.style.display = "none";
+      btn.disabled = false;
+      showToast(`No entries need tides — none without tide data are within ${TIDE_STATION_MAX_KM} km of a NOAA tide station.`, "success");
+      return;
+    }
+
+    let updated = 0, failed = 0;
+    const changed = [];
+    for(let i=0; i<toFill.length; i++){
+      const e = toFill[i];
+      statusEl.textContent = `Backfilling tides: ${i+1} of ${toFill.length}… (${updated} updated, ${failed} unavailable)`;
+      const cacheKeysBefore = tidePredictionCache.size;
+      try{
+        const tide = await fetchTideInfo(e.location.lat, e.location.lng, new Date(e.timestamp));
+        if(tide){
+          e.tideState = tide.state;
+          if(e.tideHeightFt == null && tide.heightFt != null) e.tideHeightFt = tide.heightFt;
+          if(!e.tideNext) e.tideNext = tide.nextLabel;
+          changed.push(e);
+          updated++;
+        } else failed++;
+      }catch(err){
+        failed++;
+      }
+      // Only pause when a new request actually went out to NOAA
+      if(tidePredictionCache.size > cacheKeysBefore) await new Promise(r=>setTimeout(r, 250));
+      if(changed.length && ((i+1) % 10 === 0 || i === toFill.length-1)){
+        try{ await idbPutEntries(changed); }
+        catch(err){ console.warn("Batch save failed:", err.message||err); }
+      }
+    }
+
+    renderAll();
+    refreshStorageIndicator();
+    btn.disabled = false;
+    statusEl.style.display = "none";
+    showToast(`Done — ${updated} entries got tides, ${failed} had no prediction available.`, "success");
   });
 
   /* ---------- photo handling ---------- */
@@ -4131,7 +4292,7 @@
       alertSummary: document.getElementById("f-alert-summary").value.trim(),
       alertFullText: document.getElementById("f-alert-fulltext").value.trim(),
       tideState: document.getElementById("f-tide-state").value || null,
-      tideHeightFt: parseFloat(document.getElementById("f-tide-height").value) || null,
+      tideHeightFt: (v => isFinite(v) ? v : null)(parseFloat(document.getElementById("f-tide-height").value)),
       tideNext: document.getElementById("f-tide-next").value.trim() || null,
       moonPhase: moon.phaseName,
       moonIllumination: moon.illumination,

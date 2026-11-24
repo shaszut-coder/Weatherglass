@@ -3,7 +3,7 @@
 A personal weather journal. Log conditions by hand or pull them live, track clouds and pressure trends, watch severe weather alerts, and build a searchable history of what the sky was doing wherever you were.
 
 **Live app:** https://weatherglass.shaszut.workers.dev/
-**Current version:** v5.3.0
+**Current version:** v5.4.0
 **Philosophy:** see [PHILOSOPHY.md](./PHILOSOPHY.md) — this is a personal weather observation journal, not a forecast app
 
 ## What it does
@@ -17,6 +17,7 @@ A personal weather journal. Log conditions by hand or pull them live, track clou
 - **Gallery** — your photos in one place, toggle between Recent (chronological, everything) and By Genus (the classification collection), plus a built-in cloud atlas reference (Cloudspotter's Guide classifications) and Goethe's cloud verses
 - **Alerts** — active NWS watches/warnings for your location, logged alongside the entry
 - **Moon phase & illumination**, logged automatically with each entry
+- **Tides** — tide state, approximate water level, and next high/low, looked up automatically on every entry (Quick Log, Quick Photo Log, manual) within 40 km of a NOAA tide station. Settings → Backfill tides fills existing coastal entries
 - **Speaker Mode** — pick a date range, get a fullscreen presentation-ready slide deck (tiles for this range and overall totals, stats, alert timeline, photos, route) for showing your data live
 - **Trip Summaries** — auto-detected from GPS gaps in your log, with distance, temp range, and notable events per trip
 
@@ -27,10 +28,10 @@ Single self-contained `index.html` — no build step, no bundler, no backend. Ev
 **Storage:** IndexedDB, with automatic one-time migration from an older localStorage-based version. Nothing leaves your device except the API calls below — there's no server component and no account system.
 
 **External data sources** (all free, no API key required):
-- [Open-Meteo](https://open-meteo.com/) — current conditions, historical backfill (including UV/PM2.5, backfillable in bulk for existing entries via Settings), air quality
+- [Open-Meteo](https://open-meteo.com/) — current conditions and air quality (UV/PM2.5, captured on every entry including quick logs), plus historical backfill via Settings
 - [api.weather.gov](https://www.weather.gov/documentation/services-web-api) (NOAA/NWS) — active weather alerts (US only)
 - [Nominatim](https://nominatim.org/) (OpenStreetMap) — reverse geocoding for location names (rate-limited to 1 request/sec per their usage policy)
-- [NOAA CO-OPS](https://tidesandcurrents.noaa.gov/) — tide predictions, for coastal locations
+- [NOAA CO-OPS](https://tidesandcurrents.noaa.gov/) — tide predictions within 40 km of a tide station (station list cached per session)
 
 **Libraries** (loaded via cdnjs):
 - [Leaflet](https://leafletjs.com/) — maps
@@ -68,4 +69,4 @@ Very large exports split automatically into multiple parts (`part1-of-N`, `part2
 - Single-device only — no sync between browsers or devices
 - Not currently an installable PWA (no service worker/manifest yet) — requires a network connection to load on first visit
 - Speaker Mode's route slide is a chronological list, not a live interactive map (deferred — would need a second Leaflet instance independent of the Map tab's)
-- `tideState`/tide fields only populate near a NOAA tide station; empty for inland locations
+- `tideState`/tide fields only populate within 40 km of a NOAA tide station; empty for inland locations, including the Great Lakes

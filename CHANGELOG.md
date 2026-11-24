@@ -2,7 +2,27 @@
 
 All notable changes to Weatherglass are documented here, newest first.
 
-> **Deployment status note (as of this entry):** **v5.0.1 is confirmed live and working**, with all existing data verified intact after the v5.0.0 rollback/hotfix — see that entry below for the full story if picking this up later. v5.1.0 (this entry) is a Speaker Mode overhaul, built on top of the confirmed-stable v5.0.1. v4.10.0's AI Worker feature remains a separate, still-undeployed decision, pending the Anthropic API account/cost setup.
+> **Deployment status note (as of v5.4.0, Nov 2026):** **v5.3.0 is the live version.** v5.4.0 (the entry below) is built and browser-tested against mocked APIs. It goes live once `index.html` is pushed. After deploying, run **Settings → Backfill UV & PM2.5** and then **Settings → Backfill tides**, and confirm that the first real Quick Log on the coast saves tide data. That's the one path not yet tested against the live NOAA API. The v5.0.0 rollback/hotfix story (v5.0.1) is still documented below for reference. v4.10.0's AI Worker remains an optional, separately deployed piece, pending the Anthropic API account/cost setup.
+
+## v5.4.0
+
+**Quick Log and Quick Photo Log now save UV Index and PM2.5.** An analysis of the full Nov 14 export found 91 entries since late September with no UV or PM2.5 at all. The cause turned out to be older than that: these two capture paths had never fetched air quality. Only the manual form's auto-fill did. Every quick-log value from earlier months came from running Settings → Backfill UV & PM2.5, and nothing logged after the last backfill had any. Air quality is now fetched in parallel with the weather call on every quick capture, and if it fails the save still goes ahead.
+
+**Tides actually populate now.** None of the 155 Florida and Alabama coastal entries had tide data. Quick captures never looked tides up; only the manual form's "Fetch tides" button did, and only once a coastal site type was chosen. The lookup has been rewritten as one shared function used by Quick Log, Quick Photo Log, the manual button and the new backfill:
+- **Right day, every time.** The old code built the date in UTC but read NOAA's times as station-local, so every evening after about 7 PM Central it asked for tomorrow. Predictions are now requested in GMT across a 72-hour window around the entry's time, so a previous and next high/low always exist. Before, there was nothing after the day's last tide or before its first.
+- **40 km range.** Stations farther away than that are ignored, so inland entries stay empty rather than borrowing a station hundreds of miles off.
+- **Station list cached** for the session instead of re-downloaded (about 3,000 stations) on every lookup.
+- **Better water-level estimate:** cosine interpolation between the previous and next high/low follows the real tide curve more closely than a straight line.
+- **Never holds up a save:** the tide wait on quick captures is capped at 8 seconds.
+- **The manual button uses the entry's own time:** the original time when editing, the EXIF time for photo backfills, otherwise now.
+
+**New: Settings → Backfill tides.** Fills in tide state, water level and next high/low for existing entries logged within 40 km of a NOAA tide station, using NOAA's predictions for each entry's exact time. It only fills empty fields and skips inland entries. Predictions are cached per station per day, so a week at the beach is a handful of requests, not one per entry.
+
+**Also fixed in passing:** a manually entered tide height of 0.0 ft was being saved as empty, because `parseFloat(...) || null` treats zero as missing.
+
+**After deploying:** run Settings → Backfill UV & PM2.5 (for the 91 entries) and then Settings → Backfill tides (for the Gulf Coast trips).
+
+Tested in a headless browser against mocked Open-Meteo and NOAA responses: a coastal quick log got UV, PM2.5 and tides; an inland quick log got UV and PM2.5 and no tides, reusing the cached station list; and the backfill filled the coastal entries, skipped the inland one, and shared one prediction request between entries on the same day. Not yet tested against the live NOAA API, so the first real coastal entry is the final check.
 
 ## v5.3.0
 
