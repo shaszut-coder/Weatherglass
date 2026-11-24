@@ -2,7 +2,35 @@
 
 All notable changes to Weatherglass are documented here, newest first.
 
-> **Deployment status note (as of v5.5.0, Nov 2026):** **v5.4.0 is live and verified**: deployed, browser-tested, and both Settings backfills ran successfully on real data. v5.5.0 (installable app + offline logging, below) is built and tested in Chromium against mocked APIs, and adds `sw.js`, `manifest.json` and an `icons/` folder to the repo. After deploying, confirm that `/sw.js` and `/manifest.json` open on the live site, then install it on the iPhone, move the data in (export from Safari, import into the installed app), and try a Quick Log in airplane mode. The v5.0.0 rollback/hotfix story (v5.0.1) is still documented below for reference. v4.10.0's AI Worker remains an optional, separately deployed piece, pending the Anthropic API account/cost setup.
+> **Deployment status note (as of v5.6.0, Nov 2026):** **v5.5.0 is live and verified**: installable app, offline logging, and the journal living in the iPhone home-screen app. v5.6.0 (the Gallery rebuild, below) is built and browser-tested, and only `index.html` changes; `sw.js`, `manifest.json` and `icons/` stay as they are. After deploying, open the installed app and check the Gallery: all photos appear, the filters work, and scrolling stays smooth. The first visit builds thumbnails, so tiles may fill in over a few seconds. The v5.0.0 rollback/hotfix story (v5.0.1) is still documented below for reference. v4.10.0's AI Worker remains an optional, separately deployed piece, pending the Anthropic API account/cost setup.
+
+## v5.6.0
+
+**The Gallery shows every photo, and the tiles load reliably.** There were two causes behind photos not showing up:
+- **The Recent view stopped at 60 photos.** With 120+ in the journal, everything older than the newest 60 never appeared, and By Genus showed only 6 per type.
+- **Every tile was the full-size photo,** about 100 KB of image data each, with up to 60 on the page at once. That's heavy enough on an iPhone that tiles could come up blank, especially in the installed home-screen app.
+
+**Now it's a Photos-style grid:**
+- A tight, square grid, 3 across on a phone (5 or 7 on wider screens), grouped under month headings that stay pinned while you scroll, e.g. *September 2026 · 64 photos*.
+- **Every photo is included,** with no cap.
+- Each tile has a small cloud-type label (Cb, Ci, Ac…). Untagged photos show a brass dot instead, and offline entries still waiting on conditions show ⏳.
+- **Filter chips:** All · Untagged · one per cloud type you've logged, with counts. *Untagged* is a quick way to work through the classification backlog.
+- Tapping a photo opens its entry, and swiping or prev/next moves through only the photos in the current filter, e.g. "3 of 50" in Untagged.
+- **By Genus** keeps its life-list layout with the same thumbnails, and a **See all N →** button jumps to Recent filtered to that type.
+
+**How the loading works:**
+- **Thumbnails.** Each photo gets a small, center-cropped square JPEG copy (360 px, about 10–25 KB), made once in the background (one at a time to keep memory low) and saved on the device.
+- **Separate storage.** Thumbnails live in a new IndexedDB store, `thumbs`, so they aren't part of entries or exports. Backups stay the same size, and after an import the thumbnails rebuild themselves as you scroll. A thumbnail is remade automatically if its entry's photo changes, and leftovers from deleted entries are cleaned up at startup.
+- **Lazy loading.** A thumbnail loads just before its tile scrolls into view and is released once it's far off-screen, so memory stays flat however many photos there are. Tapping still opens the full photo.
+- The database upgrades from version 1 to 2 on first launch. The change only adds a store, and nothing in your entries changes. The app now also releases its database connection if a newer version needs to upgrade, so future updates aren't blocked.
+
+Tested in Chromium at iPhone size with 150 seeded photos:
+- All 150 tiles appeared under 6 month headings. Thumbnails averaged 9 KB and were served as lightweight blob URLs.
+- Only about 35 tiles were loaded at a time, and the first ones were released after scrolling to the bottom.
+- The Untagged filter showed exactly 50, and opening a tile showed "1 of 50".
+- By Genus showed 6 per type with "See all 25 →", which landed on the right filter. No errors.
+
+Not yet tested on a real iPhone.
 
 ## v5.5.0
 

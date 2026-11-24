@@ -3,7 +3,7 @@
 A personal weather journal. Log conditions by hand or pull them live, track clouds and pressure trends, watch severe weather alerts, and build a searchable history of what the sky was doing wherever you were.
 
 **Live app:** https://weatherglass.shaszut.workers.dev/
-**Current version:** v5.5.0
+**Current version:** v5.6.0
 **Philosophy:** see [PHILOSOPHY.md](./PHILOSOPHY.md) — this is a personal weather observation journal, not a forecast app
 
 ## What it does
@@ -15,7 +15,7 @@ A personal weather journal. Log conditions by hand or pull them live, track clou
 - **Journal** — a color-coded month calendar by default (green/orange/red by alert severity, with a 👁 icon for personally-flagged Notable days) — tap a day to see its entries. Search replaces the calendar with the classic flat searchable list
 - **Trends** — charts (temp, pressure, humidity, heat index, pressure rate-of-change, year-over-year, transect, UV, PM2.5) over 1d/7d/30d/All windows, plus computed Insights (temp/humidity correlation, personal comfort threshold, peak heat index, alert coverage), Pattern Tiles, and a Pressure Watch rapid-change indicator
 - **Map** — station view or a chronological route view of everywhere you've logged, color-coded by temperature, with a month-calendar picker to jump to any date's entries
-- **Gallery** — your photos in one place, toggle between Recent (chronological, everything) and By Genus (the classification collection), plus a built-in cloud atlas reference (Cloudspotter's Guide classifications) and Goethe's cloud verses
+- **Gallery** — every photo in a Photos-style grid (3 across on a phone), grouped by month, with filter chips (All · Untagged · each cloud type) and small cloud-type labels on each tile. Tiles use lightweight thumbnails that load as you scroll. By Genus shows the classification collection, with "See all" per type. Plus a built-in cloud atlas reference (Cloudspotter's Guide classifications) and Goethe's cloud verses
 - **Alerts** — active NWS watches/warnings for your location, logged alongside the entry
 - **Moon phase & illumination**, logged automatically with each entry
 - **Tides** — tide state, approximate water level, and next high/low, looked up automatically on every entry (Quick Log, Quick Photo Log, manual) within 40 km of a NOAA tide station. Settings → Backfill tides fills existing coastal entries
@@ -31,7 +31,7 @@ Single self-contained `index.html` — no build step, no bundler, no backend. Ev
 - `manifest.json` — app name, colors, and icons for installation
 - `icons/` — `icon-192.png`, `icon-512.png` (also used as the maskable icon), `apple-touch-icon.png`
 
-**Storage:** IndexedDB, with automatic one-time migration from an older localStorage-based version. Nothing leaves your device except the API calls below — there's no server component and no account system.
+**Storage:** IndexedDB, with automatic one-time migration from an older localStorage-based version. Two stores: `entries` (the journal, which is what gets exported) and `thumbs` (gallery thumbnails, which aren't exported and rebuild themselves automatically). Nothing leaves your device except the API calls below — there's no server component and no account system.
 
 **External data sources** (all free, no API key required):
 - [Open-Meteo](https://open-meteo.com/) — current conditions and air quality (UV/PM2.5, captured on every entry including quick logs), plus historical backfill via Settings

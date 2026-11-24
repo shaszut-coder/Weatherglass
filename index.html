@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Weatherglass — personal weather station & log
-  Version: 5.5.0
+  Version: 5.6.0
 
   Single-file app: no build step, no backend. Data lives in the
   visitor's own browser via IndexedDB. sw.js (beside this file) only
@@ -289,6 +289,48 @@
     overflow:hidden;
     text-overflow:ellipsis;
   }
+
+  /* Gallery (v5.6.0): Photos-style grid */
+  .gallery-filters{
+    display:flex; gap:6px; overflow-x:auto; -webkit-overflow-scrolling:touch;
+    padding:2px 2px 10px; margin-bottom:6px; scrollbar-width:none;
+  }
+  .gallery-filters::-webkit-scrollbar{ display:none; }
+  .gallery-chip{
+    flex:0 0 auto; border:1px solid var(--line); background:var(--glass); color:var(--ink);
+    border-radius:999px; padding:5px 11px; font-family:'IBM Plex Mono', monospace; font-size:11px; cursor:pointer;
+  }
+  .gallery-chip span{ color:var(--ink-soft); }
+  .gallery-chip.active{ background:var(--ink); border-color:var(--ink); color:#fff; }
+  .gallery-chip.active span{ color:rgba(255,255,255,0.75); }
+  .gallery{ margin-bottom:24px; }
+  .gallery-month{ margin-bottom:16px; }
+  .gallery-month-head{
+    position:sticky; top:0; z-index:2; background:var(--sky-card);
+    font-family:'Playfair Display', serif; font-style:italic; font-weight:700; font-size:15px; color:var(--ink);
+    padding:6px 2px;
+  }
+  .gallery-month-head span{ font-family:'IBM Plex Mono', monospace; font-style:normal; font-weight:400; font-size:10.5px; color:var(--ink-soft); }
+  .gallery-grid{
+    display:grid; grid-template-columns:repeat(3, 1fr); gap:2px;
+  }
+  @media (min-width:700px){ .gallery-grid{ grid-template-columns:repeat(5, 1fr); } }
+  @media (min-width:1100px){ .gallery-grid{ grid-template-columns:repeat(7, 1fr); } }
+  .gtile{
+    position:relative; display:block; width:100%; aspect-ratio:1; padding:0; border:0; margin:0;
+    background:#D7E2E9; overflow:hidden; cursor:pointer;
+  }
+  .gtile img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .gtile img:not([src]){ visibility:hidden; }
+  .gtile-genus{
+    position:absolute; left:4px; bottom:4px; padding:1px 5px; border-radius:4px;
+    background:rgba(28,37,45,0.62); color:#fff; font-family:'IBM Plex Mono', monospace; font-size:10px; line-height:1.4;
+  }
+  .gtile-untagged{
+    position:absolute; right:5px; top:5px; width:8px; height:8px; border-radius:50%;
+    background:var(--brass); box-shadow:0 0 0 1.5px rgba(255,255,255,0.85);
+  }
+  .gtile-pending{ position:absolute; right:4px; bottom:3px; font-size:11px; }
 
   /* Howard expandable section */
   .howard-toggle{
@@ -1483,7 +1525,8 @@
       <button class="btn secondary" id="galleryViewGenus" style="font-size:11px; padding:5px 14px;">By Genus</button>
     </div>
 
-    <div id="cloudJournalGrid" class="cloud-grid"></div>
+    <div id="galleryFilters" class="gallery-filters"></div>
+    <div id="cloudJournalGrid" class="gallery"></div>
 
 
     <!-- Section 2: Cloud Atlas with Howard + Goethe -->
@@ -1652,7 +1695,7 @@
 (function(){
   "use strict";
 
-  const APP_VERSION = "5.5.0";
+  const APP_VERSION = "5.6.0";
   const STORAGE_KEY = "weatherglass.entries.v1";
 
   function showToast(message, kind){
@@ -1665,7 +1708,8 @@
 
   /* ---------- data layer (IndexedDB, with localStorage fallback/migration) ---------- */
   const IDB_NAME = "weatherglass-db";
-  const IDB_VERSION = 1;
+  const IDB_VERSION = 2; // v5.6.0: adds the "thumbs" store (gallery thumbnails; not exported)
+  const IDB_THUMBS = "thumbs";
   const IDB_STORE = "entries";
   let idbAvailable = true;
   let dbPromise = null;
@@ -1683,11 +1727,51 @@
         if(!db.objectStoreNames.contains(IDB_STORE)){
           db.createObjectStore(IDB_STORE, { keyPath: "id" });
         }
+        if(!db.objectStoreNames.contains(IDB_THUMBS)){
+          db.createObjectStore(IDB_THUMBS, { keyPath: "id" });
+        }
       };
-      req.onsuccess = function(){ resolve(req.result); };
+      req.onsuccess = function(){
+        const db = req.result;
+        // If a newer version of the app (e.g. after an update) needs to
+        // upgrade the database, let go of this connection so it isn't blocked.
+        db.onversionchange = ()=>{ db.close(); dbPromise = null; };
+        resolve(db);
+      };
       req.onerror = function(){ reject(req.error || new Error("Failed to open database")); };
     });
     return dbPromise;
+  }
+  function idbGetThumb(id){
+    return openDB().then(db => new Promise((resolve, reject)=>{
+      const req = db.transaction(IDB_THUMBS, "readonly").objectStore(IDB_THUMBS).get(id);
+      req.onsuccess = ()=> resolve(req.result || null);
+      req.onerror = ()=> reject(req.error);
+    }));
+  }
+  function idbPutThumb(rec){
+    return openDB().then(db => new Promise((resolve, reject)=>{
+      const tx = db.transaction(IDB_THUMBS, "readwrite");
+      tx.objectStore(IDB_THUMBS).put(rec);
+      tx.oncomplete = ()=> resolve();
+      tx.onerror = tx.onabort = ()=> reject(tx.error);
+    }));
+  }
+  function idbGetThumbIds(){
+    return openDB().then(db => new Promise((resolve, reject)=>{
+      const req = db.transaction(IDB_THUMBS, "readonly").objectStore(IDB_THUMBS).getAllKeys();
+      req.onsuccess = ()=> resolve(req.result || []);
+      req.onerror = ()=> reject(req.error);
+    }));
+  }
+  function idbDeleteThumbs(ids){
+    return openDB().then(db => new Promise((resolve, reject)=>{
+      const tx = db.transaction(IDB_THUMBS, "readwrite");
+      const st = tx.objectStore(IDB_THUMBS);
+      ids.forEach(id=>st.delete(id));
+      tx.oncomplete = ()=> resolve();
+      tx.onerror = tx.onabort = ()=> reject(tx.error);
+    }));
   }
   function idbGetAll(){
     return openDB().then(db => new Promise((resolve, reject)=>{
@@ -2729,15 +2813,134 @@
     renderSkyStats();
   }
 
-  // "Recent" = every photo, chronological, regardless of whether it's been
-  // classified — you should always be able to see everything you've shot.
-  // "Genus" = the classification collection, grouped by cloud genus — only
-  // entries that have actually been classified, since grouping unclassified
-  // photos by genus wouldn't mean anything. Both render into the same grid;
-  // this used to be two separate sections (one right after the other, with
-  // the whole Cloud Atlas reference sandwiched between) — now one section,
-  // one toggle, no redundancy.
+  // ---------- Gallery (v5.6.0 rewrite) ----------
+  // Before: Recent showed only the newest 60 photos and By Genus only 6 per
+  // genus, and every tile was the full ~100 KB photo as an inline data URL —
+  // up to 60 at once, which is what left tiles blank on iPhone. Now:
+  //  - every photo is reachable (no cap), Photos-app style: a tight 3-across
+  //    square grid grouped under month headings;
+  //  - tiles show small JPEG thumbnails (~360 px, ~15–25 KB), made once per
+  //    photo and kept in their own IndexedDB store ("thumbs", not part of the
+  //    entries or of exports — rebuilt automatically after an import);
+  //  - thumbnails load just before a tile scrolls into view and are released
+  //    once it's far off-screen, so memory stays flat however long the
+  //    gallery gets;
+  //  - filter chips: All · Untagged · one per genus you've logged.
+  // By Genus stays as the life-list overview, using the same thumbnails.
+  const GENUS_ABBR = {
+    "Cumulus":"Cu","Cumulonimbus":"Cb","Stratus":"St","Stratocumulus":"Sc","Altocumulus":"Ac",
+    "Altostratus":"As","Nimbostratus":"Ns","Cirrus":"Ci","Cirrocumulus":"Cc","Cirrostratus":"Cs"
+  };
+  const THUMB_SIZE = 360;
   let galleryView = "recent";
+  let galleryFilter = "all"; // "all" | "untagged" | a genus name
+
+  const thumbUrlCache = new Map();     // entry id -> { sig, url }
+  const thumbInFlight = new Map();     // entry id -> Promise<url>
+  let thumbQueue = Promise.resolve();  // generate one at a time to keep memory low
+
+  function photoSig(photo){
+    return photo ? `${photo.length}:${photo.slice(-24)}` : "";
+  }
+
+  function makeThumbBlob(dataUrl){
+    return new Promise((resolve, reject)=>{
+      const img = new Image();
+      img.onload = ()=>{
+        try{
+          const s = Math.min(img.naturalWidth, img.naturalHeight);
+          const sx = (img.naturalWidth - s) / 2, sy = (img.naturalHeight - s) / 2;
+          const out = Math.min(THUMB_SIZE, s);
+          const canvas = document.createElement("canvas");
+          canvas.width = out; canvas.height = out;
+          const ctx = canvas.getContext("2d");
+          ctx.imageSmoothingQuality = "high";
+          ctx.drawImage(img, sx, sy, s, s, 0, 0, out, out);
+          canvas.toBlob(b=>{
+            canvas.width = canvas.height = 0; // release the canvas memory (iOS)
+            b ? resolve(b) : reject(new Error("Thumbnail encode failed"));
+          }, "image/jpeg", 0.72);
+        }catch(err){ reject(err); }
+      };
+      img.onerror = ()=>reject(new Error("Photo could not be decoded"));
+      img.src = dataUrl;
+    });
+  }
+
+  function getThumbUrl(entry){
+    const sig = photoSig(entry.photo);
+    const cached = thumbUrlCache.get(entry.id);
+    if(cached && cached.sig === sig) return Promise.resolve(cached.url);
+    if(thumbInFlight.has(entry.id)) return thumbInFlight.get(entry.id);
+
+    const p = (async ()=>{
+      let blob = null;
+      try{
+        const stored = await idbGetThumb(entry.id);
+        if(stored && stored.sig === sig && stored.blob) blob = stored.blob;
+      }catch(e){ /* thumbs store unavailable — fall through and generate */ }
+      if(!blob){
+        // Queue generation so only one full-size photo is decoded at a time.
+        const job = thumbQueue.then(()=>makeThumbBlob(entry.photo));
+        thumbQueue = job.catch(()=>{});
+        blob = await job;
+        idbPutThumb({ id: entry.id, sig, blob }).catch(()=>{});
+      }
+      if(cached) URL.revokeObjectURL(cached.url);
+      const url = URL.createObjectURL(blob);
+      thumbUrlCache.set(entry.id, { sig, url });
+      return url;
+    })().finally(()=>thumbInFlight.delete(entry.id));
+    thumbInFlight.set(entry.id, p);
+    return p;
+  }
+
+  // Loads a tile's thumbnail as it nears the screen; drops the decoded image
+  // again once it's well off-screen (the object URL stays cached, so scrolling
+  // back is instant).
+  const thumbObserver = ("IntersectionObserver" in window) ? new IntersectionObserver(items=>{
+    items.forEach(item=>{
+      const img = item.target;
+      if(item.isIntersecting){
+        const entry = entries.find(x=>x.id === img.dataset.thumbFor);
+        if(!entry || !entry.photo) return;
+        getThumbUrl(entry).then(url=>{
+          if(img.isConnected && img.dataset.wantSrc !== "0") img.src = url;
+        }).catch(()=>{
+          // Couldn't make a thumbnail (very old browser, odd photo) — show the original.
+          if(img.isConnected) img.src = entry.photo;
+        });
+        img.dataset.wantSrc = "1";
+      } else if(img.dataset.wantSrc === "1"){
+        img.dataset.wantSrc = "0";
+        img.removeAttribute("src");
+      }
+    });
+  }, { rootMargin: "900px 0px" }) : null;
+
+  function observeThumbs(container){
+    container.querySelectorAll("img[data-thumb-for]").forEach(img=>{
+      if(thumbObserver) thumbObserver.observe(img);
+      else {
+        const entry = entries.find(x=>x.id === img.dataset.thumbFor);
+        if(entry) getThumbUrl(entry).then(url=>{ img.src = url; }).catch(()=>{ img.src = entry.photo; });
+      }
+    });
+  }
+
+  // Remove stored thumbnails whose entry or photo no longer exists.
+  async function pruneThumbs(){
+    try{
+      const keep = new Set(entries.filter(e=>e.photo).map(e=>e.id));
+      const ids = await idbGetThumbIds();
+      const stale = ids.filter(id=>!keep.has(id));
+      if(stale.length) await idbDeleteThumbs(stale);
+      stale.forEach(id=>{
+        const c = thumbUrlCache.get(id);
+        if(c){ URL.revokeObjectURL(c.url); thumbUrlCache.delete(id); }
+      });
+    }catch(e){ /* non-fatal */ }
+  }
 
   document.getElementById("galleryViewRecent").addEventListener("click", ()=>{
     galleryView = "recent";
@@ -2752,84 +2955,117 @@
     renderCloudJournal();
   });
 
+  function galleryPhotos(){
+    return entries.filter(e=>!!e.photo)
+      .slice().sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp));
+  }
+
+  function renderGalleryFilters(photos){
+    const bar = document.getElementById("galleryFilters");
+    if(!bar) return;
+    if(galleryView !== "recent"){ bar.style.display = "none"; return; }
+    bar.style.display = "flex";
+    const counts = {};
+    photos.forEach(e=>{ if(e.cloudGenus) counts[e.cloudGenus] = (counts[e.cloudGenus]||0) + 1; });
+    const untagged = photos.filter(e=>!e.cloudGenus).length;
+    if(galleryFilter !== "all" && galleryFilter !== "untagged" && !counts[galleryFilter]) galleryFilter = "all";
+    if(galleryFilter === "untagged" && !untagged) galleryFilter = "all";
+    const chip = (key, label, n) =>
+      `<button type="button" class="gallery-chip${galleryFilter === key ? " active" : ""}" data-filter="${escapeHtml(key)}">${escapeHtml(label)} <span>${n}</span></button>`;
+    bar.innerHTML =
+      chip("all", "All", photos.length) +
+      (untagged ? chip("untagged", "Untagged", untagged) : "") +
+      Object.keys(counts).sort((a,b)=>counts[b]-counts[a] || a.localeCompare(b))
+        .map(g=>chip(g, g, counts[g])).join("");
+    bar.querySelectorAll("[data-filter]").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        galleryFilter = btn.dataset.filter;
+        renderCloudJournal();
+      });
+    });
+  }
+
+  function galleryTileHtml(e){
+    const abbr = e.cloudGenus ? (GENUS_ABBR[e.cloudGenus] || e.cloudGenus.slice(0,2)) : "";
+    const label = e.cloudGenus ? `${e.cloudGenus}, ${formatTs(e.timestamp)}` : `Untagged photo, ${formatTs(e.timestamp)}`;
+    return `<button type="button" class="gtile" data-open="${e.id}" aria-label="${escapeHtml(label)}">
+      <img data-thumb-for="${e.id}" alt="">
+      ${abbr ? `<span class="gtile-genus">${escapeHtml(abbr)}</span>` : `<span class="gtile-untagged" title="No cloud type yet"></span>`}
+      ${e.conditionsPending ? `<span class="gtile-pending" title="Conditions pending">⏳</span>` : ""}
+    </button>`;
+  }
+
   function renderCloudJournal(){
     const grid = document.getElementById("cloudJournalGrid");
     if(!grid) return;
+    const photos = galleryPhotos();
+    renderGalleryFilters(photos);
 
     if(galleryView === "genus"){
       renderCloudJournalByGenus(grid);
       return;
     }
-    grid.style.display = "grid"; // undo the "genus" view's block-layout override, if it was set
+    grid.className = "gallery";
+    grid.style.display = "block";
 
-    const recentEntries = entries
-      .filter(e=> !!e.photo)
-      .slice().sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp))
-      .slice(0,60); // cap to avoid memory issues
+    const shown = galleryFilter === "all" ? photos
+      : galleryFilter === "untagged" ? photos.filter(e=>!e.cloudGenus)
+      : photos.filter(e=>e.cloudGenus === galleryFilter);
 
-    if(!recentEntries.length){
-      grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">No entries with photos yet.</div>`;
+    if(!shown.length){
+      grid.innerHTML = `<div class="empty-state">No entries with photos yet.</div>`;
       return;
     }
 
-    grid.innerHTML = recentEntries.map(e=>{
-      const ff = entryFairFoul(e);
-      const badgeHtml = ff ? `<span class="stamp ${ff.cls}" style="font-size:9.5px;">${ff.icon} ${ff.label}</span>` : "";
-      const genus = e.cloudGenus || e.sky || "—";
-      return `<div class="cloud-card" data-open="${e.id}">
-        ${e.photo
-          ? `<img class="cloud-card-photo" src="${e.photo}" alt="" loading="lazy">`
-          : `<div class="cloud-card-photo placeholder">☁️</div>`}
-        <div class="cloud-card-body">
-          <div class="cloud-card-genus">${escapeHtml(genus)}</div>
-          <div class="cloud-card-meta">${escapeHtml(formatTs(e.timestamp))}</div>
-          <div style="margin-top:4px;">${badgeHtml}</div>
-        </div>
-      </div>`;
-    }).join("");
-
-    grid.querySelectorAll("[data-open]").forEach(card=>{
-      card.addEventListener("click", ()=>openEntryDetail(card.dataset.open));
+    // Group by month, newest first.
+    const months = [];
+    shown.forEach(e=>{
+      const d = new Date(e.timestamp);
+      const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+      let m = months[months.length-1];
+      if(!m || m.key !== key){
+        m = { key, label: d.toLocaleDateString(undefined, { month:"long", year:"numeric" }), items: [] };
+        months.push(m);
+      }
+      m.items.push(e);
     });
+
+    grid.innerHTML = months.map(m=>`
+      <div class="gallery-month">
+        <div class="gallery-month-head">${escapeHtml(m.label)} <span>· ${m.items.length} photo${m.items.length === 1 ? "" : "s"}</span></div>
+        <div class="gallery-grid">${m.items.map(galleryTileHtml).join("")}</div>
+      </div>`).join("");
+
+    // Swipe/prev/next in the entry sheet stays within the photos being shown.
+    grid.querySelectorAll("[data-open]").forEach(tile=>{
+      tile.addEventListener("click", ()=>openEntryDetail(tile.dataset.open, shown));
+    });
+    observeThumbs(grid);
   }
 
   function renderCloudJournalByGenus(grid){
+    grid.className = "";
+    grid.style.display = "block";
     const withGenus = entries.filter(e=>e.cloudGenus);
     if(!withGenus.length){
-      grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">No classified photos yet — use Settings → Classify Cloud Photos to get started.</div>`;
+      grid.innerHTML = `<div class="empty-state">No classified photos yet — use Settings → Classify Cloud Photos to get started.</div>`;
       return;
     }
-
     const byGenus = {};
-    withGenus.forEach(e=>{
-      if(!byGenus[e.cloudGenus]) byGenus[e.cloudGenus] = [];
-      byGenus[e.cloudGenus].push(e);
-    });
-
+    withGenus.forEach(e=>{ (byGenus[e.cloudGenus] = byGenus[e.cloudGenus] || []).push(e); });
     const genera = Object.keys(byGenus).sort();
     const ff = g => getFairFoulSignal(g, null, []);
 
-    grid.style.display = "block"; // this view isn't a photo grid itself, each genus group contains its own
     grid.innerHTML = genera.map(genus=>{
       const genusEntries = byGenus[genus].slice().sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp));
       const withPhotos = genusEntries.filter(e=>e.photo);
       const signal = ff(genus);
       const badge = signal ? `<span class="stamp ${signal.cls}" style="font-size:9.5px;">${signal.icon} ${signal.label}</span>` : "";
       const symbol = HOWARD_SYMBOLS[genus] || "";
-
       const photosHtml = withPhotos.length
-        ? `<div class="cloud-grid" style="margin-top:8px;">${
-            withPhotos.slice(0,6).map(e=>`
-              <div class="cloud-card" data-open="${e.id}">
-                <img class="cloud-card-photo" src="${e.photo}" alt="" loading="lazy">
-                <div class="cloud-card-body">
-                  <div class="cloud-card-meta">${escapeHtml(formatTs(e.timestamp))}</div>
-                  ${e.cloudSpecies ? `<div class="cloud-card-meta" style="font-style:italic;">${escapeHtml(e.cloudSpecies)}</div>` : ""}
-                </div>
-              </div>`).join("")
-          }</div>`
+        ? `<div class="gallery-grid" style="margin-top:8px;">${withPhotos.slice(0,6).map(galleryTileHtml).join("")}</div>
+           ${withPhotos.length > 6 ? `<button type="button" class="btn secondary gallery-seeall" data-genus="${escapeHtml(genus)}" style="font-size:11px; padding:5px 12px; margin-top:8px;">See all ${withPhotos.length} →</button>` : ""}`
         : `<div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--ink-soft); margin-top:6px;">No photos logged for this genus yet.</div>`;
-
       return `<div style="border-top:1px solid var(--line); padding-top:14px; margin-bottom:18px;">
         <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
           <span style="font-family:'IBM Plex Mono',monospace; font-size:16px; color:var(--brass);">${escapeHtml(symbol)}</span>
@@ -2841,9 +3077,19 @@
       </div>`;
     }).join("");
 
-    grid.querySelectorAll("[data-open]").forEach(card=>{
-      card.addEventListener("click", ()=>openEntryDetail(card.dataset.open));
+    grid.querySelectorAll("[data-open]").forEach(tile=>{
+      const genus = (entries.find(x=>x.id === tile.dataset.open) || {}).cloudGenus;
+      tile.addEventListener("click", ()=>openEntryDetail(tile.dataset.open,
+        (byGenus[genus] || []).filter(e=>e.photo).sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp))));
     });
+    grid.querySelectorAll(".gallery-seeall").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        galleryFilter = btn.dataset.genus;
+        document.getElementById("galleryViewRecent").click();
+        document.getElementById("galleryFilters").scrollIntoView({ behavior:"smooth", block:"start" });
+      });
+    });
+    observeThumbs(grid);
   }
 
   function renderSkyCloudAtlas(){
@@ -7980,6 +8226,7 @@
     renderChart(currentChartMode);
     refreshStorageIndicator();
     setTimeout(fillPendingConditions, 1500);
+    setTimeout(pruneThumbs, 4000);
   })();
 })();
 </script>
