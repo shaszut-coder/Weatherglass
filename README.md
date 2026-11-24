@@ -3,11 +3,12 @@
 A personal weather journal. Log conditions by hand or pull them live, track clouds and pressure trends, watch severe weather alerts, and build a searchable history of what the sky was doing wherever you were.
 
 **Live app:** https://weatherglass.shaszut.workers.dev/
-**Current version:** v5.4.0
+**Current version:** v5.5.0
 **Philosophy:** see [PHILOSOPHY.md](./PHILOSOPHY.md) — this is a personal weather observation journal, not a forecast app
 
 ## What it does
 
+- **Installable & offline** — add it to your home screen (Safari → Share → Add to Home Screen; Chrome → Install) for a full-screen app that opens with no connection. Quick Log and Quick Photo Log work offline too: they save GPS, time, moon and photo right away, then fill in weather, place name, UV/PM2.5, tides and (for recent entries) alerts automatically once you're back online
 - **Record** — log a reading manually, auto-fill current conditions with Quick Log, or use Quick Photo Log (camera-first — take a photo and conditions fill in automatically) for your GPS location
 - **Notebooks** — link several entries together into one ongoing moment (e.g. a storm as it rolls through), rather than flattening changing conditions into a single reading. Manage them (rename, present in Speaker Mode, delete the grouping) from Settings → View All Notebooks
 - **Cloud Classification** — Settings → Classify Cloud Photos scans for photos without a cloud type and lets you tag them one at a time with a guided, texture-first picker (2 taps for most types) instead of hunting through a raw dropdown. Optionally connect a self-hosted AI Worker (your own Cloudflare + Anthropic API key, see `worker/DEPLOYMENT.md`) for an AI-suggested classification instead of answering the questions yourself
@@ -24,6 +25,11 @@ A personal weather journal. Log conditions by hand or pull them live, track clou
 ## How it's built
 
 Single self-contained `index.html` — no build step, no bundler, no backend. Everything (HTML, CSS, JS) lives in one file by design, so a new version is just a new `index.html`.
+
+**Install/offline support files** (beside `index.html`, since browsers require them to be separate):
+- `sw.js` — service worker. Network-first for the app page (you always get the latest deploy when online), cache-first for the CDN libraries and fonts, and keeps up to 400 recently viewed map tiles. It never caches API calls and holds no journal data. Bump its `CACHE_VERSION` when it or the files it pre-caches change
+- `manifest.json` — app name, colors, and icons for installation
+- `icons/` — `icon-192.png`, `icon-512.png` (also used as the maskable icon), `apple-touch-icon.png`
 
 **Storage:** IndexedDB, with automatic one-time migration from an older localStorage-based version. Nothing leaves your device except the API calls below — there's no server component and no account system.
 
@@ -43,10 +49,23 @@ Single self-contained `index.html` — no build step, no bundler, no backend. Ev
 
 Hosted on **Cloudflare** (Pages/Workers), source on **GitHub**. Push `index.html` to the repo and it deploys automatically — no CI/build pipeline involved.
 
+### Repo layout
+
+```
+index.html
+sw.js
+manifest.json
+icons/icon-192.png
+icons/icon-512.png
+icons/apple-touch-icon.png
+README.md
+CHANGELOG.md
+```
+
 ### Versioning workflow
 
 Each release is:
-1. A new `index.html` (version bumped in two places: the header comment and the `APP_VERSION` constant)
+1. A new `index.html` (version bumped in two places: the header comment and the `APP_VERSION` constant). If `sw.js` changes too, bump its `CACHE_VERSION`
 2. An updated `CHANGELOG.md` — one running file, newest entry at the top, not a per-version file
 3. An updated `README.md`, kept current with whatever shipped
 
@@ -55,6 +74,8 @@ This keeps testing and rollback simple — reverting a bad release is just rever
 ## Backup & data safety
 
 Since everything lives in browser storage on one device, **regular exports are the only backup** — there's no cloud sync.
+
+**On iPhone, the installed app and Safari keep separate storage.** Moving to the home-screen app means exporting from Safari and importing into the installed app (each part), then logging only from the installed app. Installed apps get protected storage (the app also requests persistent storage), so this is the safer place for the journal to live.
 
 - **Export JSON** — full backup, everything including photos, re-importable
 - **Export CSV** — for spreadsheet analysis; not re-importable
@@ -67,6 +88,7 @@ Very large exports split automatically into multiple parts (`part1-of-N`, `part2
 ## Known limitations / open items
 
 - Single-device only — no sync between browsers or devices
-- Not currently an installable PWA (no service worker/manifest yet) — requires a network connection to load on first visit
+- The first visit needs a connection, so the app and its libraries can be saved for offline use
+- Offline entries can't recover alerts older than about 5 days, so those stay marked unknown rather than "no alert"
 - Speaker Mode's route slide is a chronological list, not a live interactive map (deferred — would need a second Leaflet instance independent of the Map tab's)
 - `tideState`/tide fields only populate within 40 km of a NOAA tide station; empty for inland locations, including the Great Lakes

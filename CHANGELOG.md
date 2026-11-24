@@ -2,7 +2,44 @@
 
 All notable changes to Weatherglass are documented here, newest first.
 
-> **Deployment status note (as of v5.4.0, Nov 2026):** **v5.3.0 is the live version.** v5.4.0 (the entry below) is built and browser-tested against mocked APIs. It goes live once `index.html` is pushed. After deploying, run **Settings → Backfill UV & PM2.5** and then **Settings → Backfill tides**, and confirm that the first real Quick Log on the coast saves tide data. That's the one path not yet tested against the live NOAA API. The v5.0.0 rollback/hotfix story (v5.0.1) is still documented below for reference. v4.10.0's AI Worker remains an optional, separately deployed piece, pending the Anthropic API account/cost setup.
+> **Deployment status note (as of v5.5.0, Nov 2026):** **v5.4.0 is live and verified**: deployed, browser-tested, and both Settings backfills ran successfully on real data. v5.5.0 (installable app + offline logging, below) is built and tested in Chromium against mocked APIs, and adds `sw.js`, `manifest.json` and an `icons/` folder to the repo. After deploying, confirm that `/sw.js` and `/manifest.json` open on the live site, then install it on the iPhone, move the data in (export from Safari, import into the installed app), and try a Quick Log in airplane mode. The v5.0.0 rollback/hotfix story (v5.0.1) is still documented below for reference. v4.10.0's AI Worker remains an optional, separately deployed piece, pending the Anthropic API account/cost setup.
+
+## v5.5.0
+
+**Weatherglass is now an installable app that works offline.** This closes the biggest remaining gap in the README. Add it to your home screen (Safari → Share → Add to Home Screen; Chrome → Install) and it opens full-screen with its own icon, with or without a connection.
+
+**Three new files sit next to `index.html`.** Browsers require these to be separate, so they're the one exception to the single-file rule. The app itself is still one file.
+- **`sw.js`, the service worker.**
+  - The app page is **network-first**, so every new deploy still arrives the normal way when you're online. If there's no signal, or the network takes longer than 4 seconds, the saved copy opens instead.
+  - Libraries and fonts (Leaflet, Chart.js, the date adapter, exif-js, JSZip, Google Fonts) are **cache-first**, saved the first time the app loads online.
+  - Map tiles you've already looked at are kept, up to 400, so a recently viewed map still draws offline. Nothing is pre-downloaded.
+  - Weather, alert, place-name and tide requests are never cached. It holds no journal data.
+- **`manifest.json`**: the name, colors and icons used for installation.
+- **`icons/`**: the barometer-dial icon, redrawn crisply at 192, 512 (also used as the maskable icon) and 180 px.
+
+**Quick Log and Quick Photo Log work with no signal.** Before, an offline quick log waited out every network call and then saved an almost empty entry. Now, with no connection, it skips the network entirely and saves what the phone knows: GPS, time, moon and photo. The entry is marked *conditions pending*. When you're back online, the app rebuilds the rest for that exact time and place:
+- weather from Open-Meteo's hourly history (the nearest hour)
+- UV and PM2.5
+- place name, which also corrects the entry's title
+- tides
+- for entries from the last 5 days, the NWS alerts that were actually in effect at that moment, with the entry's Level updated to match
+
+This runs on startup, when the connection returns, and whenever the app comes back to the foreground. A toast reports how many entries were filled. The entry's details show "Saved offline, filled in later from historical data", so reconstructed readings are never mistaken for live ones. Alerts that can't be recovered stay *unknown*, never a false "no alert". An entry that still can't be filled after 6 tries stops retrying.
+
+**Weak signal no longer stalls a quick log.** The weather, air-quality and place-name requests now time out (8 s, 6 s and 6 s) instead of hanging.
+
+**Storage protection:** the app now asks the browser to make its storage persistent, so the journal isn't cleared automatically. Installed home-screen apps are usually granted this without a prompt.
+
+**⚠️ iPhone migration step.** An installed home-screen app has storage separate from Safari's, so it starts out empty. Export a backup from Safari, import every part into the installed app, and from then on log only from the installed app.
+
+Tested in Chromium against a local server with mocked APIs:
+- The service worker installed and pre-cached the core files, and the CDN libraries were cached on load.
+- With the network switched off, a reload opened the app from cache with all libraries present.
+- An offline Quick Log saved instantly as pending.
+- On reconnecting, the entry filled itself in: weather from the right hour, UV, place name and title, and the in-effect alert. An expired alert was correctly excluded, and Level was re-derived.
+- An online Quick Log was unaffected.
+
+Not yet tested on a real iPhone or on Cloudflare. After deploying, check that `/sw.js` and `/manifest.json` load from the live site.
 
 ## v5.4.0
 

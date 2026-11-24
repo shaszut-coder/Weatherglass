@@ -1,10 +1,11 @@
 <!DOCTYPE html>
 <!--
   Weatherglass — personal weather station & log
-  Version: 5.4.0
+  Version: 5.5.0
 
   Single-file app: no build step, no backend. Data lives in the
-  visitor's own browser via localStorage.
+  visitor's own browser via IndexedDB. sw.js (beside this file) only
+  caches the app for offline use and installation; it holds no data.
 -->
 <html lang="en">
 <head>
@@ -15,16 +16,18 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Weatherglass">
+<link rel="manifest" href="manifest.json">
+<meta name="mobile-web-app-capable" content="yes">
 <link rel="apple-touch-icon" href="data:image/png;base64,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">
 <title>Weatherglass — Personal Weather Station</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/exif-js/2.3.0/exif.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" crossorigin="anonymous" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exif-js/2.3.0/exif.js" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" crossorigin="anonymous"></script>
 <style>
   :root{
     --sky: #E6EDF2;
@@ -1649,7 +1652,7 @@
 (function(){
   "use strict";
 
-  const APP_VERSION = "5.4.0";
+  const APP_VERSION = "5.5.0";
   const STORAGE_KEY = "weatherglass.entries.v1";
 
   function showToast(message, kind){
@@ -3454,12 +3457,17 @@
 
   async function gatherCurrentConditions(statusEl){
     let lat = null, lng = null;
+    // v5.5.0: with no connection, skip every network call (each would just
+    // wait to fail) and save what the phone itself knows — GPS, time, moon.
+    // The entry is marked conditionsPending and fillPendingConditions()
+    // completes it once the connection is back.
+    const online = navigator.onLine !== false;
 
     statusEl.textContent = "Getting your location…";
     try{
       if(navigator.geolocation){
         const pos = await new Promise((resolve, reject)=>
-          navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 6000 })
+          navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: online ? 6000 : 15000, maximumAge: 60000 })
         );
         lat = pos.coords.latitude;
         lng = pos.coords.longitude;
@@ -3475,7 +3483,7 @@
     // Capped at 8s so a slow NOAA response never holds up the save; the
     // station list keeps loading in the background and is cached for the
     // next capture.
-    const tidePromise = (lat != null && lng != null)
+    const tidePromise = (online && lat != null && lng != null)
       ? Promise.race([
           fetchTideInfo(lat, lng, new Date()).catch(()=>null),
           new Promise(r=>setTimeout(()=>r(null), 8000))
@@ -3483,7 +3491,7 @@
       : Promise.resolve(null);
 
     let weatherFields = {};
-    if(lat != null && lng != null){
+    if(online && lat != null && lng != null){
       statusEl.textContent = "Fetching current weather…";
       try{
         const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,relative_humidity_2m,pressure_msl,wind_speed_10m,wind_direction_10m,cloud_cover,precipitation,weather_code&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch`;
@@ -3493,7 +3501,7 @@
         // form's auto-fill, and non-fatal if it fails.
         const aqUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lng}&current=pm2_5,uv_index`;
         const [res, aqRes] = await Promise.all([
-          fetch(url),
+          fetch(url, { signal: AbortSignal.timeout(8000) }),
           fetch(aqUrl, { signal: AbortSignal.timeout(6000) }).catch(()=>null)
         ]);
         if(aqRes && aqRes.ok){
@@ -3524,7 +3532,7 @@
     }
 
     let alertFields = { alertActive: null, alertSeverity: null, alertSummary: "", alertFullText: "" };
-    if(lat != null && lng != null){
+    if(online && lat != null && lng != null){
       statusEl.textContent = "Checking alerts…";
       try{
         const alertUrl = `https://api.weather.gov/alerts/active?point=${lat},${lng}`;
@@ -3556,12 +3564,12 @@
     }
 
     let locationName = "Current location";
-    if(lat != null && lng != null){
+    if(online && lat != null && lng != null){
       statusEl.textContent = "Finding location name…";
       try{
         const geoRes = await fetch(
           `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=10`,
-          { headers:{ "Accept-Language":"en", "User-Agent":"Weatherglass/2.8 personal-weather-app" } }
+          { headers:{ "Accept-Language":"en", "User-Agent":"Weatherglass/2.8 personal-weather-app" }, signal: AbortSignal.timeout(6000) }
         );
         if(geoRes.ok){
           const geoData = await geoRes.json();
@@ -3585,7 +3593,11 @@
       ? { tideState: tide.state, tideHeightFt: tide.heightFt, tideNext: tide.nextLabel }
       : {};
 
-    return { lat, lng, weatherFields, alertFields, locationName, tideFields };
+    // Weather is the one thing every entry should have; if it's missing but
+    // the location is known, the rest can be reconstructed later.
+    const conditionsPending = lat != null && lng != null && weatherFields.tempF == null;
+
+    return { lat, lng, weatherFields, alertFields, locationName, tideFields, conditionsPending };
   }
 
   document.getElementById("quickLogBtn").addEventListener("click", async function(){
@@ -3607,7 +3619,7 @@
     btn.textContent = "…";
     statusEl.style.display = "block";
 
-    const { lat, lng, weatherFields, alertFields, locationName, tideFields } = await gatherCurrentConditions(statusEl);
+    const { lat, lng, weatherFields, alertFields, locationName, tideFields, conditionsPending } = await gatherCurrentConditions(statusEl);
 
     statusEl.textContent = "Saving…";
     const now = new Date();
@@ -3645,7 +3657,8 @@
       photo: null,
       eventId: activeNotebook ? activeNotebook.id : null,
       eventName: activeNotebook ? activeNotebook.name : null,
-      ...tideFields
+      ...tideFields,
+      ...(conditionsPending ? { conditionsPending: true } : {})
     };
 
     const nextEntries = entries.concat([entry]);
@@ -3653,7 +3666,7 @@
       entries = nextEntries;
       renderAll();
       lastQuickLogTime = Date.now();
-      showToast("Quick entry saved — open Journal to review or add notes.", "success");
+      showToast(conditionsPending ? "Saved offline — weather, place and alerts will fill in when you're back online." : "Quick entry saved — open Journal to review or add notes.", "success");
       refreshStorageIndicator();
     }).catch(err=>{
       console.warn("Quick log save failed:", err.message || err);
@@ -3704,7 +3717,7 @@
         compressImage(file, 1000, 0.72),
         gatherCurrentConditions(statusEl)
       ]);
-      const { lat, lng, weatherFields, alertFields, locationName, tideFields } = conditions;
+      const { lat, lng, weatherFields, alertFields, locationName, tideFields, conditionsPending } = conditions;
 
       statusEl.textContent = "Saving…";
       const now = new Date();
@@ -3738,7 +3751,8 @@
         photo: photo,
         eventId: activeNotebook ? activeNotebook.id : null,
         eventName: activeNotebook ? activeNotebook.name : null,
-        ...tideFields
+        ...tideFields,
+        ...(conditionsPending ? { conditionsPending: true } : {})
       };
 
       const nextEntries = entries.concat([entry]);
@@ -3746,7 +3760,7 @@
       entries = nextEntries;
       renderAll();
       lastQuickLogTime = Date.now();
-      showToast("Photo entry saved — open Journal to review or add notes.", "success");
+      showToast(conditionsPending ? "Photo saved offline — weather, place and alerts will fill in when you're back online." : "Photo entry saved — open Journal to review or add notes.", "success");
       refreshStorageIndicator();
     }catch(err){
       console.warn("Photo capture failed:", err.message || err);
@@ -4775,6 +4789,8 @@
     if(e.alertSummary) meta.push(["Alert summary", e.alertSummary]);
     if(e.tideState) meta.push(["Tide", e.tideState + (e.tideHeightFt != null ? ` (${e.tideHeightFt} ft)` : "")]);
     if(e.tideNext) meta.push(["Next tide", e.tideNext]);
+    if(e.conditionsPending) meta.push(["Conditions", "Saved offline — will fill in when back online"]);
+    else if(e.conditionsFilledLater) meta.push(["Conditions", "Saved offline, filled in later from historical data"]);
     if(e.moonPhase) meta.push(["Moon phase", e.moonPhase + (e.moonIllumination != null ? ` (${e.moonIllumination}%)` : "")]);
 
     document.getElementById("sheetMetaGrid").innerHTML = meta.map(([k,v])=>`
@@ -7753,6 +7769,205 @@
     document.getElementById("mapModeStation").classList.remove("active");
     renderMap();
   });
+  /* ---------- offline entries: fill in conditions once back online (v5.5.0) ---------- */
+  // Quick Log / Quick Photo Log saved with no connection keep GPS, time,
+  // moon and photo, and are flagged conditionsPending. This reconstructs the
+  // rest from each service's history for that exact time and place:
+  // weather (Open-Meteo hourly), UV/PM2.5, place name, tides, and — best
+  // effort, recent entries only — NWS alerts that were in effect then.
+  // Runs on startup, when the connection returns, and when the app comes
+  // back to the foreground. Gives up on an entry after
+  // PENDING_MAX_ATTEMPTS tries so nothing retries forever.
+  const PENDING_MAX_ATTEMPTS = 6;
+  let pendingFillRunning = false;
+
+  function nearestHourIndex(times, when){
+    let best = -1, bestDiff = Infinity;
+    times.forEach((t,i)=>{
+      const diff = Math.abs(new Date(t + "Z") - when);
+      if(diff < bestDiff){ bestDiff = diff; best = i; }
+    });
+    return bestDiff <= 90*60*1000 ? best : -1;
+  }
+
+  async function reconstructWeather(lat, lng, when){
+    const ageDays = (Date.now() - when.getTime()) / 86400000;
+    const startStr = when.toISOString().slice(0,10);
+    const endStr = new Date(when.getTime() + 3600000).toISOString().slice(0,10);
+    const vars = "temperature_2m,relative_humidity_2m,pressure_msl,wind_speed_10m,wind_direction_10m,cloud_cover,precipitation,weather_code";
+    // The forecast API covers roughly the last three months at full detail;
+    // older than that, the archive API.
+    const host = ageDays < 60 ? "https://api.open-meteo.com/v1/forecast" : "https://archive-api.open-meteo.com/v1/archive";
+    const url = `${host}?latitude=${lat}&longitude=${lng}&start_date=${startStr}&end_date=${endStr}&hourly=${vars}&timezone=GMT&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    if(!res.ok) return null;
+    const h = (await res.json()).hourly;
+    if(!h || !h.time) return null;
+    const i = nearestHourIndex(h.time, when);
+    if(i < 0 || !isFinite(h.temperature_2m?.[i])) return null;
+    const num = v => isFinite(v) ? v : null;
+    return {
+      tempF: num(h.temperature_2m[i]),
+      humidity: num(h.relative_humidity_2m?.[i]),
+      pressureInHg: isFinite(h.pressure_msl?.[i]) ? parseFloat((h.pressure_msl[i] * 0.0295300).toFixed(2)) : null,
+      windMph: num(h.wind_speed_10m?.[i]),
+      windDirDeg: num(h.wind_direction_10m?.[i]),
+      cloudPct: num(h.cloud_cover?.[i]),
+      precipIn: num(h.precipitation?.[i]),
+      sky: weatherCodeToText(h.weather_code?.[i]) || ""
+    };
+  }
+
+  async function reconstructAirQuality(lat, lng, when){
+    const dateStr = when.toISOString().slice(0,10);
+    const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lng}&start_date=${dateStr}&end_date=${dateStr}&hourly=pm2_5,uv_index&timezone=GMT`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    if(!res.ok) return null;
+    const h = (await res.json()).hourly;
+    if(!h || !h.time) return null;
+    const i = nearestHourIndex(h.time, when);
+    if(i < 0) return null;
+    return {
+      uvIndex: isFinite(h.uv_index?.[i]) ? Math.round(h.uv_index[i]*10)/10 : null,
+      pm25: isFinite(h.pm2_5?.[i]) ? Math.round(h.pm2_5[i]*10)/10 : null
+    };
+  }
+
+  // NWS keeps recent alerts queryable by point and time. Only attempted for
+  // entries from the last 5 days; returns null (unknown) on any failure so an
+  // entry is never wrongly recorded as "no alert".
+  async function reconstructAlerts(lat, lng, when){
+    if(Date.now() - when.getTime() > 5*86400000) return null;
+    const start = new Date(when.getTime() - 3*86400000).toISOString().replace(/\.\d+Z$/,"Z");
+    const end = new Date(Math.min(Date.now(), when.getTime() + 3600000)).toISOString().replace(/\.\d+Z$/,"Z");
+    const url = `https://api.weather.gov/alerts?point=${lat.toFixed(4)},${lng.toFixed(4)}&start=${start}&end=${end}`;
+    const res = await fetch(url, { headers:{ "Accept":"application/geo+json" }, signal: AbortSignal.timeout(10000) });
+    if(!res.ok) return null;
+    const data = await res.json();
+    if(!Array.isArray(data.features)) return null;
+    const active = data.features.filter(f=>{
+      const p = f.properties || {};
+      const from = new Date(p.onset || p.effective || p.sent);
+      const to = new Date(p.ends || p.expires);
+      return !isNaN(from) && !isNaN(to) && from <= when && when <= to && p.messageType !== "Cancel";
+    });
+    if(!active.length) return { alertActive:"no", alertSeverity:null, alertSummary:"", alertFullText:"" };
+    let topSev = "Unknown", topRank = -1;
+    active.forEach(f=>{
+      const sev = (f.properties && f.properties.severity) || "Unknown";
+      const rank = ALERT_SEVERITY_RANK[sev] ?? 0;
+      if(rank > topRank){ topRank = rank; topSev = sev; }
+    });
+    const events = [...new Set(active.map(f=>f.properties && f.properties.event).filter(Boolean))];
+    const fullText = [...new Map(active.map(f=>[f.properties.event + "|" + (f.properties.description||""), f])).values()]
+      .map(f=>`${f.properties.event||"Alert"}: ${f.properties.description||""}`).join("\n\n---\n\n");
+    return { alertActive:"yes", alertSeverity:topSev, alertSummary:events.join(", "), alertFullText:fullText };
+  }
+
+  async function reconstructPlaceName(lat, lng){
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=10`,
+      { headers:{ "Accept-Language":"en" }, signal: AbortSignal.timeout(8000) }
+    );
+    if(!res.ok) return null;
+    const geoData = await res.json();
+    const addr = geoData.address || {};
+    const city = addr.city || addr.town || addr.village || addr.hamlet || addr.suburb;
+    if(city && addr.state) return `${city}, ${addr.state}`;
+    if(addr.road && city) return `${addr.road}, ${city}`;
+    if(addr.county && addr.state) return `${addr.county}, ${addr.state}`;
+    if(geoData.display_name) return geoData.display_name.split(",").slice(0,2).join(",").trim();
+    return null;
+  }
+
+  async function fillPendingConditions(){
+    if(pendingFillRunning || navigator.onLine === false) return;
+    const pending = (entries || []).filter(e=>e.conditionsPending &&
+      e.location && isFinite(e.location.lat) && isFinite(e.location.lng));
+    if(!pending.length) return;
+    pendingFillRunning = true;
+    let filled = 0;
+    try{
+      for(const e of pending){
+        if(navigator.onLine === false) break;
+        const when = new Date(e.timestamp);
+        const { lat, lng } = e.location;
+        e.conditionsFillAttempts = (e.conditionsFillAttempts || 0) + 1;
+
+        const [wx, aq, alerts, tide] = await Promise.all([
+          reconstructWeather(lat, lng, when).catch(()=>null),
+          (e.uvIndex == null && e.pm25 == null) ? reconstructAirQuality(lat, lng, when).catch(()=>null) : null,
+          (e.alertActive == null) ? reconstructAlerts(lat, lng, when).catch(()=>null) : null,
+          (!e.tideState) ? fetchTideInfo(lat, lng, when).catch(()=>null) : null
+        ]);
+
+        if(wx){
+          Object.entries(wx).forEach(([k,v])=>{ if(e[k] == null || e[k] === "") e[k] = v; });
+        }
+        if(aq){
+          if(e.uvIndex == null) e.uvIndex = aq.uvIndex;
+          if(e.pm25 == null) e.pm25 = aq.pm25;
+        }
+        if(alerts){
+          Object.assign(e, alerts);
+          e.level = deriveLevelFromAlert(alerts);
+        }
+        if(tide){
+          e.tideState = tide.state;
+          if(e.tideHeightFt == null) e.tideHeightFt = tide.heightFt;
+          if(!e.tideNext) e.tideNext = tide.nextLabel;
+        }
+        if(!e.location.name || e.location.name === "Current location"){
+          const name = await reconstructPlaceName(lat, lng).catch(()=>null);
+          if(name){
+            e.location.name = name;
+            // Quick-capture titles carry the place: "Quick log — Place — time"
+            const m = /^(Quick (?:photo )?log) — (.*)$/.exec(e.title || "");
+            if(m && !m[2].startsWith(name)) e.title = `${m[1]}${titleLocationSuffix(name)} — ${m[2]}`;
+          }
+          await new Promise(r=>setTimeout(r, 1100)); // Nominatim: max 1 request/sec
+        }
+
+        if(wx){
+          delete e.conditionsPending;
+          delete e.conditionsFillAttempts;
+          e.conditionsFilledLater = true;
+          filled++;
+        } else if(e.conditionsFillAttempts >= PENDING_MAX_ATTEMPTS){
+          delete e.conditionsPending;
+          delete e.conditionsFillAttempts;
+        }
+        try{ await idbPutEntries([e]); }
+        catch(err){ console.warn("Saving filled entry failed:", err.message || err); }
+      }
+    }finally{
+      pendingFillRunning = false;
+    }
+    if(filled){
+      renderAll();
+      showToast(`Filled in conditions for ${filled} offline ${filled === 1 ? "entry" : "entries"}.`, "success");
+    }
+  }
+
+  window.addEventListener("online", ()=>{ setTimeout(fillPendingConditions, 2000); });
+  document.addEventListener("visibilitychange", ()=>{
+    if(document.visibilityState === "visible") fillPendingConditions();
+  });
+
+  /* ---------- install / offline support (v5.5.0) ---------- */
+  if("serviceWorker" in navigator && location.protocol.startsWith("http")){
+    window.addEventListener("load", ()=>{
+      navigator.serviceWorker.register("./sw.js", { updateViaCache: "none" })
+        .catch(err=>console.warn("Service worker registration failed:", err.message || err));
+    });
+  }
+  // Ask the browser to protect this app's storage from automatic clean-up.
+  // Installed home-screen apps are typically granted this silently.
+  if(navigator.storage && navigator.storage.persist){
+    navigator.storage.persisted().then(already=>{ if(!already) return navigator.storage.persist(); })
+      .catch(()=>{});
+  }
+
   (async function init(){
     try{
       entries = await loadEntries();
@@ -7764,6 +7979,7 @@
     renderAll();
     renderChart(currentChartMode);
     refreshStorageIndicator();
+    setTimeout(fillPendingConditions, 1500);
   })();
 })();
 </script>
