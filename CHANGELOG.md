@@ -2,7 +2,27 @@
 
 All notable changes to Weatherglass are documented here, newest first.
 
-> **Deployment status note (as of v5.6.2, Nov 25, 2026):** **v5.6.2 is live and verified at https://weatherglass.earth**, including v5.6.0 (Gallery rebuild) and v5.6.1 (brass icon). The domain is registered at Porkbun, DNS is on Cloudflare, and it's a custom domain on the `weatherglass` worker. The journal now lives in the home-screen app at weatherglass.earth, merged from the old workers.dev app (782 entries, 0 duplicates). The old `weatherglass.shaszut.workers.dev` address stays on as a fallback for a few weeks, then gets retired. The v5.0.0 rollback/hotfix story (v5.0.1) is still documented below for reference. v4.10.0's AI Worker remains an optional, separately deployed piece, pending the Anthropic API account/cost setup.
+> **Deployment status note (as of v5.6.3, Nov 25, 2026):** **v5.6.3 is ready to upload; v5.6.2 is live and verified at https://weatherglass.earth**, including v5.6.0 (Gallery rebuild) and v5.6.1 (brass icon). The domain is registered at Porkbun, DNS is on Cloudflare, and it's a custom domain on the `weatherglass` worker. The journal now lives in the home-screen app at weatherglass.earth, merged from the old workers.dev app (782 entries, 0 duplicates). The old `weatherglass.shaszut.workers.dev` address stays on as a fallback for a few weeks, then gets retired. The v5.0.0 rollback/hotfix story (v5.0.1) is still documented below for reference. v4.10.0's AI Worker remains an optional, separately deployed piece, pending the Anthropic API account/cost setup.
+
+## v5.6.3
+
+**New app icon: "Dusk Weatherglass."** The brass dial now looks up at the sky. Changes from v5.6.1:
+- the cream face is now a window onto a dusk sky, with a cumulus cloud and a low sun
+- navy ticks run in a barometer arc over the top, with a gap at the bottom
+- a navy needle shows the current reading, and a slim bronze **set hand** behind it marks the last one, as on a real weatherglass, where you set it to compare "then vs now"
+- a soft glass highlight on the top left
+
+It replaces `icon-192.png`, `icon-512.png` (also the maskable icon) and `apple-touch-icon.png`, plus the 180 px logo embedded in `index.html` (header logo and iPhone home-screen icon).
+
+**Fixed: the service worker never installed on the live site.** `sw.js` and `manifest.json` looked for the icons in an `icons/` folder, but the repo keeps them at the top level beside `index.html`. The missing files made the service worker's install step fail, so the app couldn't open with no connection, and the install icons in the manifest were missing. Both files now point at the top-level icons.
+
+**Browser-tab icon:** `index.html` now links `icon-192.png` as the favicon. This clears the old "favicon 404" item.
+
+`sw.js` `CACHE_VERSION` → `v5.6.3`.
+
+Tested in Chrome at iPhone size, with the CDN libraries stubbed because there was no network: no console errors, the footer shows v5.6.3, the service worker installs and caches all five core files, and all three icons load. Run against the v5.6.2 files, the same test showed the service worker failing on `GET /icons/icon-192.png 404`.
+
+**After uploading:** iPhone keeps the old home-screen icon until the app is removed and re-added, and removing it can delete its journal. **Export a backup first**, then import it into the re-added app.
 
 ## v5.6.2
 

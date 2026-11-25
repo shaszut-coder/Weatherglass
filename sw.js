@@ -16,7 +16,7 @@
   Bump CACHE_VERSION with each release that changes this file or the list of
   core files; old caches are deleted on activation.
 */
-const CACHE_VERSION = "v5.6.1";
+const CACHE_VERSION = "v5.6.3";
 const CORE_CACHE = `weatherglass-core-${CACHE_VERSION}`;
 const LIB_CACHE = "weatherglass-libs-v1";
 const TILE_CACHE = "weatherglass-tiles-v1";
@@ -27,9 +27,9 @@ const MAX_TILES = 400;
 const CORE_FILES = [
   "./",
   "./manifest.json",
-  "./icons/icon-192.png",
-  "./icons/icon-512.png",
-  "./icons/apple-touch-icon.png"
+  "./icon-192.png",
+  "./icon-512.png",
+  "./apple-touch-icon.png"
 ];
 
 const LIB_HOSTS = new Set([

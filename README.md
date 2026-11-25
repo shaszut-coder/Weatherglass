@@ -3,7 +3,7 @@
 A personal weather journal. Log conditions by hand or pull them live, track clouds and pressure trends, watch severe weather alerts, and build a searchable history of what the sky was doing wherever you were.
 
 **Live app:** https://weatherglass.earth/
-**Current version:** v5.6.2
+**Current version:** v5.6.3
 **Philosophy:** see [PHILOSOPHY.md](./PHILOSOPHY.md) — this is a personal weather observation journal, not a forecast app
 
 ## What it does
@@ -29,7 +29,7 @@ Single self-contained `index.html` — no build step, no bundler, no backend. Ev
 **Install/offline support files** (beside `index.html`, since browsers require them to be separate):
 - `sw.js` — service worker. Network-first for the app page (you always get the latest deploy when online), cache-first for the CDN libraries and fonts, and keeps up to 400 recently viewed map tiles. It never caches API calls and holds no journal data. Bump its `CACHE_VERSION` when it or the files it pre-caches change
 - `manifest.json` — app name, colors, and icons for installation
-- `icons/` — `icon-192.png`, `icon-512.png` (also used as the maskable icon), `apple-touch-icon.png`. The "brass instrument" barometer dial (v5.6.1). The same 180 px image is also embedded in `index.html` for the header logo
+- `icon-192.png`, `icon-512.png` (also used as the maskable icon), `apple-touch-icon.png`, in the top level of the repo beside `index.html`. The "Dusk Weatherglass" icon (v5.6.3): a brass barometer bezel with a window onto a dusk sky, a navy needle for the current reading and a bronze set hand for the last one. The same 180 px image is also embedded in `index.html` for the header logo and home-screen icon, and `icon-192.png` doubles as the browser-tab icon
 
 **Storage:** IndexedDB, with automatic one-time migration from an older localStorage-based version. Two stores: `entries` (the journal, which is what gets exported) and `thumbs` (gallery thumbnails, which aren't exported and rebuild themselves automatically). Nothing leaves your device except the API calls below — there's no server component and no account system.
 
@@ -55,9 +55,9 @@ Hosted on **Cloudflare** (Pages/Workers), source on **GitHub**. Push `index.html
 index.html
 sw.js
 manifest.json
-icons/icon-192.png
-icons/icon-512.png
-icons/apple-touch-icon.png
+icon-192.png
+icon-512.png
+apple-touch-icon.png
 README.md
 CHANGELOG.md
 ```
