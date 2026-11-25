@@ -2,7 +2,7 @@
 
 All notable changes to Weatherglass are documented here, newest first.
 
-> **Deployment status note (as of v5.6.2, Nov 2026):** The app now lives at **https://weatherglass.earth**: domain registered at Porkbun, DNS on Cloudflare, custom domain on the `weatherglass` worker. The journal was moved to the home-screen app at that address and merged with the old workers.dev app (782 entries, 0 duplicates; 3 test pairs to remove by hand). v5.6.2 (the address shown in the app) is built and browser-tested. It includes v5.6.1 (new brass app icon) and v5.6.0 (the Gallery rebuild) if those weren't uploaded yet. Upload `index.html`, plus `sw.js` and the 3 files in `icons/` if v5.6.1 isn't live yet. The old `weatherglass.shaszut.workers.dev` address stays on as a fallback for now. The v5.0.0 rollback/hotfix story (v5.0.1) is still documented below for reference. v4.10.0's AI Worker remains an optional, separately deployed piece, pending the Anthropic API account/cost setup.
+> **Deployment status note (as of v5.6.2, Nov 25, 2026):** **v5.6.2 is live and verified at https://weatherglass.earth**, including v5.6.0 (Gallery rebuild) and v5.6.1 (brass icon). The domain is registered at Porkbun, DNS is on Cloudflare, and it's a custom domain on the `weatherglass` worker. The journal now lives in the home-screen app at weatherglass.earth, merged from the old workers.dev app (782 entries, 0 duplicates). The old `weatherglass.shaszut.workers.dev` address stays on as a fallback for a few weeks, then gets retired. The v5.0.0 rollback/hotfix story (v5.0.1) is still documented below for reference. v4.10.0's AI Worker remains an optional, separately deployed piece, pending the Anthropic API account/cost setup.
 
 ## v5.6.2
 
