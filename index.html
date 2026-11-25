@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Weatherglass — personal weather station & log
-  Version: 5.6.1
+  Version: 5.6.2
 
   Single-file app: no build step, no backend. Data lives in the
   visitor's own browser via IndexedDB. sw.js (beside this file) only
@@ -1334,6 +1334,7 @@
       Weather alerts via NOAA / National Weather Service (US only).<br>
       Current conditions via Open-Meteo (free, no API key required).
     </div>
+    <div id="appAddressInfo" style="margin-top:10px; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); line-height:1.7;"></div>
     <div class="version-tag" id="versionTag" style="margin-top:10px;"></div>
     </div><!-- end settingsDrawer -->
 
@@ -1547,6 +1548,8 @@
   <section class="panel" id="panel-settings" style="display:none !important;"><!-- settings moved to journal drawer --></section>
 
   <footer>
+    <a href="https://weatherglass.earth" id="footerHomeLink" style="color:inherit; text-decoration:none; font-weight:600;">weatherglass.earth</a>
+    <span id="footerVersion"></span><br>
     Stored locally in this browser — nothing leaves your machine.
   </footer>
 </div>
@@ -1695,7 +1698,7 @@
 (function(){
   "use strict";
 
-  const APP_VERSION = "5.6.1";
+  const APP_VERSION = "5.6.2";
   const STORAGE_KEY = "weatherglass.entries.v1";
 
   function showToast(message, kind){
@@ -6041,6 +6044,7 @@
 
       const manifest = [
         "Weatherglass Speaker Kit",
+        "Official app: https://weatherglass.earth",
         `Generated: ${new Date().toISOString()}`,
         `App version: ${APP_VERSION}`,
         `Entries: ${entries.length}`,
@@ -7709,6 +7713,30 @@
   }
 
   document.getElementById("versionTag").textContent = "Weatherglass v" + APP_VERSION;
+
+  // v5.6.2: show the app's permanent address, and which copy you're in.
+  // Each web address keeps its own separate journal on the device (and on
+  // iPhone, Safari and a home-screen app are separate too), so it matters
+  // which one is open — especially with the old workers.dev address and
+  // test copies still around.
+  const OFFICIAL_HOST = "weatherglass.earth";
+  (function renderAppAddress(){
+    const host = location.hostname || "";
+    const fv = document.getElementById("footerVersion");
+    if(fv) fv.textContent = " · v" + APP_VERSION;
+    const el = document.getElementById("appAddressInfo");
+    if(!el) return;
+    const link = `<a href="https://${OFFICIAL_HOST}" style="color:var(--ink); font-weight:600;">${OFFICIAL_HOST}</a>`;
+    let html = `Official address: ${link}`;
+    if(host === OFFICIAL_HOST || host === "www." + OFFICIAL_HOST){
+      html += `<br>You're using the official address ✓`;
+    } else if(host.startsWith("beta.") || /-weatherglass\./.test(host)){
+      html += `<br><span style="color:var(--brass);">This is a <strong>test copy</strong> (${escapeHtml(host)}). It has its own separate journal — log real observations at ${OFFICIAL_HOST}.</span>`;
+    } else if(host && host !== "localhost" && host !== "127.0.0.1"){
+      html += `<br><span style="color:var(--brass);">You're using an <strong>older address</strong> (${escapeHtml(host)}). Each address keeps its own separate journal on this device. To move: Export JSON here, open ${OFFICIAL_HOST} and add it to your Home Screen, then Import.</span>`;
+    }
+    el.innerHTML = html;
+  })();
   initMap();
 
   /* ---------- Speaker Mode: presentation-mode slide builder ---------- */

@@ -2,7 +2,22 @@
 
 All notable changes to Weatherglass are documented here, newest first.
 
-> **Deployment status note (as of v5.6.1, Nov 2026):** The app now lives at **https://weatherglass.earth**: domain registered at Porkbun, DNS on Cloudflare, custom domain on the `weatherglass` worker. The journal was moved to the home-screen app at that address and merged with the old workers.dev app (782 entries, 0 duplicates; 3 test pairs to remove by hand). v5.6.1 (new brass app icon) is built and browser-tested and includes v5.6.0 (the Gallery rebuild) if that wasn't uploaded yet. Upload `index.html`, `sw.js` and the 3 files in `icons/`. The old `weatherglass.shaszut.workers.dev` address stays on as a fallback for now. The v5.0.0 rollback/hotfix story (v5.0.1) is still documented below for reference. v4.10.0's AI Worker remains an optional, separately deployed piece, pending the Anthropic API account/cost setup.
+> **Deployment status note (as of v5.6.2, Nov 2026):** The app now lives at **https://weatherglass.earth**: domain registered at Porkbun, DNS on Cloudflare, custom domain on the `weatherglass` worker. The journal was moved to the home-screen app at that address and merged with the old workers.dev app (782 entries, 0 duplicates; 3 test pairs to remove by hand). v5.6.2 (the address shown in the app) is built and browser-tested. It includes v5.6.1 (new brass app icon) and v5.6.0 (the Gallery rebuild) if those weren't uploaded yet. Upload `index.html`, plus `sw.js` and the 3 files in `icons/` if v5.6.1 isn't live yet. The old `weatherglass.shaszut.workers.dev` address stays on as a fallback for now. The v5.0.0 rollback/hotfix story (v5.0.1) is still documented below for reference. v4.10.0's AI Worker remains an optional, separately deployed piece, pending the Anthropic API account/cost setup.
+
+## v5.6.2
+
+**The app now shows its address.** `weatherglass.earth` wasn't shown anywhere in the app. It now appears in two places:
+- **Footer, on every screen:** **weatherglass.earth · v5.6.2**, which links to the official address.
+- **Settings → About:** "Official address: weatherglass.earth", plus a line saying **which copy you're in**:
+  - on `weatherglass.earth`: *"You're using the official address ✓"*
+  - on an old address, such as `weatherglass.shaszut.workers.dev`: a brass note explaining that each address keeps its own separate journal on the device, with the steps to move (Export here, add weatherglass.earth to the Home Screen, Import there)
+  - on a test copy, such as `beta.weatherglass.earth` or a Cloudflare preview URL: *"This is a test copy… log real observations at weatherglass.earth"*
+
+This matters because each web address, and on iPhone each Safari tab as opposed to the home-screen app, keeps a separate journal. Since the move to the new domain, it's easy to open the wrong copy without noticing.
+
+**Speaker Kit:** the archive's `manifest.txt` now includes "Official app: https://weatherglass.earth".
+
+Tested in Chromium on all three kinds of address (official, old workers.dev, beta), each showing the right message, with no errors.
 
 ## v5.6.1
 

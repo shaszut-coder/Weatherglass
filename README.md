@@ -3,7 +3,7 @@
 A personal weather journal. Log conditions by hand or pull them live, track clouds and pressure trends, watch severe weather alerts, and build a searchable history of what the sky was doing wherever you were.
 
 **Live app:** https://weatherglass.earth/
-**Current version:** v5.6.1
+**Current version:** v5.6.2
 **Philosophy:** see [PHILOSOPHY.md](./PHILOSOPHY.md) — this is a personal weather observation journal, not a forecast app
 
 ## What it does
