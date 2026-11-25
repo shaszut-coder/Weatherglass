@@ -16,7 +16,7 @@
   Bump CACHE_VERSION with each release that changes this file or the list of
   core files; old caches are deleted on activation.
 */
-const CACHE_VERSION = "v5.5.0";
+const CACHE_VERSION = "v5.6.1";
 const CORE_CACHE = `weatherglass-core-${CACHE_VERSION}`;
 const LIB_CACHE = "weatherglass-libs-v1";
 const TILE_CACHE = "weatherglass-tiles-v1";

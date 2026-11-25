@@ -2,7 +2,23 @@
 
 All notable changes to Weatherglass are documented here, newest first.
 
-> **Deployment status note (as of v5.6.0, Nov 2026):** **v5.5.0 is live and verified**: installable app, offline logging, and the journal living in the iPhone home-screen app. v5.6.0 (the Gallery rebuild, below) is built and browser-tested, and only `index.html` changes; `sw.js`, `manifest.json` and `icons/` stay as they are. After deploying, open the installed app and check the Gallery: all photos appear, the filters work, and scrolling stays smooth. The first visit builds thumbnails, so tiles may fill in over a few seconds. The v5.0.0 rollback/hotfix story (v5.0.1) is still documented below for reference. v4.10.0's AI Worker remains an optional, separately deployed piece, pending the Anthropic API account/cost setup.
+> **Deployment status note (as of v5.6.1, Nov 2026):** The app now lives at **https://weatherglass.earth**: domain registered at Porkbun, DNS on Cloudflare, custom domain on the `weatherglass` worker. The journal was moved to the home-screen app at that address and merged with the old workers.dev app (782 entries, 0 duplicates; 3 test pairs to remove by hand). v5.6.1 (new brass app icon) is built and browser-tested and includes v5.6.0 (the Gallery rebuild) if that wasn't uploaded yet. Upload `index.html`, `sw.js` and the 3 files in `icons/`. The old `weatherglass.shaszut.workers.dev` address stays on as a fallback for now. The v5.0.0 rollback/hotfix story (v5.0.1) is still documented below for reference. v4.10.0's AI Worker remains an optional, separately deployed piece, pending the Anthropic API account/cost setup.
+
+## v5.6.1
+
+**A more colorful app icon: the "brass instrument."** It's the same barometer dial, redrawn as an antique weatherglass:
+- a brass bezel around a cream face
+- a dark hand with a brass center
+- three soft colored zones around the dial, blue to teal to gold, echoing the Rain / Change / Fair markings on a real barometer
+- a twilight sky behind it, fading from deep blue to a sunset glow
+
+It replaces the plain steel-blue icon everywhere: the home-screen icon (`icons/apple-touch-icon.png`), the install icons (`icons/icon-192.png`, `icons/icon-512.png`, also used as the maskable icon), and the small logo in the app header. The dial sits inside the safe area, so Android's rounded and circular icon masks don't crop it.
+
+**`sw.js` `CACHE_VERSION` bumped to `v5.6.1`.** The service worker serves icons cache-first, so the bump is what makes phones fetch the new ones.
+
+**iPhone note:** iOS saves a home-screen icon when the app is added and doesn't refresh it afterwards. To see the new icon, delete the Weatherglass icon from the home screen and add `weatherglass.earth` again from Safari. **Export a backup first.** On iPhone, removing the home-screen app can also remove its stored journal, so re-import afterwards if the new icon opens empty.
+
+If v5.6.0 (the Gallery rebuild) wasn't deployed yet, this release includes it. Uploading v5.6.1 ships both.
 
 ## v5.6.0
 
