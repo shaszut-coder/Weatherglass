@@ -1,0 +1,6 @@
+# Browser safety settings for every page on weatherglass.earth.
+# (Moved here from netlify.toml, which Cloudflare doesn't read.)
+/*
+  X-Frame-Options: SAMEORIGIN
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin

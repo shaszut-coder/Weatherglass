@@ -11,7 +11,7 @@ A personal weather journal. Log conditions by hand or pull them live, track clou
 - **Installable & offline** — add it to your home screen (Safari → Share → Add to Home Screen; Chrome → Install) for a full-screen app that opens with no connection. Quick Log and Quick Photo Log work offline too: they save GPS, time, moon and photo right away, then fill in weather, place name, UV/PM2.5, tides and (for recent entries) alerts automatically once you're back online
 - **Record** — log a reading manually, auto-fill current conditions with Quick Log, or use Quick Photo Log (camera-first — take a photo and conditions fill in automatically) for your GPS location
 - **Notebooks** — link several entries together into one ongoing moment (e.g. a storm as it rolls through), rather than flattening changing conditions into a single reading. Manage them (rename, present in Speaker Mode, delete the grouping) from Settings → View All Notebooks
-- **Cloud Classification** — Settings → Classify Cloud Photos scans for photos without a cloud type and lets you tag them one at a time with a guided, texture-first picker (2 taps for most types) instead of hunting through a raw dropdown. Optionally connect a self-hosted AI Worker (your own Cloudflare + Anthropic API key, see `worker/DEPLOYMENT.md`) for an AI-suggested classification instead of answering the questions yourself
+- **Cloud Classification** — Settings → Classify Cloud Photos scans for photos without a cloud type and lets you tag them one at a time with a guided, texture-first picker (2 taps for most types) instead of hunting through a raw dropdown. Optionally connect a self-hosted AI Worker (your own Cloudflare + Anthropic API key, see `DEPLOYMENT.md`) for an AI-suggested classification instead of answering the questions yourself
 - **Journal** — a color-coded month calendar by default (green/orange/red by alert severity, with a 👁 icon for personally-flagged Notable days) — tap a day to see its entries. Search replaces the calendar with the classic flat searchable list
 - **Trends** — charts (temp, pressure, humidity, heat index, pressure rate-of-change, year-over-year, transect, UV, PM2.5) over 1d/7d/30d/All windows, plus computed Insights (temp/humidity correlation, personal comfort threshold, peak heat index, alert coverage), Pattern Tiles, and a Pressure Watch rapid-change indicator
 - **Map** — station view or a chronological route view of everywhere you've logged, color-coded by temperature, with a month-calendar picker to jump to any date's entries
@@ -58,9 +58,17 @@ manifest.json
 icon-192.png
 icon-512.png
 apple-touch-icon.png
+_headers               browser safety settings Cloudflare applies to every page
+.assetsignore          files Cloudflare must NOT publish (docs, Worker code, wrangler.jsonc)
+wrangler.jsonc         Cloudflare deploy settings
+cloud-classify-worker.js  optional AI Worker, deployed separately (see DEPLOYMENT.md)
+DEPLOYMENT.md
+PHILOSOPHY.md
 README.md
 CHANGELOG.md
 ```
+
+Only `index.html`, `sw.js`, `manifest.json` and the icons are published on the live site. If you add a new file the app needs, check it isn't matched by `.assetsignore`.
 
 ### Versioning workflow
 
