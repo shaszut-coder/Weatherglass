@@ -2,7 +2,16 @@
 
 All notable changes to Weatherglass are documented here, newest first.
 
-> **Deployment status note (as of v5.6.4, Nov 25, 2026):** **v5.6.4 was pushed directly to `main` on Nov 25 (Cloudflare deploys it automatically); on-device check pending. v5.6.3 is live and verified at https://weatherglass.earth** (new icon; the app opens offline, confirmed in airplane mode), including v5.6.0 (Gallery rebuild), v5.6.1 (brass icon) and v5.6.2 (address shown in the app). The domain is registered at Porkbun, DNS is on Cloudflare, and it's a custom domain on the `weatherglass` worker. The journal now lives in the home-screen app at weatherglass.earth, merged from the old workers.dev app (782 entries, 0 duplicates). The old `weatherglass.shaszut.workers.dev` address stays on as a fallback for a few weeks, then gets retired. The v5.0.0 rollback/hotfix story (v5.0.1) is still documented below for reference. v4.10.0's AI Worker remains an optional, separately deployed piece, pending the Anthropic API account/cost setup.
+> **Deployment status note (as of v5.6.5, Nov 25, 2026):** **v5.6.5 is in a pull request waiting to be merged. v5.6.4 is live at https://weatherglass.earth** (merged as PR #3). Before it, v5.6.3 was verified on the phone (new icon; the app opens offline, confirmed in airplane mode). Releases since v5.6.0: v5.6.0 (Gallery rebuild), v5.6.1 (brass icon), v5.6.2 (address shown in the app). The domain is registered at Porkbun, DNS is on Cloudflare, and it's a custom domain on the `weatherglass` worker. The journal now lives in the home-screen app at weatherglass.earth, merged from the old workers.dev app (782 entries, 0 duplicates). The old `weatherglass.shaszut.workers.dev` address stays on as a fallback for a few weeks, then gets retired. The v5.0.0 rollback/hotfix story (v5.0.1) is still documented below for reference. v4.10.0's AI Worker remains an optional, separately deployed piece, pending the Anthropic API account/cost setup.
+
+## v5.6.5
+
+**Settings button moved to the footer.** The floating Settings button from v5.6.4 is replaced by a slim, centered **⚙ Settings** row in the footer at the end of every tab, just above "weatherglass.earth · version". This is option 3 from the design mockups. The user tried the floating button and preferred the footer.
+- The slide-up Settings panel is unchanged: Danger Zone is still last, and it still closes with ✕, by tapping above it, or by switching tabs.
+- Removed the extra bottom space the floating button needed, and the "saved" messages are back at their original position.
+- Everything else from v5.6.4 stays: the 5 s and 3 s capture guards and the offline crash fix.
+
+Tested in Chrome at iPhone size, with the CDN libraries stubbed: the footer shows v5.6.5; scrolled to the end of each of the 5 tabs, the Settings row is on screen; it opens and closes the panel; and there are no console errors.
 
 ## v5.6.4
 
