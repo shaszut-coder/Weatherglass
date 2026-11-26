@@ -3,13 +3,14 @@
 A personal weather journal. Log conditions by hand or pull them live, track clouds and pressure trends, watch severe weather alerts, and build a searchable history of what the sky was doing wherever you were.
 
 **Live app:** https://weatherglass.earth/
-**Current version:** v5.6.3
+**Current version:** v5.6.4
 **Philosophy:** see [PHILOSOPHY.md](./PHILOSOPHY.md) — this is a personal weather observation journal, not a forecast app
 
 ## What it does
 
 - **Installable & offline** — add it to your home screen (Safari → Share → Add to Home Screen; Chrome → Install) for a full-screen app that opens with no connection. Quick Log and Quick Photo Log work offline too: they save GPS, time, moon and photo right away, then fill in weather, place name, UV/PM2.5, tides and (for recent entries) alerts automatically once you're back online
-- **Record** — log a reading manually, auto-fill current conditions with Quick Log, or use Quick Photo Log (camera-first — take a photo and conditions fill in automatically) for your GPS location
+- **Settings** — a slim ⚙ Settings button floats at the bottom of every tab and opens Settings as a panel that slides up over the current tab (backup and export first, Danger Zone last)
+- **Record** — log a reading manually, auto-fill current conditions with Quick Log, or use Quick Photo Log (camera-first — take a photo and conditions fill in automatically) for your GPS location. A short guard (5 s for Quick Log, 3 s for Quick Photo Log, timed separately) stops accidental double taps but allows photo bursts
 - **Notebooks** — link several entries together into one ongoing moment (e.g. a storm as it rolls through), rather than flattening changing conditions into a single reading. Manage them (rename, present in Speaker Mode, delete the grouping) from Settings → View All Notebooks
 - **Cloud Classification** — Settings → Classify Cloud Photos scans for photos without a cloud type and lets you tag them one at a time with a guided, texture-first picker (2 taps for most types) instead of hunting through a raw dropdown. Optionally connect a self-hosted AI Worker (your own Cloudflare + Anthropic API key, see `DEPLOYMENT.md`) for an AI-suggested classification instead of answering the questions yourself
 - **Journal** — a color-coded month calendar by default (green/orange/red by alert severity, with a 👁 icon for personally-flagged Notable days) — tap a day to see its entries. Search replaces the calendar with the classic flat searchable list

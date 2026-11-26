@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Weatherglass — personal weather station & log
-  Version: 5.6.3
+  Version: 5.6.4
 
   Single-file app: no build step, no backend. Data lives in the
   visitor's own browser via IndexedDB. sw.js (beside this file) only
@@ -721,6 +721,41 @@
   @media (prefers-reduced-motion: reduce){
     *{transition:none !important;}
   }
+
+  /* ---------- Settings dock + sheet (v5.6.4) ---------- */
+  .settings-dock{
+    position:fixed; left:50%; transform:translateX(-50%);
+    bottom:calc(14px + env(safe-area-inset-bottom)); z-index:45;
+    display:flex; align-items:center; gap:7px; height:44px; padding:0 18px;
+    border-radius:22px; border:1.5px solid var(--brass); background:var(--glass);
+    box-shadow:0 4px 14px rgba(44,58,71,0.22);
+    font-family:'IBM Plex Mono', monospace; font-size:11px; letter-spacing:0.08em; text-transform:uppercase;
+    color:var(--ink); cursor:pointer;
+  }
+  .settings-dock svg{ color:var(--burnt-orange); }
+  body .page{ padding-bottom:calc(110px + env(safe-area-inset-bottom)); }
+  #saveToast{ bottom:calc(72px + env(safe-area-inset-bottom)); }
+  #settingsSheet{
+    display:none; position:fixed; inset:0; z-index:52;
+    background:rgba(44,58,71,0.45); align-items:flex-end; justify-content:center;
+  }
+  #settingsSheet.open{ display:flex; }
+  #settingsDrawer{
+    background:var(--sky-card); width:100%; max-width:760px;
+    max-height:88vh; max-height:88dvh; overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch;
+    border-radius:18px 18px 0 0; box-sizing:border-box;
+    padding:0 20px calc(28px + env(safe-area-inset-bottom));
+    box-shadow:0 -6px 24px rgba(0,0,0,0.18);
+  }
+  #settingsDrawer > div:first-child{
+    position:sticky; top:0; z-index:2; background:var(--sky-card);
+    padding-top:22px; margin-bottom:12px !important; border-bottom:1px solid var(--line);
+  }
+  #settingsDrawer > div:first-child::before{
+    content:""; position:absolute; top:8px; left:50%; transform:translateX(-50%);
+    width:40px; height:5px; border-radius:3px; background:var(--line);
+  }
+  body.settings-open{ overflow:hidden; }
 </style>
 </head>
 <body>
@@ -1133,211 +1168,10 @@
             <option value="asc">Oldest first</option>
           </select>
         </div>
-        <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; flex-shrink:0;">
-          <button type="button" id="settingsToggleBtn" title="Settings" style="background:none; border:1.5px solid var(--line); border-radius:4px; width:76px; height:76px; cursor:pointer; color:var(--burnt-orange); flex-shrink:0; display:flex; align-items:center; justify-content:center;">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" style="display:block;">
-              <circle cx="12" cy="12" r="3.2" stroke="currentColor" stroke-width="2"/>
-              <g stroke="currentColor" stroke-width="2" stroke-linecap="round">
-                <line x1="12" y1="2" x2="12" y2="5"/>
-                <line x1="12" y1="19" x2="12" y2="22"/>
-                <line x1="2" y1="12" x2="5" y2="12"/>
-                <line x1="19" y1="12" x2="22" y2="12"/>
-                <line x1="4.9" y1="4.9" x2="7" y2="7"/>
-                <line x1="17" y1="17" x2="19.1" y2="19.1"/>
-                <line x1="4.9" y1="19.1" x2="7" y2="17"/>
-                <line x1="17" y1="7" x2="19.1" y2="4.9"/>
-              </g>
-            </svg>
-          </button>
-          <span style="font-family:'IBM Plex Mono', monospace; font-size:9px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-soft);">Settings</span>
-        </div>
       </div>
     </div>
     <div style="margin-bottom:14px;"></div>
-    <!-- Settings drawer — toggled by ⚙️ gear icon in toolbar above -->
-    <div id="settingsDrawer" style="display:none; background:var(--sky-card); border:1px solid var(--line); border-radius:6px; padding:20px; margin-bottom:18px;">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-        <span style="font-family:'Playfair Display',serif; font-style:italic; font-weight:600; font-size:19px; color:var(--steel);">Settings</span>
-        <button type="button" id="settingsCloseBtn" style="background:none; border:none; font-size:20px; color:var(--ink-soft); cursor:pointer;">✕</button>
-      </div>
 
-    <h3 class="records-title">Data &amp; Backup</h3>
-    <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:12px;">
-      Export your entries regularly as a backup. JSON preserves everything including photos. CSV is for analysis in spreadsheets.
-    </div>
-    <div id="exportNudge" style="display:none; font-family:'IBM Plex Mono', monospace; font-size:11px; margin-bottom:12px; padding:8px 10px; border-radius:6px; border:1px solid var(--brass);"></div>
-    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px;">
-      <button class="btn secondary" id="exportBtn">Export JSON</button>
-      <button class="btn secondary" id="exportCsvBtn">Export CSV</button>
-      <label class="btn secondary" style="cursor:pointer;">
-        Import JSON
-        <input type="file" id="importInput" accept="application/json" style="display:none;">
-      </label>
-    </div>
-    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px;">
-      <button class="btn" id="speakerKitBtn" style="width:100%;">Download Speaker Kit (.zip)</button>
-    </div>
-    <div style="font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--ink-soft); margin-bottom:14px;">
-      Speaker Kit bundles a full JSON backup, a CSV, and every photo into one .zip — handy before a talk, or just as a single-file archive.
-    </div>
-    <div id="importStatus" style="display:none; font-family:'IBM Plex Mono', monospace; font-size:11.5px; color:var(--ink-soft); margin-bottom:10px;"></div>
-    <div id="exportPartsArea" style="margin-bottom:10px;"></div>
-    <div id="storageIndicator" style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:24px;"></div>
-
-    <h3 class="records-title">Storage Tools</h3>
-    <div style="border:1px dashed var(--line); border-radius:6px; padding:12px 14px; margin-bottom:14px;">
-      <div id="resetStorageDefault">
-        <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:8px;">
-          If storage usage looks stuck high, or entries won't load correctly, this rebuilds your storage from scratch using only what currently loads successfully — it backs itself up automatically first.
-        </div>
-        <button type="button" class="btn danger" id="resetStorageBtn">Reset Storage</button>
-      </div>
-      <div id="resetStorageConfirm" style="display:none;">
-        <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:8px;">
-          This will download a backup of your current entries, then fully clear and rebuild storage, then restore just that backup. Continue?
-        </div>
-        <button type="button" class="btn secondary" id="resetStorageCancelBtn">Cancel</button>
-        <button type="button" class="btn danger" id="resetStorageConfirmBtn">Yes, reset storage</button>
-      </div>
-    </div>
-
-    <h3 class="records-title" style="color:var(--brass);">Danger Zone</h3>
-    <div style="border:1.5px solid rgba(138,106,61,0.35); border-radius:6px; padding:12px 14px; margin-bottom:18px; background:rgba(138,106,61,0.04);">
-      <div id="deleteAllDefault">
-        <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:8px;">
-          Permanently deletes every entry in Weatherglass. This cannot be undone. Make sure you have exported a backup first.
-        </div>
-        <button type="button" class="btn danger" id="deleteAllBtn">Delete All Data</button>
-      </div>
-      <div id="deleteAllStep1" style="display:none;">
-        <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--brass); font-weight:600; margin-bottom:6px;">⚠ Are you sure?</div>
-        <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:10px;">
-          This will permanently erase all <span id="deleteAllCount"></span> entries from this device. There is no undo. Have you exported a backup from the Data &amp; Backup section above?
-        </div>
-        <div style="display:flex; gap:10px;">
-          <button type="button" class="btn secondary" id="deleteAllCancelBtn">Cancel</button>
-          <button type="button" class="btn danger" id="deleteAllStep2Btn">Yes, I have a backup</button>
-        </div>
-      </div>
-      <div id="deleteAllStep2" style="display:none;">
-        <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--brass); font-weight:600; margin-bottom:6px;">⚠ Final confirmation</div>
-        <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:10px;">
-          This is your last chance. Tap the button below to permanently delete all your Weatherglass data.
-        </div>
-        <div style="display:flex; gap:10px;">
-          <button type="button" class="btn secondary" id="deleteAllBackBtn">Go back</button>
-          <button type="button" class="btn danger" id="deleteAllConfirmBtn">Delete everything</button>
-        </div>
-      </div>
-    </div>
-
-    <h3 class="records-title">Cloud Classification</h3>
-    <div style="border:1px dashed var(--line); border-radius:6px; padding:12px 14px; margin-bottom:18px;">
-      <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:8px;" id="cloudClassifyCountText">
-        Scan through your photos one at a time and classify the cloud type — a few quick taps per photo, no dropdown digging.
-      </div>
-      <button type="button" class="btn secondary" id="cloudClassifyStartBtn" style="width:100%; margin-bottom:14px;">Classify Cloud Photos</button>
-      <div style="border-top:1px dashed var(--line); padding-top:12px;">
-        <div style="font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--ink-soft); margin-bottom:8px;">
-          Optional: connect an AI Worker (self-hosted, your own API key) to get a suggested cloud type for each photo instead of answering the guided questions yourself. See the deployment guide for setup.
-        </div>
-        <input id="cloudAiWorkerUrl" type="text" placeholder="https://your-worker.your-subdomain.workers.dev" style="width:100%; box-sizing:border-box; padding:8px 10px; border:1px solid var(--line); border-radius:4px; font-family:inherit; font-size:12px; margin-bottom:8px;">
-        <button type="button" class="btn secondary" id="cloudAiWorkerSaveBtn" style="width:100%; font-size:11px; padding:7px;">Save Worker URL</button>
-      </div>
-    </div>
-
-    <h3 class="records-title">Data Cleanup</h3>
-    <div style="border:1px dashed var(--line); border-radius:6px; padding:12px 14px; margin-bottom:18px;">
-      <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:8px;">
-        Quick Log and Quick Photo Log used to always save as "Routine," regardless of real alert conditions, and always tagged a now-removed "Category" field. This re-derives severity from each entry's own stored alert data (Severe/Extreme alert → Severe, any other active alert → Notable, no alert → Routine) and clears the old category field — only on quick-capture entries, identified by their title. Anything you set manually is left exactly as you set it.
-      </div>
-      <button type="button" class="btn secondary" id="dataCleanupBtn" style="width:100%;">Fix Severity &amp; Clear Old Category Field</button>
-      <div id="dataCleanupStatus" style="display:none; margin-top:10px; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft);"></div>
-    </div>
-
-    <h3 class="records-title">Location Tools</h3>
-    <div style="border:1px dashed var(--line); border-radius:6px; padding:12px 14px; margin-bottom:18px;">
-      <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:8px;">
-        Looks up place names for all entries still labeled "Current location" using their stored GPS coordinates. Takes about 2 minutes for large logs — Nominatim (OpenStreetMap) allows one request per second.
-      </div>
-      <button type="button" class="btn secondary" id="geocodeExistingBtn">Name existing locations</button>
-      <div id="geocodeStatus" style="display:none; margin-top:8px; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft);"></div>
-    </div>
-    <div style="border:1px dashed var(--line); border-radius:6px; padding:12px 14px; margin-bottom:18px;">
-      <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:8px;">
-        Fills in UV Index and PM2.5 for existing entries that don't have them yet, using Open-Meteo's historical air quality data matched to each entry's exact date, time, and location — the same source your live readings already use. Only ever fills empty fields; anything you've entered by hand is left alone. Air quality models are coarser than temperature/pressure models, so treat these as regional estimates rather than hyperlocal readings.
-      </div>
-      <button type="button" class="btn secondary" id="backfillAqBtn">Backfill UV &amp; PM2.5</button>
-      <div id="backfillAqStatus" style="display:none; margin-top:8px; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft);"></div>
-    </div>
-    <div style="border:1px dashed var(--line); border-radius:6px; padding:12px 14px; margin-bottom:18px;">
-      <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:8px;">
-        Fills in tide state, approximate water level, and next high/low for existing entries logged within 40 km of a NOAA tide station, using NOAA's predictions for each entry's exact time. Inland entries are skipped. Only fills empty tide fields; nothing you've entered by hand is changed.
-      </div>
-      <button type="button" class="btn secondary" id="backfillTidesBtn">Backfill tides</button>
-      <div id="backfillTidesStatus" style="display:none; margin-top:8px; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft);"></div>
-    </div>
-    <div style="border:1px dashed var(--line); border-radius:6px; padding:12px 14px; margin-bottom:18px;">
-      <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:8px;">
-        Detects trips from your GPS data and generates a summary card for each one — dates, distance, temperature range, locations visited, notable events and alert count.
-      </div>
-      <button type="button" class="btn secondary" id="tripSummaryBtn">Generate Trip Summaries</button>
-      <div id="tripSummaryOutput" style="margin-top:14px;"></div>
-    </div>
-    <div style="border:1px dashed var(--line); border-radius:6px; padding:12px 14px; margin-bottom:18px;">
-      <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:8px;">
-        Every notebook you've started — rename it, present it in Speaker Mode, or remove the grouping (your entries themselves are never affected).
-      </div>
-      <button type="button" class="btn secondary" id="notebookIndexBtn">View All Notebooks</button>
-      <div id="notebookIndexOutput" style="margin-top:14px;"></div>
-    </div>
-    <div style="border:1px dashed var(--line); border-radius:6px; padding:12px 14px; margin-bottom:18px;">
-      <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:10px;">
-        Already logged a storm before thinking to start a notebook? Group everything from a date/time range into one, after the fact. Entries already in a different notebook are left untouched.
-      </div>
-      <div class="field wide" style="margin-bottom:10px;">
-        <input id="retroNotebookName" type="text" placeholder="e.g. July 27 tornado warning" style="width:100%; box-sizing:border-box; padding:8px 10px; border:1px solid var(--line); border-radius:4px; font-family:inherit;">
-      </div>
-      <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
-        <label style="font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--ink-soft); flex:1; min-width:140px;">
-          From<br><input id="retroNotebookStart" type="datetime-local" style="width:100%; box-sizing:border-box; padding:6px; border:1px solid var(--line); border-radius:4px; font-family:inherit;">
-        </label>
-        <label style="font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--ink-soft); flex:1; min-width:140px;">
-          To<br><input id="retroNotebookEnd" type="datetime-local" style="width:100%; box-sizing:border-box; padding:6px; border:1px solid var(--line); border-radius:4px; font-family:inherit;">
-        </label>
-      </div>
-      <button type="button" class="btn secondary" id="retroNotebookCreateBtn" style="width:100%;">Create Notebook from Date Range</button>
-      <div id="retroNotebookStatus" style="display:none; margin-top:10px; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft);"></div>
-    </div>
-
-    <h3 class="records-title">Speaker Mode</h3>
-    <div style="border:1px dashed var(--line); border-radius:6px; padding:12px 14px; margin-bottom:18px;">
-      <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:10px;">
-        Pick a date range and get a fullscreen, presentation-ready slide sequence built from that stretch of your journal — stats, alerts, photos, and the stops you logged, in order.
-      </div>
-      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
-        <label style="font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--ink-soft);">
-          From<br><input type="date" id="speakerStartDate" style="font-family:inherit; padding:6px; border:1px solid var(--line); border-radius:4px;">
-        </label>
-        <label style="font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--ink-soft);">
-          To<br><input type="date" id="speakerEndDate" style="font-family:inherit; padding:6px; border:1px solid var(--line); border-radius:4px;">
-        </label>
-      </div>
-      <button type="button" class="btn" id="speakerModeStartBtn" style="width:100%;">Start Presentation</button>
-      <div id="speakerModeStatus" style="display:none; margin-top:8px; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft);"></div>
-    </div>
-
-    <h3 class="records-title">About</h3>
-    <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); line-height:1.7;">
-      Stored locally in this browser — nothing leaves your machine.<br>
-      Photos are compressed before saving to keep storage manageable.<br>
-      Cloud classification from <em style="font-family:'Source Serif 4', serif;">The Cloudspotter's Guide</em> by Gavin Pretor-Pinney.<br>
-      Weather alerts via NOAA / National Weather Service (US only).<br>
-      Current conditions via Open-Meteo (free, no API key required).
-    </div>
-    <div id="appAddressInfo" style="margin-top:10px; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); line-height:1.7;"></div>
-    <div class="version-tag" id="versionTag" style="margin-top:10px;"></div>
-    </div><!-- end settingsDrawer -->
 
     <div id="journalCalendarView" style="margin-bottom:14px;"></div>
     <div id="tableWrap" style="display:none;"></div>
@@ -1553,6 +1387,197 @@
     <span id="footerVersion"></span><br>
     Stored locally in this browser — nothing leaves your machine.
   </footer>
+
+  <!-- Settings dock (v5.6.4). To move Settings elsewhere, move only this button; the sheet stays the same. -->
+  <button type="button" id="settingsToggleBtn" class="settings-dock" aria-haspopup="dialog" aria-controls="settingsSheet">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="3.2" stroke="currentColor" stroke-width="2.2"/><g stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/><line x1="4.9" y1="4.9" x2="7" y2="7"/><line x1="17" y1="17" x2="19.1" y2="19.1"/><line x1="4.9" y1="19.1" x2="7" y2="17"/><line x1="17" y1="7" x2="19.1" y2="4.9"/></g></svg>
+    <span>Settings</span>
+  </button>
+  <div id="settingsSheet" role="dialog" aria-modal="true" aria-label="Settings">
+    <!-- Settings sheet (v5.6.4): opened from the Settings dock at the bottom of every tab -->
+    <div id="settingsDrawer">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <span style="font-family:'Playfair Display',serif; font-style:italic; font-weight:600; font-size:19px; color:var(--steel);">Settings</span>
+        <button type="button" id="settingsCloseBtn" aria-label="Close settings" style="background:none; border:none; font-size:20px; color:var(--ink-soft); cursor:pointer; width:44px; height:44px; margin-right:-10px;">✕</button>
+      </div>
+
+    <h3 class="records-title">Data &amp; Backup</h3>
+    <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:12px;">
+      Export your entries regularly as a backup. JSON preserves everything including photos. CSV is for analysis in spreadsheets.
+    </div>
+    <div id="exportNudge" style="display:none; font-family:'IBM Plex Mono', monospace; font-size:11px; margin-bottom:12px; padding:8px 10px; border-radius:6px; border:1px solid var(--brass);"></div>
+    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px;">
+      <button class="btn secondary" id="exportBtn">Export JSON</button>
+      <button class="btn secondary" id="exportCsvBtn">Export CSV</button>
+      <label class="btn secondary" style="cursor:pointer;">
+        Import JSON
+        <input type="file" id="importInput" accept="application/json" style="display:none;">
+      </label>
+    </div>
+    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px;">
+      <button class="btn" id="speakerKitBtn" style="width:100%;">Download Speaker Kit (.zip)</button>
+    </div>
+    <div style="font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--ink-soft); margin-bottom:14px;">
+      Speaker Kit bundles a full JSON backup, a CSV, and every photo into one .zip — handy before a talk, or just as a single-file archive.
+    </div>
+    <div id="importStatus" style="display:none; font-family:'IBM Plex Mono', monospace; font-size:11.5px; color:var(--ink-soft); margin-bottom:10px;"></div>
+    <div id="exportPartsArea" style="margin-bottom:10px;"></div>
+    <div id="storageIndicator" style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:24px;"></div>
+
+    <h3 class="records-title">Storage Tools</h3>
+    <div style="border:1px dashed var(--line); border-radius:6px; padding:12px 14px; margin-bottom:14px;">
+      <div id="resetStorageDefault">
+        <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:8px;">
+          If storage usage looks stuck high, or entries won't load correctly, this rebuilds your storage from scratch using only what currently loads successfully — it backs itself up automatically first.
+        </div>
+        <button type="button" class="btn danger" id="resetStorageBtn">Reset Storage</button>
+      </div>
+      <div id="resetStorageConfirm" style="display:none;">
+        <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:8px;">
+          This will download a backup of your current entries, then fully clear and rebuild storage, then restore just that backup. Continue?
+        </div>
+        <button type="button" class="btn secondary" id="resetStorageCancelBtn">Cancel</button>
+        <button type="button" class="btn danger" id="resetStorageConfirmBtn">Yes, reset storage</button>
+      </div>
+    </div>
+
+    <h3 class="records-title">Cloud Classification</h3>
+    <div style="border:1px dashed var(--line); border-radius:6px; padding:12px 14px; margin-bottom:18px;">
+      <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:8px;" id="cloudClassifyCountText">
+        Scan through your photos one at a time and classify the cloud type — a few quick taps per photo, no dropdown digging.
+      </div>
+      <button type="button" class="btn secondary" id="cloudClassifyStartBtn" style="width:100%; margin-bottom:14px;">Classify Cloud Photos</button>
+      <div style="border-top:1px dashed var(--line); padding-top:12px;">
+        <div style="font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--ink-soft); margin-bottom:8px;">
+          Optional: connect an AI Worker (self-hosted, your own API key) to get a suggested cloud type for each photo instead of answering the guided questions yourself. See the deployment guide for setup.
+        </div>
+        <input id="cloudAiWorkerUrl" type="text" placeholder="https://your-worker.your-subdomain.workers.dev" style="width:100%; box-sizing:border-box; padding:8px 10px; border:1px solid var(--line); border-radius:4px; font-family:inherit; font-size:12px; margin-bottom:8px;">
+        <button type="button" class="btn secondary" id="cloudAiWorkerSaveBtn" style="width:100%; font-size:11px; padding:7px;">Save Worker URL</button>
+      </div>
+    </div>
+
+    <h3 class="records-title">Data Cleanup</h3>
+    <div style="border:1px dashed var(--line); border-radius:6px; padding:12px 14px; margin-bottom:18px;">
+      <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:8px;">
+        Quick Log and Quick Photo Log used to always save as "Routine," regardless of real alert conditions, and always tagged a now-removed "Category" field. This re-derives severity from each entry's own stored alert data (Severe/Extreme alert → Severe, any other active alert → Notable, no alert → Routine) and clears the old category field — only on quick-capture entries, identified by their title. Anything you set manually is left exactly as you set it.
+      </div>
+      <button type="button" class="btn secondary" id="dataCleanupBtn" style="width:100%;">Fix Severity &amp; Clear Old Category Field</button>
+      <div id="dataCleanupStatus" style="display:none; margin-top:10px; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft);"></div>
+    </div>
+
+    <h3 class="records-title">Location Tools</h3>
+    <div style="border:1px dashed var(--line); border-radius:6px; padding:12px 14px; margin-bottom:18px;">
+      <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:8px;">
+        Looks up place names for all entries still labeled "Current location" using their stored GPS coordinates. Takes about 2 minutes for large logs — Nominatim (OpenStreetMap) allows one request per second.
+      </div>
+      <button type="button" class="btn secondary" id="geocodeExistingBtn">Name existing locations</button>
+      <div id="geocodeStatus" style="display:none; margin-top:8px; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft);"></div>
+    </div>
+    <div style="border:1px dashed var(--line); border-radius:6px; padding:12px 14px; margin-bottom:18px;">
+      <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:8px;">
+        Fills in UV Index and PM2.5 for existing entries that don't have them yet, using Open-Meteo's historical air quality data matched to each entry's exact date, time, and location — the same source your live readings already use. Only ever fills empty fields; anything you've entered by hand is left alone. Air quality models are coarser than temperature/pressure models, so treat these as regional estimates rather than hyperlocal readings.
+      </div>
+      <button type="button" class="btn secondary" id="backfillAqBtn">Backfill UV &amp; PM2.5</button>
+      <div id="backfillAqStatus" style="display:none; margin-top:8px; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft);"></div>
+    </div>
+    <div style="border:1px dashed var(--line); border-radius:6px; padding:12px 14px; margin-bottom:18px;">
+      <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:8px;">
+        Fills in tide state, approximate water level, and next high/low for existing entries logged within 40 km of a NOAA tide station, using NOAA's predictions for each entry's exact time. Inland entries are skipped. Only fills empty tide fields; nothing you've entered by hand is changed.
+      </div>
+      <button type="button" class="btn secondary" id="backfillTidesBtn">Backfill tides</button>
+      <div id="backfillTidesStatus" style="display:none; margin-top:8px; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft);"></div>
+    </div>
+    <div style="border:1px dashed var(--line); border-radius:6px; padding:12px 14px; margin-bottom:18px;">
+      <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:8px;">
+        Detects trips from your GPS data and generates a summary card for each one — dates, distance, temperature range, locations visited, notable events and alert count.
+      </div>
+      <button type="button" class="btn secondary" id="tripSummaryBtn">Generate Trip Summaries</button>
+      <div id="tripSummaryOutput" style="margin-top:14px;"></div>
+    </div>
+    <div style="border:1px dashed var(--line); border-radius:6px; padding:12px 14px; margin-bottom:18px;">
+      <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:8px;">
+        Every notebook you've started — rename it, present it in Speaker Mode, or remove the grouping (your entries themselves are never affected).
+      </div>
+      <button type="button" class="btn secondary" id="notebookIndexBtn">View All Notebooks</button>
+      <div id="notebookIndexOutput" style="margin-top:14px;"></div>
+    </div>
+    <div style="border:1px dashed var(--line); border-radius:6px; padding:12px 14px; margin-bottom:18px;">
+      <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:10px;">
+        Already logged a storm before thinking to start a notebook? Group everything from a date/time range into one, after the fact. Entries already in a different notebook are left untouched.
+      </div>
+      <div class="field wide" style="margin-bottom:10px;">
+        <input id="retroNotebookName" type="text" placeholder="e.g. July 27 tornado warning" style="width:100%; box-sizing:border-box; padding:8px 10px; border:1px solid var(--line); border-radius:4px; font-family:inherit;">
+      </div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
+        <label style="font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--ink-soft); flex:1; min-width:140px;">
+          From<br><input id="retroNotebookStart" type="datetime-local" style="width:100%; box-sizing:border-box; padding:6px; border:1px solid var(--line); border-radius:4px; font-family:inherit;">
+        </label>
+        <label style="font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--ink-soft); flex:1; min-width:140px;">
+          To<br><input id="retroNotebookEnd" type="datetime-local" style="width:100%; box-sizing:border-box; padding:6px; border:1px solid var(--line); border-radius:4px; font-family:inherit;">
+        </label>
+      </div>
+      <button type="button" class="btn secondary" id="retroNotebookCreateBtn" style="width:100%;">Create Notebook from Date Range</button>
+      <div id="retroNotebookStatus" style="display:none; margin-top:10px; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft);"></div>
+    </div>
+
+    <h3 class="records-title">Speaker Mode</h3>
+    <div style="border:1px dashed var(--line); border-radius:6px; padding:12px 14px; margin-bottom:18px;">
+      <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:10px;">
+        Pick a date range and get a fullscreen, presentation-ready slide sequence built from that stretch of your journal — stats, alerts, photos, and the stops you logged, in order.
+      </div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
+        <label style="font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--ink-soft);">
+          From<br><input type="date" id="speakerStartDate" style="font-family:inherit; padding:6px; border:1px solid var(--line); border-radius:4px;">
+        </label>
+        <label style="font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--ink-soft);">
+          To<br><input type="date" id="speakerEndDate" style="font-family:inherit; padding:6px; border:1px solid var(--line); border-radius:4px;">
+        </label>
+      </div>
+      <button type="button" class="btn" id="speakerModeStartBtn" style="width:100%;">Start Presentation</button>
+      <div id="speakerModeStatus" style="display:none; margin-top:8px; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft);"></div>
+    </div>
+
+    <h3 class="records-title">About</h3>
+    <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); line-height:1.7;">
+      Stored locally in this browser — nothing leaves your machine.<br>
+      Photos are compressed before saving to keep storage manageable.<br>
+      Cloud classification from <em style="font-family:'Source Serif 4', serif;">The Cloudspotter's Guide</em> by Gavin Pretor-Pinney.<br>
+      Weather alerts via NOAA / National Weather Service (US only).<br>
+      Current conditions via Open-Meteo (free, no API key required).
+    </div>
+    <div id="appAddressInfo" style="margin-top:10px; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); line-height:1.7;"></div>
+    <div class="version-tag" id="versionTag" style="margin-top:10px;"></div>
+    <h3 class="records-title" style="color:var(--brass);">Danger Zone</h3>
+    <div style="border:1.5px solid rgba(138,106,61,0.35); border-radius:6px; padding:12px 14px; margin-bottom:18px; background:rgba(138,106,61,0.04);">
+      <div id="deleteAllDefault">
+        <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:8px;">
+          Permanently deletes every entry in Weatherglass. This cannot be undone. Make sure you have exported a backup first.
+        </div>
+        <button type="button" class="btn danger" id="deleteAllBtn">Delete All Data</button>
+      </div>
+      <div id="deleteAllStep1" style="display:none;">
+        <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--brass); font-weight:600; margin-bottom:6px;">⚠ Are you sure?</div>
+        <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:10px;">
+          This will permanently erase all <span id="deleteAllCount"></span> entries from this device. There is no undo. Have you exported a backup from the Data &amp; Backup section above?
+        </div>
+        <div style="display:flex; gap:10px;">
+          <button type="button" class="btn secondary" id="deleteAllCancelBtn">Cancel</button>
+          <button type="button" class="btn danger" id="deleteAllStep2Btn">Yes, I have a backup</button>
+        </div>
+      </div>
+      <div id="deleteAllStep2" style="display:none;">
+        <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--brass); font-weight:600; margin-bottom:6px;">⚠ Final confirmation</div>
+        <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:10px;">
+          This is your last chance. Tap the button below to permanently delete all your Weatherglass data.
+        </div>
+        <div style="display:flex; gap:10px;">
+          <button type="button" class="btn secondary" id="deleteAllBackBtn">Go back</button>
+          <button type="button" class="btn danger" id="deleteAllConfirmBtn">Delete everything</button>
+        </div>
+      </div>
+    </div>
+    </div><!-- end settingsDrawer -->
+  </div>
 </div>
 
 <div id="lightbox" style="display:none; position:fixed; inset:0; background:rgba(44,58,71,0.85); z-index:50; align-items:center; justify-content:center; padding:30px;">
@@ -1699,7 +1724,7 @@
 (function(){
   "use strict";
 
-  const APP_VERSION = "5.6.3";
+  const APP_VERSION = "5.6.4";
   const STORAGE_KEY = "weatherglass.entries.v1";
 
   function showToast(message, kind){
@@ -2581,7 +2606,7 @@
     card.style.display = "block";
 
     const withPressure = trendsEntries()
-      .filter(e => isFinite(e.pressureInHg))
+      .filter(e => hasNumber(e.pressureInHg))
       .slice()
       .sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
 
@@ -2624,6 +2649,11 @@
   // Range: 28.50 inHg (far left, -90°) → 31.00 inHg (far right, +90°)
   const DIAL_MIN_INHG = 28.50;
   const DIAL_MAX_INHG = 31.00;
+  // isFinite(null) and isFinite("") are true (they coerce to 0), so readings
+  // still waiting to be filled in after an offline capture slipped through
+  // and crashed the dial. v5.6.4: treat only real numbers as readings.
+  function hasNumber(v){ return v !== null && v !== undefined && v !== "" && isFinite(v); }
+
   function pressureToAngle(inHg){
     const clamped = Math.max(DIAL_MIN_INHG, Math.min(DIAL_MAX_INHG, inHg));
     const pct = (clamped - DIAL_MIN_INHG) / (DIAL_MAX_INHG - DIAL_MIN_INHG);
@@ -2640,7 +2670,7 @@
     needle.setAttribute("transform", `rotate(${angle.toFixed(1)},130,120)`);
     if(readout) readout.textContent = currentPressure.toFixed(2) + " inHg";
 
-    if(needlePrev && isFinite(prevPressure)){
+    if(needlePrev && hasNumber(prevPressure)){
       const prevAngle = pressureToAngle(prevPressure);
       needlePrev.setAttribute("transform", `rotate(${prevAngle.toFixed(1)},130,120)`);
     }
@@ -3854,11 +3884,11 @@
     const btn = this;
     const statusEl = document.getElementById("quickLogStatus");
 
-    // 60-second cooldown to prevent accidental duplicate entries
+    // Short guard (QUICK_LOG_COOLDOWN_SECONDS) against an accidental double tap
     const nowMs = Date.now();
     const secondsSinceLast = (nowMs - lastQuickLogTime) / 1000;
-    if(secondsSinceLast < CAPTURE_COOLDOWN_SECONDS){
-      const remaining = Math.ceil(CAPTURE_COOLDOWN_SECONDS - secondsSinceLast);
+    if(secondsSinceLast < QUICK_LOG_COOLDOWN_SECONDS){
+      const remaining = Math.ceil(QUICK_LOG_COOLDOWN_SECONDS - secondsSinceLast);
       statusEl.style.display = "block";
       statusEl.textContent = `Wait ${remaining}s before logging again.`;
       setTimeout(()=>{ statusEl.style.display = "none"; }, 2500);
@@ -3940,12 +3970,12 @@
     const btn = document.getElementById("photoCaptureBtn");
     const statusEl = document.getElementById("photoCaptureStatus");
 
-    // Shares Quick Log's 60-second cooldown — same reasoning applies:
-    // guards against accidental duplicate entries from a double-tap.
+    // Its own short guard (PHOTO_LOG_COOLDOWN_SECONDS) against a double tap;
+    // separate from Quick Log's so photo bursts during a storm work.
     const nowMs = Date.now();
-    const secondsSinceLast = (nowMs - lastQuickLogTime) / 1000;
-    if(secondsSinceLast < CAPTURE_COOLDOWN_SECONDS){
-      const remaining = Math.ceil(CAPTURE_COOLDOWN_SECONDS - secondsSinceLast);
+    const secondsSinceLast = (nowMs - lastPhotoLogTime) / 1000;
+    if(secondsSinceLast < PHOTO_LOG_COOLDOWN_SECONDS){
+      const remaining = Math.ceil(PHOTO_LOG_COOLDOWN_SECONDS - secondsSinceLast);
       statusEl.style.display = "block";
       statusEl.textContent = `Wait ${remaining}s before logging again.`;
       setTimeout(()=>{ statusEl.style.display = "none"; }, 2500);
@@ -4009,7 +4039,7 @@
       await persistChange({ putEntry: entry }, nextEntries);
       entries = nextEntries;
       renderAll();
-      lastQuickLogTime = Date.now();
+      lastPhotoLogTime = Date.now();
       showToast(conditionsPending ? "Photo saved offline — weather, place and alerts will fill in when you're back online." : "Photo entry saved — open Journal to review or add notes.", "success");
       refreshStorageIndicator();
     }catch(err){
@@ -4249,18 +4279,26 @@
   /* ---------- photo handling ---------- */
   let pendingPhoto = null;
   let editingId = null;
-  // Shared between Quick Log and Quick Photo Log — also drives the live
-  // red/green indicator on the Record tab, so the gate and the display
-  // can't drift out of sync with each other.
-  const CAPTURE_COOLDOWN_SECONDS = 30;
+  // These constants drive both the capture gates and the live red/green
+  // indicator on the Record tab, so the two can't drift out of sync.
+  // v5.6.4: short, separate guards instead of one shared 30 s cooldown.
+  // They only stop an accidental double tap; a photo burst during a storm
+  // is allowed, and a Quick Log no longer blocks a Quick Photo (or vice versa).
+  const QUICK_LOG_COOLDOWN_SECONDS = 5;
+  const PHOTO_LOG_COOLDOWN_SECONDS = 3;
   let lastQuickLogTime = 0;
+  let lastPhotoLogTime = 0;
   function updateCaptureCooldownIndicator(){
     const dot = document.getElementById("captureCooldownDot");
     const text = document.getElementById("captureCooldownText");
     if(!dot || !text) return;
-    const secondsSinceLast = (Date.now() - lastQuickLogTime) / 1000;
-    if(secondsSinceLast < CAPTURE_COOLDOWN_SECONDS){
-      const remaining = Math.ceil(CAPTURE_COOLDOWN_SECONDS - secondsSinceLast);
+    const nowMs = Date.now();
+    const remainingRaw = Math.max(
+      QUICK_LOG_COOLDOWN_SECONDS - (nowMs - lastQuickLogTime) / 1000,
+      PHOTO_LOG_COOLDOWN_SECONDS - (nowMs - lastPhotoLogTime) / 1000
+    );
+    if(remainingRaw > 0){
+      const remaining = Math.ceil(remainingRaw);
       dot.style.background = "#B5482E";
       text.textContent = `Cooling down (${remaining}s)`;
       text.style.color = "#B5482E";
@@ -4388,6 +4426,7 @@
   });
 
   function switchToTab(tabName){
+    if(typeof toggleSettingsDrawer === "function") toggleSettingsDrawer(false);
     document.querySelectorAll(".tab-btn").forEach(b=>b.classList.toggle("active", b.dataset.tab === tabName));
     document.querySelectorAll(".panel").forEach(p=>p.classList.toggle("active", p.id === "panel-"+tabName));
   }
@@ -5875,16 +5914,27 @@
     }
   }
 
-  /* ---------- settings drawer (gear icon in Journal toolbar) ---------- */
+  /* ---------- settings sheet (v5.6.4: opened from the Settings dock) ---------- */
   function toggleSettingsDrawer(forceOpen){
-    const drawer = document.getElementById("settingsDrawer");
-    const isOpen = drawer.style.display !== "none";
+    const sheet = document.getElementById("settingsSheet");
+    const isOpen = sheet.classList.contains("open");
     const shouldOpen = forceOpen !== undefined ? forceOpen : !isOpen;
-    drawer.style.display = shouldOpen ? "block" : "none";
-    if(shouldOpen){ refreshStorageIndicator(); renderExportNudge(); renderCloudClassifyCount(); }
+    if(shouldOpen === isOpen) return;
+    sheet.classList.toggle("open", shouldOpen);
+    document.body.classList.toggle("settings-open", shouldOpen);
+    if(shouldOpen){
+      document.getElementById("settingsDrawer").scrollTop = 0;
+      refreshStorageIndicator(); renderExportNudge(); renderCloudClassifyCount();
+    }
   }
   document.getElementById("settingsToggleBtn").addEventListener("click", ()=> toggleSettingsDrawer());
   document.getElementById("settingsCloseBtn").addEventListener("click", ()=> toggleSettingsDrawer(false));
+  // Tap the dimmed area above the sheet to close it
+  document.getElementById("settingsSheet").addEventListener("click", e=>{
+    if(e.target.id === "settingsSheet") toggleSettingsDrawer(false);
+  });
+  // Any tab change (tapped or from a Settings tool) closes the sheet
+  document.querySelectorAll(".tab-btn").forEach(b=> b.addEventListener("click", ()=> toggleSettingsDrawer(false)));
 
   document.getElementById("exportBtn").addEventListener("click", ()=>{
     runExportFlow(entries, ()=>{});
@@ -6642,7 +6692,7 @@
   function renderRelationshipScatter(entriesSubset, titleText){
     const ctx = document.getElementById("trendChart");
     const titleEl = document.getElementById("chartTitle");
-    const withAll = entriesSubset.filter(e=>isFinite(e.tempF) && isFinite(e.pressureInHg) && isFinite(e.humidity));
+    const withAll = entriesSubset.filter(e=>hasNumber(e.tempF) && hasNumber(e.pressureInHg) && hasNumber(e.humidity));
     if(withAll.length < 3){
       if(titleEl) titleEl.textContent = `${titleText} — need at least 3 entries with all three logged`;
       return;
@@ -7817,7 +7867,7 @@
     // (the "big three" — TOT/POT/HOT — matching how the rest of the app
     // treats these three as a set; Humidity was missing before).
     const temps = rangeEntries.filter(e=>isFinite(e.tempF)).map(e=>e.tempF);
-    const pressures = rangeEntries.filter(e=>isFinite(e.pressureInHg)).map(e=>e.pressureInHg);
+    const pressures = rangeEntries.filter(e=>hasNumber(e.pressureInHg)).map(e=>e.pressureInHg);
     const humidities = rangeEntries.filter(e=>isFinite(e.humidity)).map(e=>e.humidity);
     const heatPeaks = rangeEntries.filter(e=>isFinite(e.tempF)&&isFinite(e.humidity))
       .map(e=>calcHeatIndex(e.tempF,e.humidity)).filter(v=>v!=null);
@@ -7881,7 +7931,7 @@
     photoSet.forEach(e=>{
       const dataChips = [
         isFinite(e.tempF) ? `${e.tempF}°F` : null,
-        isFinite(e.pressureInHg) ? `${e.pressureInHg} inHg` : null,
+        hasNumber(e.pressureInHg) ? `${e.pressureInHg} inHg` : null,
         isFinite(e.humidity) ? `${e.humidity}% RH` : null,
         e.alertActive==="yes" && e.alertSummary ? e.alertSummary : null
       ].filter(Boolean);
