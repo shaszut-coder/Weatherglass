@@ -2,6 +2,7 @@
 # Only the app itself (index.html, sw.js, manifest.json and the icons)
 # needs to be public. Everything below stays in GitHub only.
 .git
+.wrangler
 .assetsignore
 *.md
 *.zip
