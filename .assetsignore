@@ -1,0 +1,9 @@
+# Files Cloudflare should NOT publish on weatherglass.earth.
+# Only the app itself (index.html, sw.js, manifest.json and the icons)
+# needs to be public. Everything below stays in GitHub only.
+.git
+.assetsignore
+*.md
+*.zip
+wrangler.jsonc
+cloud-classify-worker.js

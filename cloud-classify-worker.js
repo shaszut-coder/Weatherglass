@@ -32,9 +32,24 @@ ${CLOUD_GENERA.map(g => `"${g}"`).join(", ")}
 
 If multiple cloud types are visible, pick the most visually dominant one. If the photo is not a sky/cloud photo at all (e.g. it's a person, a landscape with no visible sky, an indoor photo), respond with genus: null and explain why in "reasoning".`;
 
+// Only these websites may use this Worker. Requests from any other site are
+// refused, so a stranger who finds the Worker's address can't spend your
+// Anthropic credit from their own web page. Add an address here if you ever
+// host Weatherglass somewhere else (e.g. a test copy).
+const ALLOWED_ORIGINS = [
+  "https://weatherglass.earth",
+  "https://www.weatherglass.earth",
+  "https://weatherglass.shaszut.workers.dev", // old address; remove when retired
+];
+
+// Largest photo accepted, in base64 characters (~6 MB of image data).
+// The app sends resized photos, so real requests are far smaller.
+const MAX_IMAGE_CHARS = 8_000_000;
+
 function corsHeaders(origin) {
   return {
-    "Access-Control-Allow-Origin": origin || "*",
+    "Access-Control-Allow-Origin": ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0],
+    "Vary": "Origin",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
   };
@@ -43,6 +58,13 @@ function corsHeaders(origin) {
 export default {
   async fetch(request, env) {
     const origin = request.headers.get("Origin");
+
+    if (!ALLOWED_ORIGINS.includes(origin)) {
+      return new Response(JSON.stringify({ error: "This Worker only answers requests from Weatherglass." }), {
+        status: 403,
+        headers: { "Content-Type": "application/json", ...corsHeaders(origin) },
+      });
+    }
 
     // CORS preflight
     if (request.method === "OPTIONS") {
@@ -77,6 +99,13 @@ export default {
     if (!rawImage || typeof rawImage !== "string") {
       return new Response(JSON.stringify({ error: "Missing 'imageBase64' field." }), {
         status: 400,
+        headers: { "Content-Type": "application/json", ...corsHeaders(origin) },
+      });
+    }
+
+    if (rawImage.length > MAX_IMAGE_CHARS) {
+      return new Response(JSON.stringify({ error: "Photo is too large." }), {
+        status: 413,
         headers: { "Content-Type": "application/json", ...corsHeaders(origin) },
       });
     }

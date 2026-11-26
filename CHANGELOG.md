@@ -4,6 +4,13 @@ All notable changes to Weatherglass are documented here, newest first.
 
 > **Deployment status note (as of v5.6.3, Nov 25, 2026):** **v5.6.3 is ready to upload; v5.6.2 is live and verified at https://weatherglass.earth**, including v5.6.0 (Gallery rebuild) and v5.6.1 (brass icon). The domain is registered at Porkbun, DNS is on Cloudflare, and it's a custom domain on the `weatherglass` worker. The journal now lives in the home-screen app at weatherglass.earth, merged from the old workers.dev app (782 entries, 0 duplicates). The old `weatherglass.shaszut.workers.dev` address stays on as a fallback for a few weeks, then gets retired. The v5.0.0 rollback/hotfix story (v5.0.1) is still documented below for reference. v4.10.0's AI Worker remains an optional, separately deployed piece, pending the Anthropic API account/cost setup.
 
+## Repo housekeeping (Nov 25, 2026, no app version change)
+
+- **The live site now publishes only the app.** Added `.assetsignore` so the docs, Worker source and `wrangler.jsonc` stop appearing on weatherglass.earth. Removed the old `weatherglass-netlify 11.zip` / `12.zip` backups (still in GitHub history)
+- **Security headers now actually apply.** Moved them from `netlify.toml` (Netlify-only, ignored by Cloudflare) into `_headers`, and removed `netlify.toml`
+- **AI Worker locked to Weatherglass.** `cloud-classify-worker.js` now refuses requests from other websites and photos over ~6 MB. **Re-paste it into the Cloudflare dashboard** for this to take effect on the deployed Worker
+- README: fixed the `DEPLOYMENT.md` path and updated the repo layout
+
 ## v5.6.3
 
 **New app icon: "Dusk Weatherglass."** The brass dial now looks up at the sky. Changes from v5.6.1:
