@@ -2,7 +2,32 @@
 
 All notable changes to Weatherglass are documented here, newest first.
 
-> **Deployment status note (as of v5.6.3, Nov 25, 2026):** **v5.6.3 is ready to upload; v5.6.2 is live and verified at https://weatherglass.earth**, including v5.6.0 (Gallery rebuild) and v5.6.1 (brass icon). The domain is registered at Porkbun, DNS is on Cloudflare, and it's a custom domain on the `weatherglass` worker. The journal now lives in the home-screen app at weatherglass.earth, merged from the old workers.dev app (782 entries, 0 duplicates). The old `weatherglass.shaszut.workers.dev` address stays on as a fallback for a few weeks, then gets retired. The v5.0.0 rollback/hotfix story (v5.0.1) is still documented below for reference. v4.10.0's AI Worker remains an optional, separately deployed piece, pending the Anthropic API account/cost setup.
+> **Deployment status note (as of v5.6.4, Nov 25, 2026):** **v5.6.4 was pushed directly to `main` on Nov 25 (Cloudflare deploys it automatically); on-device check pending. v5.6.3 is live and verified at https://weatherglass.earth** (new icon; the app opens offline, confirmed in airplane mode), including v5.6.0 (Gallery rebuild), v5.6.1 (brass icon) and v5.6.2 (address shown in the app). The domain is registered at Porkbun, DNS is on Cloudflare, and it's a custom domain on the `weatherglass` worker. The journal now lives in the home-screen app at weatherglass.earth, merged from the old workers.dev app (782 entries, 0 duplicates). The old `weatherglass.shaszut.workers.dev` address stays on as a fallback for a few weeks, then gets retired. The v5.0.0 rollback/hotfix story (v5.0.1) is still documented below for reference. v4.10.0's AI Worker remains an optional, separately deployed piece, pending the Anthropic API account/cost setup.
+
+## v5.6.4
+
+**Settings moved out of the Journal tab.** A slim **⚙ Settings** button now floats at the bottom center of every tab. Settings slides up as a panel over whatever tab you're on, instead of opening inside Journal and pushing the calendar down. Close it with ✕, by tapping the dimmed area above it, or by switching tabs. The panel scrolls on its own, and the page behind it stays put.
+- **Danger Zone moved to the very end** of Settings (it was third).
+- The large gear next to Journal's search box is gone.
+- Pages got extra space at the bottom so the button never covers the last thing on a page, and the "saved" messages now appear just above it.
+- **Rollback:** this release only changes `index.html`, so re-uploading v5.6.3's `index.html` undoes it. The button is one separate piece of markup, so moving it (for example to a footer line) won't touch the panel.
+
+**Shorter, separate capture guards.** The shared 30-second wait between captures is replaced with short guards that only stop an accidental double tap:
+- **Quick Log:** 5 seconds.
+- **Quick Photo Log:** 3 seconds, so you can shoot a burst during a storm.
+- Each has its own timer, so a Quick Log no longer blocks a Quick Photo, or the other way round. The Record tab's ready/cooling indicator follows whichever is longer.
+
+**Fixed: a crash after an offline capture.** Entries saved offline have no pressure until they're filled in. Pressure Watch's check treated that empty value as a real reading of 0, so the barometer dial crashed while redrawing the screen. In practice, an offline Quick Log was saved but could show "Could not save quick entry — try again," and the rest of the screen didn't refresh until the conditions filled in. A failed redraw also skipped starting the capture wait. Pressure Watch, the barometer dial, the Trends temperature/pressure/humidity check and Speaker Mode's pressure figures now count only real numbers (`hasNumber()`).
+
+`sw.js` and `manifest.json` are unchanged, so there's no `CACHE_VERSION` bump. The app page is network-first, so installed copies get v5.6.4 the next time they open online.
+
+Tested in Chrome at iPhone size, with the CDN libraries stubbed because there was no network:
+- No console errors, and the footer shows v5.6.4.
+- The Settings button shows on all 5 tabs. The panel opens, locks the page behind it, lists Danger Zone last, and closes with ✕, by tapping above it and by switching tabs.
+- Scrolled to the bottom, the footer ends above the button.
+- **Quick Log:** a second tap at once shows "Wait 5s"; after 5 s it saves.
+- **Quick Photo:** a photo right after a Quick Log saves; a second photo at once shows "Wait 3s"; after 3 s it saves.
+- Before the crash fix, the same test on v5.6.3 showed the `toFixed` error after each offline save.
 
 ## Repo housekeeping (Nov 25, 2026, no app version change)
 
