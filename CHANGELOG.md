@@ -2,7 +2,29 @@
 
 All notable changes to Weatherglass are documented here, newest first.
 
-> **Deployment status note (as of v5.6.5, Nov 25, 2026):** **v5.6.5 is in a pull request waiting to be merged. v5.6.4 is live at https://weatherglass.earth** (merged as PR #3). Before it, v5.6.3 was verified on the phone (new icon; the app opens offline, confirmed in airplane mode). Releases since v5.6.0: v5.6.0 (Gallery rebuild), v5.6.1 (brass icon), v5.6.2 (address shown in the app). The domain is registered at Porkbun, DNS is on Cloudflare, and it's a custom domain on the `weatherglass` worker. The journal now lives in the home-screen app at weatherglass.earth, merged from the old workers.dev app (782 entries, 0 duplicates). The old `weatherglass.shaszut.workers.dev` address stays on as a fallback for a few weeks, then gets retired. The v5.0.0 rollback/hotfix story (v5.0.1) is still documented below for reference. v4.10.0's AI Worker remains an optional, separately deployed piece, pending the Anthropic API account/cost setup.
+> **Deployment status note (as of v5.6.6, Nov 27, 2026):** **v5.6.6 is in a pull request waiting to be merged. v5.6.5 is live at https://weatherglass.earth** (merged as PR #4 on Nov 25). Earlier: v5.6.3 was verified on the phone (new icon; the app opens offline, confirmed in airplane mode). Releases since v5.6.0: v5.6.0 (Gallery rebuild), v5.6.1 (brass icon), v5.6.2 (address shown in the app).
+
+## v5.6.6
+
+**Settings is now "Tools."** The footer row and the panel are renamed, and the gear icon is now a wrench. The panel holds tools (backup, cleanup, backfills, notebooks, Speaker Mode) rather than settings. Help text that said "Settings → …" now says "Tools → …". The element ids keep their old `settings…` names, so nothing else had to change.
+
+**New: Tools → Diagnostics.**
+- **Error log.** The app now writes down the last 20 problems it runs into, with the time, the app version and the message: uncaught errors, failed promises, console errors and warnings (such as "Quick log save failed"), and outside libraries that fail to load. Repeats within 5 seconds are counted rather than listed again. Tap **Copy** to paste them into a chat, or **Clear** to empty the list. The log is kept in this browser's storage (`wg-error-log`) and is never sent anywhere.
+  - The logger is the first script on the page, so it can catch problems in everything after it. A typing mistake that stops the whole app from loading still can't be caught.
+- **Connection test.** One button checks whether the app can reach Ambient Weather's online service (`rt.` and `api.ambientweather.net`) straight from the browser, using made-up keys. It also checks Open-Meteo as a control. It explains the result in plain words:
+  - Ambient answered: no relay needed.
+  - Ambient didn't answer but Open-Meteo did: a Cloudflare relay is probably needed.
+  - Neither answered: check the connection.
+  - The result is also added to the error log, so Copy includes it.
+
+`sw.js` and `manifest.json` are unchanged, so there's no `CACHE_VERSION` bump.
+
+Tested in Chrome at iPhone size, with the outside libraries and services stubbed because there was no network:
+- No console errors, and the footer shows v5.6.6.
+- The footer row reads "Tools" with a wrench icon; the panel title and its screen-reader labels say Tools; Diagnostics sits just above About, and Danger Zone is still last.
+- A deliberate error and a failed promise both appeared in the log; Copy put them on the clipboard with a version header; Clear emptied it.
+- Connection test: both outcomes worked. When Ambient answered with code 401 it reported "Good news"; when Ambient was blocked it reported that a relay is probably needed.
+- **Offline:** the service worker installed and saved its 5 core files. After a second online load, the library cache held the chart add-on (`chartjs-adapter-date-fns` from `cdn.jsdelivr.net`). With the network off, the app reloaded, showed v5.6.6, and loaded the add-on from the cache.
 
 ## v5.6.5
 

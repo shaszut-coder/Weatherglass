@@ -3,23 +3,24 @@
 A personal weather journal. Log conditions by hand or pull them live, track clouds and pressure trends, watch severe weather alerts, and build a searchable history of what the sky was doing wherever you were.
 
 **Live app:** https://weatherglass.earth/
-**Current version:** v5.6.5
+**Current version:** v5.6.6
 **Philosophy:** see [PHILOSOPHY.md](./PHILOSOPHY.md) — this is a personal weather observation journal, not a forecast app
 
 ## What it does
 
 - **Installable & offline** — add it to your home screen (Safari → Share → Add to Home Screen; Chrome → Install) for a full-screen app that opens with no connection. Quick Log and Quick Photo Log work offline too: they save GPS, time, moon and photo right away, then fill in weather, place name, UV/PM2.5, tides and (for recent entries) alerts automatically once you're back online
-- **Settings** — a slim ⚙ Settings row in the footer at the end of every tab opens Settings as a panel that slides up over the current tab (backup and export first, Danger Zone last)
+- **Tools** — a slim 🔧 Tools row in the footer at the end of every tab opens the Tools panel, which slides up over the current tab (backup and export first, Danger Zone last). It was called Settings until v5.6.6, but it holds tools rather than settings
+- **Diagnostics** — Tools → Diagnostics keeps the last 20 problems the app ran into (time, app version, message) with a Copy button for pasting into a support chat, since a phone has no developer console. It also has a **connection test** that checks whether the app can reach Ambient Weather's online service directly (with made-up keys), compared against Open-Meteo
 - **Record** — log a reading manually, auto-fill current conditions with Quick Log, or use Quick Photo Log (camera-first — take a photo and conditions fill in automatically) for your GPS location. A short guard (5 s for Quick Log, 3 s for Quick Photo Log, timed separately) stops accidental double taps but allows photo bursts
-- **Notebooks** — link several entries together into one ongoing moment (e.g. a storm as it rolls through), rather than flattening changing conditions into a single reading. Manage them (rename, present in Speaker Mode, delete the grouping) from Settings → View All Notebooks
-- **Cloud Classification** — Settings → Classify Cloud Photos scans for photos without a cloud type and lets you tag them one at a time with a guided, texture-first picker (2 taps for most types) instead of hunting through a raw dropdown. Optionally connect a self-hosted AI Worker (your own Cloudflare + Anthropic API key, see `DEPLOYMENT.md`) for an AI-suggested classification instead of answering the questions yourself
+- **Notebooks** — link several entries together into one ongoing moment (e.g. a storm as it rolls through), rather than flattening changing conditions into a single reading. Manage them (rename, present in Speaker Mode, delete the grouping) from Tools → View All Notebooks
+- **Cloud Classification** — Tools → Classify Cloud Photos scans for photos without a cloud type and lets you tag them one at a time with a guided, texture-first picker (2 taps for most types) instead of hunting through a raw dropdown. Optionally connect a self-hosted AI Worker (your own Cloudflare + Anthropic API key, see `DEPLOYMENT.md`) for an AI-suggested classification instead of answering the questions yourself
 - **Journal** — a color-coded month calendar by default (green/orange/red by alert severity, with a 👁 icon for personally-flagged Notable days) — tap a day to see its entries. Search replaces the calendar with the classic flat searchable list
 - **Trends** — charts (temp, pressure, humidity, heat index, pressure rate-of-change, year-over-year, transect, UV, PM2.5) over 1d/7d/30d/All windows, plus computed Insights (temp/humidity correlation, personal comfort threshold, peak heat index, alert coverage), Pattern Tiles, and a Pressure Watch rapid-change indicator
 - **Map** — station view or a chronological route view of everywhere you've logged, color-coded by temperature, with a month-calendar picker to jump to any date's entries
 - **Gallery** — every photo in a Photos-style grid (3 across on a phone), grouped by month, with filter chips (All · Untagged · each cloud type) and small cloud-type labels on each tile. Tiles use lightweight thumbnails that load as you scroll. By Genus shows the classification collection, with "See all" per type. Plus a built-in cloud atlas reference (Cloudspotter's Guide classifications) and Goethe's cloud verses
 - **Alerts** — active NWS watches/warnings for your location, logged alongside the entry
 - **Moon phase & illumination**, logged automatically with each entry
-- **Tides** — tide state, approximate water level, and next high/low, looked up automatically on every entry (Quick Log, Quick Photo Log, manual) within 40 km of a NOAA tide station. Settings → Backfill tides fills existing coastal entries
+- **Tides** — tide state, approximate water level, and next high/low, looked up automatically on every entry (Quick Log, Quick Photo Log, manual) within 40 km of a NOAA tide station. Tools → Backfill tides fills existing coastal entries
 - **Speaker Mode** — pick a date range, get a fullscreen presentation-ready slide deck (tiles for this range and overall totals, stats, alert timeline, photos, route) for showing your data live
 - **Trip Summaries** — auto-detected from GPS gaps in your log, with distance, temp range, and notable events per trip
 
@@ -35,7 +36,7 @@ Single self-contained `index.html` — no build step, no bundler, no backend. Ev
 **Storage:** IndexedDB, with automatic one-time migration from an older localStorage-based version. Two stores: `entries` (the journal, which is what gets exported) and `thumbs` (gallery thumbnails, which aren't exported and rebuild themselves automatically). Nothing leaves your device except the API calls below — there's no server component and no account system.
 
 **External data sources** (all free, no API key required):
-- [Open-Meteo](https://open-meteo.com/) — current conditions and air quality (UV/PM2.5, captured on every entry including quick logs), plus historical backfill via Settings
+- [Open-Meteo](https://open-meteo.com/) — current conditions and air quality (UV/PM2.5, captured on every entry including quick logs), plus historical backfill via Tools
 - [api.weather.gov](https://www.weather.gov/documentation/services-web-api) (NOAA/NWS) — active weather alerts (US only)
 - [Nominatim](https://nominatim.org/) (OpenStreetMap) — reverse geocoding for location names (rate-limited to 1 request/sec per their usage policy)
 - [NOAA CO-OPS](https://tidesandcurrents.noaa.gov/) — tide predictions within 40 km of a tide station (station list cached per session)
@@ -90,7 +91,7 @@ Since everything lives in browser storage on one device, **regular exports are t
 - **Export CSV** — for spreadsheet analysis; not re-importable
 - **Speaker Kit (.zip)** — JSON + CSV + all photos as real image files + a manifest with a SHA-256 checksum, bundled in one archive
 - **Import** — accepts Weatherglass JSON exports; skips entries that already exist (by id) rather than duplicating them
-- A reminder banner appears in Settings if it's been 7+ days since your last export
+- A reminder banner appears in Tools if it's been 7+ days since your last export
 
 Very large exports split automatically into multiple parts (`part1-of-N`, `part2-of-N`, …) to avoid crashing the tab; import each part separately.
 
