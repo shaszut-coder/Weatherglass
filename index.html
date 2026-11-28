@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Weatherglass — personal weather station & log
-  Version: 5.6.5
+  Version: 5.6.6
 
   Single-file app: no build step, no backend. Data lives in the
   visitor's own browser via IndexedDB. sw.js (beside this file) only
@@ -23,6 +23,64 @@
 <title>Weatherglass — Personal Weather Station</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script>
+/* Weatherglass error log (v5.6.6). Keep this the FIRST script on the page so it
+   can record errors from everything that loads after it, including the CDN
+   libraries. Entries live in localStorage ("wg-error-log", last 20) and are
+   shown in Tools → Diagnostics with a Copy button. */
+(function(){
+  var KEY = "wg-error-log", MAX = 20;
+  function read(){ try{ return JSON.parse(localStorage.getItem(KEY) || "[]"); }catch(e){ return []; } }
+  function text(a){
+    if(a && a.message) return a.message;
+    if(a && typeof a === "object"){ try{ return JSON.stringify(a); }catch(e){ return String(a); } }
+    return String(a);
+  }
+  function add(kind, msg){
+    try{
+      var list = read();
+      msg = String(msg || "").slice(0, 500);
+      var last = list[list.length - 1];
+      if(last && last.kind === kind && last.msg === msg && Date.now() - last.t < 5000){
+        last.n = (last.n || 1) + 1;   // the same error repeating: count it, don't flood the list
+      } else {
+        list.push({ t: Date.now(), kind: kind, msg: msg, v: window.__wgVersion || "?", n: 1 });
+      }
+      while(list.length > MAX) list.shift();
+      localStorage.setItem(KEY, JSON.stringify(list));
+      if(typeof window.__wgErrorLogChanged === "function") window.__wgErrorLogChanged();
+    }catch(e){}
+  }
+  window.addEventListener("error", function(ev){
+    var t = ev.target;
+    if(t && t !== window && t.tagName){
+      // A script or stylesheet that failed to load (images and map tiles are ignored)
+      if(t.tagName === "SCRIPT" || t.tagName === "LINK") add("load", "Couldn't load " + (t.src || t.href));
+      return;
+    }
+    var where = ev.filename ? " (" + String(ev.filename).split("/").pop() + ":" + ev.lineno + ")" : "";
+    add("error", (ev.message || "Unknown error") + where);
+  }, true);
+  window.addEventListener("unhandledrejection", function(ev){
+    add("promise", text(ev.reason));
+  });
+  ["error", "warn"].forEach(function(level){
+    var orig = console[level];
+    console[level] = function(){
+      try{ add("console." + level, Array.prototype.map.call(arguments, text).join(" ")); }catch(e){}
+      return orig.apply(console, arguments);
+    };
+  });
+  window.wgErrorLog = {
+    read: read,
+    add: add,
+    clear: function(){
+      try{ localStorage.removeItem(KEY); }catch(e){}
+      if(typeof window.__wgErrorLogChanged === "function") window.__wgErrorLogChanged();
+    }
+  };
+})();
+</script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" crossorigin="anonymous" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" crossorigin="anonymous"></script>
@@ -1378,22 +1436,22 @@
   <section class="panel" id="panel-settings" style="display:none !important;"><!-- settings moved to journal drawer --></section>
 
   <footer>
-    <!-- Settings button (v5.6.5: moved from the floating dock to the footer). Only this button moves; the sheet below stays the same. -->
+    <!-- Tools button (v5.6.5: moved to the footer; v5.6.6: renamed from "Settings", wrench icon). Element ids keep the old "settings" names on purpose. -->
     <button type="button" id="settingsToggleBtn" class="settings-footer-btn" aria-haspopup="dialog" aria-controls="settingsSheet">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="3.2" stroke="currentColor" stroke-width="2.2"/><g stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/><line x1="4.9" y1="4.9" x2="7" y2="7"/><line x1="17" y1="17" x2="19.1" y2="19.1"/><line x1="4.9" y1="19.1" x2="7" y2="17"/><line x1="17" y1="7" x2="19.1" y2="4.9"/></g></svg>
-      <span>Settings</span>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>Tools</span>
     </button><br>
     <a href="https://weatherglass.earth" id="footerHomeLink" style="color:inherit; text-decoration:none; font-weight:600;">weatherglass.earth</a>
     <span id="footerVersion"></span><br>
     Stored locally in this browser — nothing leaves your machine.
   </footer>
 
-  <div id="settingsSheet" role="dialog" aria-modal="true" aria-label="Settings">
+  <div id="settingsSheet" role="dialog" aria-modal="true" aria-label="Tools">
     <!-- Settings sheet (v5.6.4): opened from the Settings button in the footer of every tab (v5.6.5) -->
     <div id="settingsDrawer">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-        <span style="font-family:'Playfair Display',serif; font-style:italic; font-weight:600; font-size:19px; color:var(--steel);">Settings</span>
-        <button type="button" id="settingsCloseBtn" aria-label="Close settings" style="background:none; border:none; font-size:20px; color:var(--ink-soft); cursor:pointer; width:44px; height:44px; margin-right:-10px;">✕</button>
+        <span style="font-family:'Playfair Display',serif; font-style:italic; font-weight:600; font-size:19px; color:var(--steel);">Tools</span>
+        <button type="button" id="settingsCloseBtn" aria-label="Close tools" style="background:none; border:none; font-size:20px; color:var(--ink-soft); cursor:pointer; width:44px; height:44px; margin-right:-10px;">✕</button>
       </div>
 
     <h3 class="records-title">Data &amp; Backup</h3>
@@ -1530,6 +1588,23 @@
       </div>
       <button type="button" class="btn" id="speakerModeStartBtn" style="width:100%;">Start Presentation</button>
       <div id="speakerModeStatus" style="display:none; margin-top:8px; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft);"></div>
+    </div>
+
+    <h3 class="records-title">Diagnostics</h3>
+    <div style="border:1px dashed var(--line); border-radius:6px; padding:12px 14px; margin-bottom:18px;">
+      <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin-bottom:10px;">
+        If something goes wrong, the app writes it down here (the last 20 problems, with the time and app version). Tap Copy and paste it into your chat with Claude.
+      </div>
+      <div id="errorLogList" style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink); line-height:1.5; max-height:220px; overflow-y:auto; white-space:pre-wrap; word-break:break-word; border:1px solid var(--line); border-radius:4px; padding:8px 10px; margin-bottom:10px; background:var(--glass);"></div>
+      <div style="display:flex; gap:10px; margin-bottom:6px;">
+        <button type="button" class="btn secondary" id="errorLogCopyBtn" style="flex:1;">Copy</button>
+        <button type="button" class="btn secondary" id="errorLogClearBtn" style="flex:1;">Clear</button>
+      </div>
+      <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); margin:16px 0 10px;">
+        <strong style="color:var(--ink);">Connection test.</strong> Checks whether this app can reach Ambient Weather's online service directly, before you buy a station. It also checks Open-Meteo, which is known to work, for comparison. It uses made-up keys and sends nothing about you or your journal.
+      </div>
+      <button type="button" class="btn secondary" id="connTestBtn" style="width:100%;">Run connection test</button>
+      <div id="connTestResult" style="display:none; margin-top:10px; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink); line-height:1.6; white-space:pre-wrap;"></div>
     </div>
 
     <h3 class="records-title">About</h3>
@@ -1719,7 +1794,8 @@
 (function(){
   "use strict";
 
-  const APP_VERSION = "5.6.5";
+  const APP_VERSION = "5.6.6";
+  window.__wgVersion = APP_VERSION;   // read by the error log in <head>
   const STORAGE_KEY = "weatherglass.entries.v1";
 
   function showToast(message, kind){
@@ -3077,7 +3153,7 @@
     grid.style.display = "block";
     const withGenus = entries.filter(e=>e.cloudGenus);
     if(!withGenus.length){
-      grid.innerHTML = `<div class="empty-state">No classified photos yet — use Settings → Classify Cloud Photos to get started.</div>`;
+      grid.innerHTML = `<div class="empty-state">No classified photos yet — use Tools → Classify Cloud Photos to get started.</div>`;
       return;
     }
     const byGenus = {};
@@ -5909,6 +5985,96 @@
     }
   }
 
+
+  /* ---------- Tools → Diagnostics (v5.6.6): error log + connection test ---------- */
+  function formatErrorLogEntry(e){
+    const d = new Date(e.t);
+    const when = d.toLocaleString([], {month:"short", day:"numeric", hour:"numeric", minute:"2-digit", second:"2-digit"});
+    return `${when} · v${e.v} · ${e.kind}${e.n > 1 ? ` (×${e.n})` : ""}\n${e.msg}`;
+  }
+  function errorLogText(){
+    const list = (window.wgErrorLog ? window.wgErrorLog.read() : []);
+    if(!list.length) return "";
+    const head = `Weatherglass v${APP_VERSION} diagnostics · ${new Date().toLocaleString()} · ${navigator.userAgent}`;
+    return head + "\n\n" + list.slice().reverse().map(formatErrorLogEntry).join("\n\n");
+  }
+  function renderErrorLog(){
+    const box = document.getElementById("errorLogList");
+    if(!box) return;
+    const list = (window.wgErrorLog ? window.wgErrorLog.read() : []);
+    box.textContent = list.length
+      ? list.slice().reverse().map(formatErrorLogEntry).join("\n\n")
+      : "No problems recorded. 👍";
+  }
+  window.__wgErrorLogChanged = renderErrorLog;
+  async function copyText(t){
+    try{ await navigator.clipboard.writeText(t); return true; }
+    catch(err){
+      // Fallback for browsers that block the clipboard API
+      const ta = document.createElement("textarea");
+      ta.value = t; ta.setAttribute("readonly", ""); ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      let ok = false; try{ ok = document.execCommand("copy"); }catch(e2){}
+      ta.remove(); return ok;
+    }
+  }
+  document.getElementById("errorLogCopyBtn").addEventListener("click", async ()=>{
+    const t = errorLogText();
+    if(!t){ showToast("Nothing to copy — no problems recorded"); return; }
+    showToast(await copyText(t) ? "Diagnostics copied — paste it into your chat" : "Couldn't copy — take a screenshot instead", "");
+  });
+  document.getElementById("errorLogClearBtn").addEventListener("click", ()=>{
+    if(window.wgErrorLog) window.wgErrorLog.clear();
+    renderErrorLog();
+    showToast("Diagnostics cleared");
+  });
+
+  async function probeUrl(url){
+    const ctl = new AbortController();
+    const timer = setTimeout(()=> ctl.abort(), 10000);
+    const t0 = performance.now();
+    try{
+      const res = await fetch(url, {signal: ctl.signal, cache: "no-store"});
+      return {reached: true, status: res.status, ms: Math.round(performance.now() - t0)};
+    }catch(err){
+      return {reached: false, why: err && err.name === "AbortError" ? "no answer within 10 seconds" : "Failed to fetch"};
+    }finally{
+      clearTimeout(timer);
+    }
+  }
+  function probeLine(label, r){
+    return r.reached ? `✓ ${label}: answered (code ${r.status}, ${r.ms} ms)` : `✗ ${label}: ${r.why}`;
+  }
+  document.getElementById("connTestBtn").addEventListener("click", async ()=>{
+    const btn = document.getElementById("connTestBtn");
+    const out = document.getElementById("connTestResult");
+    btn.disabled = true; btn.textContent = "Testing…";
+    out.style.display = "block"; out.textContent = "Testing… this takes up to 10 seconds.";
+    const fakeKeys = "applicationKey=weatherglass-connection-test&apiKey=weatherglass-connection-test";
+    const [om, rt, api] = await Promise.all([
+      probeUrl("https://api.open-meteo.com/v1/forecast?latitude=41.88&longitude=-87.63&current=temperature_2m"),
+      probeUrl("https://rt.ambientweather.net/v1/devices?" + fakeKeys),
+      probeUrl("https://api.ambientweather.net/v1/devices?" + fakeKeys)
+    ]);
+    const lines = [
+      probeLine("Open-Meteo (control)", om),
+      probeLine("Ambient (rt.ambientweather.net)", rt),
+      probeLine("Ambient (api.ambientweather.net)", api)
+    ];
+    let verdict;
+    if(!om.reached){
+      verdict = "Can't tell yet: this phone couldn't reach Open-Meteo either, so the connection itself is the problem. Check your signal or Wi-Fi and run it again.";
+    } else if(rt.reached || api.reached){
+      verdict = "Good news: the app can talk to Ambient directly. The error code is expected, because the test uses made-up keys. With real keys, a station's readings could come straight into Weatherglass, with no relay needed.";
+    } else {
+      verdict = "Ambient didn't answer, while Open-Meteo did. Most likely Ambient doesn't allow direct access from web pages, so a small Cloudflare relay would be needed. A web page can't fully tell this apart from a brief network hiccup, so run it once more to be sure.";
+    }
+    const summary = lines.join("\n") + "\n\n" + verdict;
+    out.textContent = summary;
+    if(window.wgErrorLog) window.wgErrorLog.add("connection test", lines.join(" | "));
+    btn.disabled = false; btn.textContent = "Run connection test";
+  });
+
   /* ---------- settings sheet (v5.6.4; opened from the footer button since v5.6.5) ---------- */
   function toggleSettingsDrawer(forceOpen){
     const sheet = document.getElementById("settingsSheet");
@@ -5919,7 +6085,7 @@
     document.body.classList.toggle("settings-open", shouldOpen);
     if(shouldOpen){
       document.getElementById("settingsDrawer").scrollTop = 0;
-      refreshStorageIndicator(); renderExportNudge(); renderCloudClassifyCount();
+      refreshStorageIndicator(); renderExportNudge(); renderCloudClassifyCount(); renderErrorLog();
     }
   }
   document.getElementById("settingsToggleBtn").addEventListener("click", ()=> toggleSettingsDrawer());
